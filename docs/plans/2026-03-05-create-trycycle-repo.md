@@ -148,12 +148,6 @@ Codex CLI -- tell Codex to fetch and follow the install instructions:
 Fetch and follow instructions from https://raw.githubusercontent.com/obra/superpowers/refs/heads/main/.codex/INSTALL.md
 ```
 
-Cursor -- run this command in the Cursor prompt:
-
-```
-/plugin-add superpowers
-```
-
 ## Installing trycycle
 
 Claude Code stores skills in `~/.claude/skills/`. Clone this repo there:
@@ -178,7 +172,7 @@ git -C ~/.claude/skills/trycycle pull
 
 ## Using trycycle
 
-Once superpowers and trycycle are both installed, you can use trycycle from any Claude Code or Codex CLI session. Just tell Claude what you want and include the word trycycle in your request. For example:
+Once superpowers and trycycle are both installed, you can use trycycle from any Claude Code or Codex CLI session. Just include the word trycycle in your request and describe what you want built. For example:
 
 ```
 Use trycycle to add a dark mode toggle to the settings page.
@@ -215,7 +209,7 @@ cp /tmp/trycycle-readme-draft.md /home/user/code/trycycle/.worktrees/create-tryc
 wc -l /home/user/code/trycycle/.worktrees/create-trycycle-repo/README.md
 ```
 
-Expected: approximately 66 lines.
+Expected: approximately 60 lines.
 
 **Step 5: Commit**
 
