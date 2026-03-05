@@ -1,10 +1,10 @@
-# Create trycycle repo — implementation plan
+# Create trycycle repo -- implementation plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Create a public GitHub repo `danshapiro/trycycle` containing the trycycle skill files, a README written with the writing-prose skill, and an MIT license.
 
-**Architecture:** Copy the trycycle skill files into the repo root preserving their directory structure (`SKILL.md` and `agents/openai.yaml`). Write a README using the writing-prose skill (with prose lint pass). Add an MIT LICENSE. Push to GitHub as a public repo.
+**Architecture:** Copy the trycycle skill files into the repo root preserving their directory structure (`SKILL.md` and `agents/openai.yaml`). Write a README using the writing-prose skill (with prose lint pass). Add an MIT LICENSE. Create the GitHub repo, merge the feature branch to main, then push.
 
 **Tech Stack:** Git, GitHub CLI (`gh`), Python 3 (for prose lint), Markdown
 
@@ -60,7 +60,7 @@ git commit -m "feat: add trycycle skill files"
 
 **Step 1: Write the LICENSE file**
 
-Create `LICENSE` with the MIT license text. The author is Dan Shapiro, year 2026.
+Create `LICENSE` with the following exact content:
 
 ```text
 MIT License
@@ -106,90 +106,88 @@ git commit -m "feat: add MIT license"
 
 ### Task 3: Write README.md using writing-prose skill
 
+REQUIRED SUB-SKILL: Use `writing-prose` for all prose content in this task.
+
 **Files:**
 - Create: `README.md`
 
-This task requires following the `writing-prose` skill for all prose content. The README must satisfy these constraints from the user:
+This task produces a README that satisfies these constraints:
 
-1. Friendly, approachable tone for someone who is new to Claude Code or Codex CLI — without using words like "novice" or "beginner."
+1. Friendly, approachable tone for someone who is new to Claude Code or Codex CLI -- without using words like "novice" or "beginner."
 2. Clear installation and usage instructions.
 3. Superpowers installation as a prerequisite, with a note that superpowers are useful on their own and may activate outside trycycle.
 4. Only the LAST paragraph explains how trycycle works (it is a hill climber that iterates on plans and code through multiple review rounds).
-5. Must pass `writing-prose` prose lint (`python3 /home/user/.claude/skills/writing-prose/scripts/prose_lint.py --file <path>`).
+5. Must pass the `writing-prose` prose lint script.
+6. All URLs and link-like text must be inside fenced code blocks or inline code spans to avoid triggering lint bracket patterns.
 
-**Step 1: Draft the README content**
+**Step 1: Write the README draft to a temp file**
 
-Write the README to a temp file first. The content structure should be:
+Write the following exact content to `/tmp/trycycle-readme-draft.md`:
 
-- **Title and one-line description** — what trycycle does in plain terms.
-- **Prerequisites section** — installing superpowers (with note about general usefulness), with platform-specific install commands for Claude Code, Codex, and Cursor.
-- **Installation section** — how to install the trycycle skill itself (copy to `~/.claude/skills/trycycle/` or clone the repo there).
-- **Usage section** — how to invoke trycycle (just ask Claude Code / Codex to "use trycycle to [do something]").
-- **Final paragraph** — how it works: trycycle is a hill climber that plans, builds, reviews, and iterates.
-
-Key writing-prose rules to follow:
-- Sentence case headings (not title case).
-- No boldface overuse, no emoji, no "here is a", no promotional language.
-- No "serves as", "stands as" — use "is/are/has" instead.
-- No "crucial", "enhance", "showcase", "pivotal", "highlight", "delve", "fostering", etc.
-- No ritual conclusions ("in summary", "overall").
-- No rule-of-three adjective patterns.
-- No "not only...but also" constructions.
-- All prose must pass the lint script.
-
-Draft to temp file:
-
-```bash
-cat > /tmp/trycycle-readme-draft.md << 'DRAFT'
-[README content here — see Step 1a below for the actual text]
-DRAFT
-```
-
-**Step 1a: README content**
-
-The README content (to be written with writing-prose compliance). All code blocks will be wrapped in `<!-- prose-lint: ignore-start -->` / `<!-- prose-lint: ignore-end -->` or fenced code blocks (which are auto-excluded from lint). Headings must be sentence case. No boldface in prose paragraphs.
-
-Structure:
-
-```markdown
+````markdown
 # trycycle
 
-A skill for Claude Code and Codex CLI that runs your work through multiple rounds of planning, building, and review — automatically.
+A skill for Claude Code and Codex CLI that runs your work through multiple rounds of planning, building, and review -- automatically.
 
 ## Prerequisites
 
-Trycycle depends on superpowers, a plugin that gives Claude Code and Codex CLI the ability to spawn subagents, manage worktrees, and run structured development loops. Superpowers is generally useful beyond trycycle, and once installed, it may activate for other tasks too.
+Trycycle depends on superpowers, a plugin that gives Claude Code and Codex CLI the ability to spawn subagents, manage worktrees, and run structured development loops. Superpowers is useful on its own, and once installed, it may activate for tasks beyond trycycle.
 
 Install superpowers for your platform:
 
-[code block with Claude Code install command]
-[code block with Codex install command]
-[code block with Cursor install command]
+Claude Code -- run these two commands in the Claude Code prompt:
+
+```
+/plugin marketplace add obra/superpowers-marketplace
+/plugin install superpowers@superpowers-marketplace
+```
+
+Codex CLI -- tell Codex to fetch and follow the install instructions:
+
+```
+Fetch and follow instructions from https://raw.githubusercontent.com/obra/superpowers/refs/heads/main/.codex/INSTALL.md
+```
+
+Cursor -- run this command in the Cursor prompt:
+
+```
+/plugin-add superpowers
+```
 
 ## Installing trycycle
 
-Clone this repo into your Claude skills directory:
+Clone this repo into your Claude Code skills directory:
 
-[code block with clone command]
+```bash
+git clone https://github.com/danshapiro/trycycle.git ~/.claude/skills/trycycle
+```
 
-If you already have a skills directory with other skills in it, just clone into it:
+If you already have other skills in that directory, just clone into it directly -- the path above will create the `trycycle` subdirectory for you.
 
-[code block]
+To update later, pull the latest:
+
+```bash
+git -C ~/.claude/skills/trycycle pull
+```
 
 ## Using trycycle
 
-[2-3 short paragraphs on how to invoke it]
+Once superpowers and trycycle are both installed, you can use trycycle from any Claude Code or Codex CLI session. Just tell Claude what you want and include the word trycycle in your request. For example:
+
+```
+Use trycycle to add a dark mode toggle to the settings page.
+```
+
+Trycycle will ask you any questions it needs answered before starting, then handle the rest. It creates a git worktree, writes a plan, reviews the plan, builds the code, and reviews the code -- all without further input from you unless something comes up that needs your judgment.
+
+You can use trycycle for anything from small features to large refactors. It works best when you have a clear goal in mind and a codebase that trycycle can read and test.
 
 ## How it works
 
-[Single paragraph: hill climber, iterates plans through review, builds code, iterates code through review]
-```
+Trycycle is a hill climber. It writes a plan, sends it to a reviewer, revises the plan based on feedback, and repeats until the reviewer finds no more issues (up to five rounds). Then it builds the code from the finished plan, sends the code to a fresh reviewer, fixes what the reviewer finds, and repeats that loop too (up to eight rounds). Each review round uses a new reviewer with no memory of previous rounds, so stale context never accumulates.
+````
 
-**Step 2: Write the draft to temp file**
-
-Write the actual README text to `/tmp/trycycle-readme-draft.md`.
-
-**Step 3: Run prose lint**
+**Step 2: Run prose lint**
 
 ```bash
 python3 /home/user/.claude/skills/writing-prose/scripts/prose_lint.py --file /tmp/trycycle-readme-draft.md
@@ -197,21 +195,23 @@ python3 /home/user/.claude/skills/writing-prose/scripts/prose_lint.py --file /tm
 
 Expected: `OK: no lint violations` (exit code 0).
 
-If lint fails, revise the prose in the temp file and re-lint. Repeat until clean.
+If lint fails, revise the prose in the temp file to fix the specific violations, then re-lint. Repeat until clean. Do not change content inside fenced code blocks -- those are excluded from lint automatically.
 
-**Step 4: Copy final draft to repo**
+**Step 3: Copy final draft to repo**
 
 ```bash
 cp /tmp/trycycle-readme-draft.md /home/user/code/trycycle/.worktrees/create-trycycle-repo/README.md
 ```
 
-**Step 5: Verify final README is in place**
+**Step 4: Verify final README is in place**
 
 ```bash
-cat /home/user/code/trycycle/.worktrees/create-trycycle-repo/README.md
+wc -l /home/user/code/trycycle/.worktrees/create-trycycle-repo/README.md
 ```
 
-**Step 6: Commit**
+Expected: approximately 61 lines.
+
+**Step 5: Commit**
 
 ```bash
 cd /home/user/code/trycycle/.worktrees/create-trycycle-repo
@@ -223,7 +223,7 @@ git commit -m "feat: add README with installation and usage instructions"
 
 ### Task 4: Create public GitHub repo and push
 
-**Step 1: Verify all files are committed**
+**Step 1: Verify all files are committed in worktree**
 
 ```bash
 cd /home/user/code/trycycle/.worktrees/create-trycycle-repo
@@ -231,48 +231,47 @@ git status --short
 git log --oneline
 ```
 
-Expected: Clean status, commits for skill files, LICENSE, and README.
+Expected: Clean status. Commits for skill files, LICENSE, and README visible.
 
-**Step 2: Check if remote already exists**
+**Step 2: Merge feature branch into main**
+
+From the main repo directory, fast-forward main to include all feature branch commits:
+
+```bash
+cd /home/user/code/trycycle
+git merge --ff-only create-trycycle-repo
+```
+
+Expected: Fast-forward succeeds. If it fails, rebase the feature branch in the worktree first, then retry.
+
+**Step 3: Check if remote already exists**
 
 ```bash
 cd /home/user/code/trycycle
 git remote -v
 ```
 
-If no remote named `origin` exists, or it points elsewhere, set it up in Step 3.
+**Step 4: Create the GitHub repo (without pushing)**
 
-**Step 3: Create the GitHub repo**
-
-```bash
-cd /home/user/code/trycycle
-gh repo create danshapiro/trycycle --public --source=. --push
-```
-
-If the remote already exists, just push:
-
-```bash
-cd /home/user/code/trycycle/.worktrees/create-trycycle-repo
-git push origin create-trycycle-repo
-```
-
-**Step 4: Merge to main and push**
-
-First, merge the feature branch into main within the worktree workflow:
+If no remote exists:
 
 ```bash
 cd /home/user/code/trycycle
-git merge --ff-only create-trycycle-repo
-git push origin main
+gh repo create danshapiro/trycycle --public --source=.
 ```
 
-**Step 5: Verify on GitHub**
+This creates the remote repo and adds the `origin` remote, but does not push.
+
+If a remote named `origin` already exists and points to `danshapiro/trycycle`, skip this step.
+
+**Step 5: Push main to GitHub**
 
 ```bash
-gh repo view danshapiro/trycycle --web
+cd /home/user/code/trycycle
+git push -u origin main
 ```
 
-Or verify with:
+**Step 6: Verify on GitHub**
 
 ```bash
 gh repo view danshapiro/trycycle --json name,visibility,url
@@ -286,19 +285,29 @@ Expected: Repo is public, URL is `https://github.com/danshapiro/trycycle`.
 
 **Step 1: Remove the worktree**
 
+This must happen before deleting the branch.
+
 ```bash
 cd /home/user/code/trycycle
 git worktree remove .worktrees/create-trycycle-repo
 ```
 
-**Step 2: Delete the branch**
+**Step 2: Delete the feature branch**
+
+Only after the worktree has been removed:
 
 ```bash
 cd /home/user/code/trycycle
 git branch -d create-trycycle-repo
 ```
 
-**Step 3: Final verification**
+**Step 3: Clean up temp file**
+
+```bash
+rm -f /tmp/trycycle-readme-draft.md
+```
+
+**Step 4: Final verification**
 
 ```bash
 cd /home/user/code/trycycle
@@ -306,4 +315,4 @@ git log --oneline -5
 ls -la
 ```
 
-Expected: Main branch has all commits. Files present: `.gitignore`, `SKILL.md`, `agents/openai.yaml`, `LICENSE`, `README.md`.
+Expected: Main branch has all commits. Files present: `.gitignore`, `SKILL.md`, `agents/openai.yaml`, `LICENSE`, `README.md`, `docs/`.
