@@ -156,15 +156,21 @@ Cursor -- run this command in the Cursor prompt:
 
 ## Installing trycycle
 
-Clone this repo into your Claude Code skills directory:
+Claude Code stores skills in `~/.claude/skills/`. Clone this repo there:
 
 ```bash
 git clone https://github.com/danshapiro/trycycle.git ~/.claude/skills/trycycle
 ```
 
-If you already have other skills in that directory, just clone into it directly -- the path above will create the `trycycle` subdirectory for you.
+Codex CLI stores skills in `~/.codex/skills/`. Clone there instead:
 
-To update later, pull the latest:
+```bash
+git clone https://github.com/danshapiro/trycycle.git ~/.codex/skills/trycycle
+```
+
+If the skills directory already has other skills in it, that's fine -- the commands above create the `trycycle` subdirectory automatically.
+
+To update later, pull from whichever path you used:
 
 ```bash
 git -C ~/.claude/skills/trycycle pull
@@ -209,7 +215,7 @@ cp /tmp/trycycle-readme-draft.md /home/user/code/trycycle/.worktrees/create-tryc
 wc -l /home/user/code/trycycle/.worktrees/create-trycycle-repo/README.md
 ```
 
-Expected: approximately 61 lines.
+Expected: approximately 66 lines.
 
 **Step 5: Commit**
 
@@ -221,7 +227,42 @@ git commit -m "feat: add README with installation and usage instructions"
 
 ---
 
-### Task 4: Create public GitHub repo and push
+### Task 4: Remove plan artifacts from the repo
+
+The `docs/plans/` directory contains trycycle process artifacts that should not be published. Remove it before merging to main.
+
+**Files:**
+- Delete: `docs/plans/2026-03-05-create-trycycle-repo.md`
+- Delete: `docs/plans/` (directory)
+- Delete: `docs/` (directory, if now empty)
+
+**Step 1: Remove the docs directory**
+
+```bash
+cd /home/user/code/trycycle/.worktrees/create-trycycle-repo
+rm -rf docs
+```
+
+**Step 2: Stage the deletion and commit**
+
+```bash
+cd /home/user/code/trycycle/.worktrees/create-trycycle-repo
+git add -A docs
+git commit -m "chore: remove plan artifacts before publish"
+```
+
+**Step 3: Verify the directory is gone**
+
+```bash
+cd /home/user/code/trycycle/.worktrees/create-trycycle-repo
+ls docs 2>&1
+```
+
+Expected: `ls: cannot access 'docs': No such file or directory`
+
+---
+
+### Task 5: Create public GitHub repo and push
 
 **Step 1: Verify all files are committed in worktree**
 
@@ -231,7 +272,7 @@ git status --short
 git log --oneline
 ```
 
-Expected: Clean status. Commits for skill files, LICENSE, and README visible.
+Expected: Clean status. Commits for skill files, LICENSE, README, and plan artifact removal visible.
 
 **Step 2: Merge feature branch into main**
 
@@ -281,7 +322,7 @@ Expected: Repo is public, URL is `https://github.com/danshapiro/trycycle`.
 
 ---
 
-### Task 5: Clean up
+### Task 6: Clean up
 
 **Step 1: Remove the worktree**
 
@@ -315,4 +356,4 @@ git log --oneline -5
 ls -la
 ```
 
-Expected: Main branch has all commits. Files present: `.gitignore`, `SKILL.md`, `agents/openai.yaml`, `LICENSE`, `README.md`, `docs/`.
+Expected: Main branch has all commits. Files present: `.gitignore`, `SKILL.md`, `agents/openai.yaml`, `LICENSE`, `README.md`.
