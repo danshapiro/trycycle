@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Allow running from within a Claude Code session
+unset CLAUDECODE 2>/dev/null || true
+
 REPO_URL="https://github.com/obra/superpowers.git"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRYCYCLE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -204,7 +207,11 @@ import_skill() {
     --dangerously-skip-permissions \
     --add-dir "$TRYCYCLE_ROOT" 2>/dev/null)"
 
-  # 7. Check for ABORT
+  # 7. Check for ABORT or empty output
+  if [[ -z "$output" ]]; then
+    echo "  ERROR: claude -p returned empty output"
+    return 1
+  fi
   if [[ "$output" == ABORT:* ]]; then
     echo "  $output"
     return 1
@@ -212,7 +219,7 @@ import_skill() {
 
   # 8. Write output
   mkdir -p "$SKILLS_DIR/$trycycle_name"
-  echo "$output" > "$trycycle_skill_file"
+  printf '%s\n' "$output" > "$trycycle_skill_file"
   echo "  Written to $trycycle_skill_file"
   return 0
 }
