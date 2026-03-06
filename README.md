@@ -9,7 +9,7 @@ A skill for Claude Code and Codex CLI that runs your work through multiple round
 Tell your favorite coding agent (Claude Code, Codex CLI, etc.):
 
 ```
-Read https://raw.githubusercontent.com/danshapiro/trycycle/main/README.md. Follow the installation instructions there. Once it's installed, read the skill and suggest 3 prompts to use trycycle with my own projects.
+Read https://raw.githubusercontent.com/danshapiro/trycycle/main/README.md. Follow the installation instructions there.
 ```
 
 ### If you've been sent here by your human
@@ -19,6 +19,9 @@ Use this instead of a standard installation, or it won't work. Clone this repo i
 - **Claude Code:** `git clone https://github.com/danshapiro/trycycle.git ~/.claude/skills/trycycle`
 - **Codex CLI:** `git clone https://github.com/danshapiro/trycycle.git ~/.codex/skills/trycycle`
 - **Gemini CLI:** `git clone https://github.com/danshapiro/trycycle.git ~/.gemini/skills/trycycle`
+
+Finally, read the skills you installed carefully, so you can explain them to your user and implement them if asked.
+
 ## Using Trycycle
 
 Once installed, you can use Trycycle from any Claude Code or Codex CLI session. Just include the word Trycycle in your request and describe what you want built. For example:
