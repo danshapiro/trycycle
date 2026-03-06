@@ -1,0 +1,24 @@
+This skill is invoked in trycycle Step 7 ("Finish"). After the post-implementation review loop passes, the orchestrator tells the main agent to use this skill to present integration options.
+
+**What the orchestrator already handles:**
+- The orchestrator has already verified correctness through up to 8 rounds of code review (Step 6).
+- The orchestrator runs its own cleanup of temporary artifacts before invoking this skill.
+- The orchestrator runs final worktree hygiene checks (status, HEAD, changed files) before this step.
+
+**What to strip:**
+
+1. **Remove references to subagent-driven-development and brainstorming** in "Called by" / integration sections.
+
+2. **Keep almost everything else.** This skill is already lean and focused:
+   - Step 1 (Verify Tests) — keep. Even though the review loop passed, a final test run before merge is good hygiene.
+   - Step 2 (Determine Base Branch) — keep.
+   - Step 3 (Present Options) — keep the 4 options exactly as-is.
+   - Step 4 (Execute Choice) — keep all 4 option implementations.
+   - Step 5 (Cleanup Worktree) — keep.
+   - Quick Reference table — keep.
+   - Common Mistakes — keep the ones about skipping test verification, no confirmation for discard. Remove ones about integration with skills we don't ship.
+   - Red Flags — keep.
+
+3. **This is the lightest adaptation** of the four skills. The finishing workflow is self-contained and the orchestrator doesn't override any of its behavior — it just invokes it.
+
+**Resulting structure should be roughly the same as the original, minus stale cross-references.**

@@ -1,0 +1,67 @@
+You are adapting a skill from the superpowers project (by Jesse Vincent, https://github.com/obra/superpowers) for use as an inlined subskill in the trycycle project.
+
+## Step 1: Understand trycycle
+
+Read these files to understand what trycycle is and how this subskill fits into the orchestration:
+
+- {{TRYCYCLE_ROOT}}/SKILL.md — the trycycle orchestrator. This is the conductor. It spawns subagents and tells them which skills to use. Understanding which step invokes this skill and what overrides the orchestrator already applies is critical.
+- {{TRYCYCLE_ROOT}}/README.md — explains what trycycle is to end users.
+
+Read them now before continuing.
+
+## Step 2: Understand the source skill
+
+You are adapting: **{{SOURCE_NAME}}** → **{{TRYCYCLE_NAME}}**
+
+Here is the current upstream source (at commit {{UPSTREAM_HEAD}}):
+
+<upstream-source>
+{{UPSTREAM_SOURCE}}
+</upstream-source>
+
+{{SOURCE_DIFF_SECTION}}
+
+{{ADAPTATION_DIFF_SECTION}}
+
+{{EXISTING_ADAPTATION_SECTION}}
+
+## Step 3: Adapt the skill
+
+Transform the upstream source into a trycycle subskill. The guiding principle: **strip everything that trycycle's orchestrator already handles**, so the subagent gets clean, focused instructions without contradictions or dead weight.
+
+### Universal adaptations (apply to all skills)
+
+1. **Rename references.** All `superpowers:X` references become `trycycle-X`. The skill name in the YAML frontmatter becomes `{{TRYCYCLE_NAME}}`.
+
+2. **Remove integration/cross-reference sections.** Remove "Called by", "Pairs with", "Integration" sections that reference skills we don't ship (brainstorming, subagent-driven-development). If there's useful pairing info for skills we DO ship (trycycle-worktrees, trycycle-planning, trycycle-executing, trycycle-finishing), keep it but use the trycycle names.
+
+3. **Remove "Announce at start" lines.** The orchestrator controls announcements. The subagent doesn't need to announce.
+
+4. **Remove red flags / common mistakes sections** that warn about things the orchestrator already prevents.
+
+5. **Keep the core operational content** — the stuff the subagent actually needs to follow to do its job. When in doubt about whether something is needed, keep it.
+
+### Skill-specific adaptations
+
+{{SKILL_SPECIFIC_INSTRUCTIONS}}
+
+### Attribution header
+
+The output MUST start with exactly this header (before the YAML frontmatter):
+
+```
+<!-- {{TRYCYCLE_NAME}}: adapted from obra/superpowers {{SOURCE_NAME}} -->
+<!-- source: https://github.com/obra/superpowers -->
+<!-- author: Jesse Vincent -->
+<!-- base-commit: {{UPSTREAM_HEAD}} -->
+<!-- imported: {{TODAY}} -->
+```
+
+Then the YAML frontmatter, then the skill content.
+
+## Output format
+
+Output ONLY the complete adapted SKILL.md file content. No commentary, no explanation, no markdown code fences wrapping the output. Just the raw file content starting with the attribution header.
+
+If the upstream source has changed in ways that make confident adaptation impossible (major restructuring, new concepts, removed sections you expected to find), output exactly one line:
+ABORT: <reason>

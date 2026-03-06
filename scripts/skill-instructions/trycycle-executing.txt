@@ -1,0 +1,30 @@
+This skill is invoked in trycycle Step 5 ("Execute with executing-plans"). A dedicated implementation subagent is spawned and told to use this skill to implement the plan.
+
+**What the orchestrator already handles:**
+- The orchestrator spawns a dedicated implementation subagent with explicit overrides: "Do not pause between batches or wait for feedback — execute all tasks continuously. Do not ask for review."
+- The orchestrator tells the subagent: "If you hit a blocker, document it, use your best judgment to work around it, and continue. Only stop if you cannot find any way to continue without causing harm."
+- After implementation, the orchestrator runs its own post-implementation review loop (Step 6) with up to 8 rounds.
+- The orchestrator handles finishing (Step 7) with `trycycle-finishing`.
+
+**What to strip:**
+
+1. **Remove the batch-pause-feedback loop entirely.** Steps 3 ("Report") and 4 ("Continue") describe pausing between batches to wait for human feedback. The orchestrator explicitly overrides this — the subagent runs continuously. Remove these steps.
+
+2. **Remove "When to Stop and Ask for Help".** The orchestrator tells the subagent to use best judgment and work around blockers. Remove the "STOP executing immediately when" section. Replace with a brief note: if you hit a blocker you truly cannot work around, document it and continue with the next task.
+
+3. **Remove "When to Revisit Earlier Steps".** The subagent doesn't revisit — it executes forward continuously.
+
+4. **Remove Step 5 ("Complete Development") and the finishing-a-development-branch reference.** The orchestrator handles finishing. The subagent's job ends when it has implemented all tasks and committed.
+
+5. **Remove the "Between batches: just report and wait" line** from the Remember section.
+
+6. **Adjust batch size guidance.** Since there's no pausing between batches, the concept of "batches" becomes less relevant. Reframe: the subagent should execute all tasks sequentially, following each step exactly. Keep the concept of marking tasks in_progress/completed via TodoWrite.
+
+7. **Keep:** Step 1 (Load and Review Plan) — critical review before starting. Step 2 (Execute) — the actual execution mechanics. The "Follow plan steps exactly" and "Don't skip verifications" guidance. The TodoWrite tracking. The "Never start implementation on main/master branch" safety check.
+
+**Resulting structure should be roughly:**
+- Overview (load plan, review, execute all tasks)
+- Step 1: Load and Review Plan (read, review critically, create TodoWrite)
+- Step 2: Execute All Tasks (for each task: mark in_progress, follow steps, verify, mark completed)
+- Blocker handling (brief: document and move on, stop only if truly stuck)
+- Remember list (trimmed)

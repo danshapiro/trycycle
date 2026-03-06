@@ -1,0 +1,24 @@
+This skill is invoked in trycycle Step 2 ("Create worktree"). The orchestrator calls it to set up an isolated worktree before any planning or implementation begins.
+
+**What the orchestrator already handles:**
+- Immediately after worktree creation, the orchestrator runs `git branch --show-current` and `git status --short` to verify. So the skill's own verification is redundant but harmless — keep it light.
+- The orchestrator has a worktree hygiene gate (Step 2.5) that runs before and after every phase. So exhaustive verification in this skill is unnecessary.
+
+**What to strip:**
+
+1. **Remove the "Ask User" fallback (Step 3 in Directory Selection).** Trycycle repos always have `.worktrees/` — it's in the `.gitignore` and documented in AGENTS.md. The three-way priority (existing > CLAUDE.md > ask) simplifies to: use `.worktrees/`. Keep a brief note that `.worktrees/` is the expected location and that the skill should verify it's gitignored.
+
+2. **Remove the baseline test verification (Step 4: Verify Clean Baseline).** Trycycle creates worktrees from a known-good main branch. Running the full test suite before any work begins is wasted time. Remove the test step and the "If tests fail" / "If tests pass" reporting.
+
+3. **Simplify the "Report Location" step.** No need to report test counts. Just confirm the worktree path and branch name.
+
+4. **Remove the CLAUDE.md check** from directory selection. Trycycle handles its own configuration.
+
+5. **Keep:** The `.gitignore` safety verification — that's valuable. Keep the project setup auto-detection (npm install, cargo build, etc.) — the subagent needs that. Keep the `git worktree add` mechanics.
+
+**Resulting structure should be roughly:**
+- Overview (2-3 sentences)
+- Create worktree in `.worktrees/<branch-name>`
+- Verify `.worktrees` is gitignored (fix if not)
+- Auto-detect and run project setup
+- Report worktree path
