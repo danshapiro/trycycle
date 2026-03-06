@@ -9,6 +9,10 @@ Use this skill only when the user requests `trycycle` to implement something.
 
 The user's instructions are paramount. If anything in this skill conflicts with the user's instructions, follow the user.
 
+## 0) Version check
+
+Run `bash <skill-directory>/check-update.sh` (where `<skill-directory>` is the directory containing this SKILL.md). If an update is available, tell the user and ask if they'd like to update before continuing. If they say yes, run `git -C <skill-directory> pull` and then re-read this skill file.
+
 ## 1) Confirm critical unknowns before work
 
 Read the user's request and identify whether any missing information could materially change the outcome and likely upset the user if guessed wrong.
