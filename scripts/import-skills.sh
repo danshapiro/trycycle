@@ -201,23 +201,31 @@ import_skill() {
 
   # 6. Run claude -p
   echo "  Running claude -p for adaptation..."
-  local output
-  output="$(echo "$prompt" | claude -p \
+  local raw_output
+  raw_output="$(echo "$prompt" | claude -p \
     --model claude-sonnet-4-6 \
     --dangerously-skip-permissions \
     --add-dir "$TRYCYCLE_ROOT" 2>/dev/null)"
 
-  # 7. Check for ABORT or empty output
+  # 7. Extract content from <adapted-skill> tags
+  local output
+  output="$(echo "$raw_output" | sed -n '/<adapted-skill>/,/<\/adapted-skill>/{ /<adapted-skill>/d; /<\/adapted-skill>/d; p; }')"
+
   if [[ -z "$output" ]]; then
-    echo "  ERROR: claude -p returned empty output"
-    return 1
-  fi
-  if [[ "$output" == ABORT:* ]]; then
-    echo "  $output"
+    echo "  ERROR: no <adapted-skill> tags found in claude output"
+    echo "  Raw output (first 10 lines):"
+    echo "$raw_output" | head -10 | sed 's/^/    /'
     return 1
   fi
 
-  # 8. Write output
+  # 8. Check for ABORT
+  if [[ "$output" == ABORT* ]]; then
+    echo "  ABORTED — adaptation not possible:"
+    echo "$output" | sed 's/^/    /'
+    return 1
+  fi
+
+  # 9. Write output
   mkdir -p "$SKILLS_DIR/$trycycle_name"
   printf '%s\n' "$output" > "$trycycle_skill_file"
   echo "  Written to $trycycle_skill_file"

@@ -61,7 +61,26 @@ Then the YAML frontmatter, then the skill content.
 
 ## Output format
 
-Output ONLY the complete adapted SKILL.md file content. No commentary, no explanation, no markdown code fences wrapping the output. Just the raw file content starting with the attribution header.
+Wrap your adapted SKILL.md content in `<adapted-skill>` tags. Everything between the tags is the file content — no commentary, no explanation, no markdown code fences. The attribution header goes inside the tags.
 
-If the upstream source has changed in ways that make confident adaptation impossible (major restructuring, new concepts, removed sections you expected to find), output exactly one line:
-ABORT: <reason>
+```
+<adapted-skill>
+<!-- {{TRYCYCLE_NAME}}: adapted from obra/superpowers {{SOURCE_NAME}} -->
+...rest of file...
+</adapted-skill>
+```
+
+If the upstream source has changed in ways that make confident adaptation impossible (major restructuring, new concepts, removed sections you expected to find), output:
+```
+<adapted-skill>
+ABORT
+## What changed
+<description of the upstream changes that caused the problem>
+
+## Why adaptation failed
+<explanation of why these changes can't be confidently adapted>
+
+## Recommendation
+<what the maintainer should do — e.g. update the skill-specific instructions, review a particular section, etc.>
+</adapted-skill>
+```
