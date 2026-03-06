@@ -2,24 +2,9 @@
 
 A skill for Claude Code and Codex CLI that runs your work through multiple rounds of planning, building, and review -- automatically.
 
-## Prerequisites
+## Credits
 
-Trycycle depends on superpowers, a plugin that gives Claude Code and Codex CLI the ability to spawn subagents, manage worktrees, and run structured development loops. Superpowers is useful on its own, and once installed, it may activate for tasks beyond trycycle.
-
-Install superpowers for your platform:
-
-Claude Code -- run these two commands in the Claude Code prompt:
-
-```
-/plugin marketplace add obra/superpowers-marketplace
-/plugin install superpowers@superpowers-marketplace
-```
-
-Codex CLI -- tell Codex to fetch and follow the install instructions:
-
-```
-Fetch and follow instructions from https://raw.githubusercontent.com/obra/superpowers/refs/heads/main/.codex/INSTALL.md
-```
+Trycycle's planning, execution, and worktree management skills are adapted from [superpowers](https://github.com/obra/superpowers) by Jesse Vincent. They are included directly in this repo so you don't need to install superpowers separately.
 
 ## Installing trycycle
 
@@ -45,7 +30,7 @@ git -C ~/.claude/skills/trycycle pull
 
 ## Using trycycle
 
-Once superpowers and trycycle are both installed, you can use trycycle from any Claude Code or Codex CLI session. Just include the word trycycle in your request and describe what you want built. For example:
+Once installed, you can use trycycle from any Claude Code or Codex CLI session. Just include the word trycycle in your request and describe what you want built. For example:
 
 ```
 Use trycycle to add a dark mode toggle to the settings page.
