@@ -30,7 +30,7 @@ If needed, follow up with additional questions of similar importance or discussi
 
 ## 2) Create worktree
 
-Use the `using-git-worktrees` skill to create an isolated worktree for the implementation with an appropriately named branch, for example `add-connection-status-icon`.
+Use the `trycycle-worktrees` skill to create an isolated worktree for the implementation with an appropriately named branch, for example `add-connection-status-icon`.
 
 Immediately after creating the worktree, run:
 - `git -C {WORKTREE_PATH} branch --show-current`
@@ -53,7 +53,7 @@ After every subagent completion, also run:
 - changed-file list matches what the subagent reported
 - any dirty status is understood and intentional
 
-## 3) Plan with writing-plans (subagent-owned)
+## 3) Plan with trycycle-planning (subagent-owned)
 
 Spec writing must be done by a dedicated subagent.
 
@@ -69,14 +69,14 @@ You are the planning subagent. Do not spawn additional subagents.
 </context>
 
 Task:
-- Use the `writing-plans` skill to produce a complete implementation plan for the user's request.
-- The `writing-plans` skill may reference a brainstorming phase as a precondition. Disregard that — the context above replaces brainstorming output.
+- Use the `trycycle-planning` skill to produce a complete implementation plan for the user's request.
+- The `trycycle-planning` skill may reference a brainstorming phase as a precondition. Disregard that — the context above replaces brainstorming output.
 - Do not ask the user for input until the plan is complete.
-- Do not use other skills unless they are referenced internally by `writing-plans`.
+- Do not use other skills unless they are referenced internally by `trycycle-planning`.
 - Prefer approaches that are idiomatic to the stack and architecturally clean, even if they are much more effort or require much bigger changes.
 - Work in the worktree at `{WORKTREE_PATH}`.
 - Commit the plan to the worktree.
-- Skip the execution handoff section of `writing-plans` — just return the absolute path to your plan.
+- Skip the execution handoff section of `trycycle-planning` — just return the absolute path to your plan.
 ```
 
 Do not proceed until the planning subagent has returned a complete plan.
@@ -96,7 +96,7 @@ The reviewer should be stateless: you should NOT tell it that it is on review X/
 Use this template:
 
 ```text
-Another AI has generated an implementation plan for a user request. You are the reviewer, charged with conducting a deep and thorough review and reporting on your findings. Ensure that it aligns completely with the `writing-plans` skill.
+Another AI has generated an implementation plan for a user request. You are the reviewer, charged with conducting a deep and thorough review and reporting on your findings. Ensure that it aligns completely with the `trycycle-planning` skill.
 
 <user_intent>
 {INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}
@@ -132,7 +132,7 @@ If issues still remain after the 5th review:
 3. Speculate briefly why the loop is not converging.
 4. Await user instructions.
 
-## 5) Execute with executing-plans (subagent-owned)
+## 5) Execute with trycycle-executing (subagent-owned)
 
 Code implementation must be done by a new, dedicated subagent.
 
@@ -141,11 +141,11 @@ Spawn a fresh implementation subagent and give it the final approved plan.
 Use this template:
 
 ```text
-You are the implementation subagent. Use the executing-plans skill to implement this final plan precisely, with these overrides:
+You are the implementation subagent. Use the trycycle-executing skill to implement this final plan precisely, with these overrides:
 - Do not pause between batches or wait for feedback — execute all tasks continuously.
 - Do not ask for review.
 - If you hit a blocker, document it, use your best judgment to work around it, and continue. Only stop if you cannot find any way to continue without causing harm.
-All other executing-plans behaviors remain in effect (run verifications, follow plan steps exactly, etc.).
+All other trycycle-executing behaviors remain in effect (run verifications, follow plan steps exactly, etc.).
 
 <plan>
 {path_to_plan}
@@ -214,4 +214,4 @@ Clean up temporary artifacts created during the loop (for example plan scratch f
 
 Summarize the ENTIRE process to the user: how many plan-review rounds, how many code-review rounds, what was changed in the codebase, any notes about unresolved minor issues or concerns, and where things stand.
 
-Then use the `finishing-a-development-branch` skill to present the user with options for integrating the worktree (merge, PR, etc.).
+Then use the `trycycle-finishing` skill to present the user with options for integrating the worktree (merge, PR, etc.).
