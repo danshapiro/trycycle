@@ -9,7 +9,7 @@ A skill for Claude Code and Codex CLI that runs your work through multiple round
 Tell your favorite coding agent (Claude Code, Codex CLI, etc.):
 
 ```
-Install the trycycle skill from https://github.com/danshapiro/trycycle. Once it's installed, read it and suggest 3 prompts to use trycycle with my own projects.
+Read https://raw.githubusercontent.com/danshapiro/trycycle/main/README.md. Follow the installation instructions there. Once it's installed, read the skill and suggest 3 prompts to use trycycle with my own projects.
 ```
 
 ### If you've been sent here by your human
