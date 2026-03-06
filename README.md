@@ -19,9 +19,6 @@ Clone (not copy) this repo into your skills directory. Use the command for your 
 - **Claude Code:** `git clone https://github.com/danshapiro/trycycle.git ~/.claude/skills/trycycle`
 - **Codex CLI:** `git clone https://github.com/danshapiro/trycycle.git ~/.codex/skills/trycycle`
 - **Gemini CLI:** `git clone https://github.com/danshapiro/trycycle.git ~/.gemini/skills/trycycle`
-
-If the skills directory already has other skills in it, that's fine -- the command creates the `trycycle` subdirectory automatically.
-
 ## Using Trycycle
 
 Once installed, you can use Trycycle from any Claude Code or Codex CLI session. Just include the word Trycycle in your request and describe what you want built. For example:
