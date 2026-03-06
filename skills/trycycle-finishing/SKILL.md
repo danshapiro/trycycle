@@ -1,3 +1,7 @@
+---
+name: trycycle-finishing
+description: "Internal trycycle subskill — do not invoke directly."
+---
 <!-- trycycle-finishing: adapted from obra/superpowers finishing-a-development-branch -->
 <!-- source: https://github.com/obra/superpowers -->
 <!-- author: Jesse Vincent -->

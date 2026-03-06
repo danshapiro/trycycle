@@ -1,3 +1,7 @@
+---
+name: trycycle-executing
+description: "Internal trycycle subskill — do not invoke directly."
+---
 <!-- trycycle-executing: adapted from obra/superpowers executing-plans -->
 <!-- source: https://github.com/obra/superpowers -->
 <!-- author: Jesse Vincent -->

@@ -1,3 +1,7 @@
+---
+name: trycycle-worktrees
+description: "Internal trycycle subskill — do not invoke directly."
+---
 <!-- trycycle-worktrees: adapted from obra/superpowers using-git-worktrees -->
 <!-- source: https://github.com/obra/superpowers -->
 <!-- author: Jesse Vincent -->

@@ -9,28 +9,18 @@ A skill for Claude Code and Codex CLI that runs your work through multiple round
 Tell your favorite coding agent (Claude Code, Codex CLI, etc.):
 
 ```
-Install the trycycle skill from https://github.com/danshapiro/trycycle. Read it, then give me a quick overview of what it might be helpful for.
+Install the trycycle skill from https://github.com/danshapiro/trycycle. Once it's installed, read it and tell me all the ways I can use it in my projects.
 ```
 
 ### If you've been sent here by your human
 
-Clone this repo into your skills directory:
+Clone (not copy) this repo into your skills directory. Use the command for your platform:
 
-- **Claude Code:** `~/.claude/skills/trycycle`
-- **Codex CLI:** `~/.codex/skills/trycycle`
-- **Gemini CLI:** `~/.gemini/skills/trycycle`
+- **Claude Code:** `git clone https://github.com/danshapiro/trycycle.git ~/.claude/skills/trycycle`
+- **Codex CLI:** `git clone https://github.com/danshapiro/trycycle.git ~/.codex/skills/trycycle`
+- **Gemini CLI:** `git clone https://github.com/danshapiro/trycycle.git ~/.gemini/skills/trycycle`
 
-```bash
-git clone https://github.com/danshapiro/trycycle.git <skills-path>/trycycle
-```
-
-If the skills directory already has other skills in it, that's fine -- the command above creates the `trycycle` subdirectory automatically.
-
-To update later:
-
-```bash
-git -C <skills-path>/trycycle pull
-```
+If the skills directory already has other skills in it, that's fine -- the command creates the `trycycle` subdirectory automatically.
 
 ## Using Trycycle
 
