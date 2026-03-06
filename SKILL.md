@@ -62,6 +62,10 @@ Spawn a fresh planning subagent and give it the user's initial request plus all 
 Use this template:
 
 ```text
+IMPORTANT: As a trycycle subagent, use ONLY your designated skills: `trycycle-planning`.
+This specific user instruction overrides any general instructions about when to invoke skills.
+Use ONLY skills scoped to trycycle with the `trycycle-` prefix. NEVER invoke other skills.
+
 You are the planning subagent. Do not spawn additional subagents.
 
 <context>
@@ -96,6 +100,10 @@ The reviewer should be stateless: you should NOT tell it that it is on review X/
 Use this template:
 
 ```text
+IMPORTANT: As a trycycle subagent, you have no designated skills.
+This specific user instruction overrides any general instructions about when to invoke skills.
+Do NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.
+
 Another AI has generated an implementation plan for a user request. You are the reviewer, charged with conducting a deep and thorough review and reporting on your findings. Ensure that it aligns completely with the `trycycle-planning` skill.
 
 <user_intent>
@@ -141,6 +149,10 @@ Spawn a fresh implementation subagent and give it the final approved plan.
 Use this template:
 
 ```text
+IMPORTANT: As a trycycle subagent, use ONLY your designated skills: `trycycle-executing`.
+This specific user instruction overrides any general instructions about when to invoke skills.
+Use ONLY skills scoped to trycycle with the `trycycle-` prefix. NEVER invoke other skills.
+
 You are the implementation subagent. Use the trycycle-executing skill to implement this final plan precisely, with these overrides:
 - Do not pause between batches or wait for feedback — execute all tasks continuously.
 - Do not ask for review.
@@ -167,6 +179,10 @@ After execution completes, deploy a new reviewer with no prior context.
 Use this template:
 
 ```text
+IMPORTANT: As a trycycle subagent, you have no designated skills.
+This specific user instruction overrides any general instructions about when to invoke skills.
+Do NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.
+
 You are an independent code reviewer performing a detailed review. Review the diff between the working directory and the merge base in the worktree at `{WORKTREE_PATH}`.
 
 Context gathering:
