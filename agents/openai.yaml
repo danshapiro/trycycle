@@ -1,4 +1,0 @@
-interface:
-  display_name: "Trycycle"
-  short_description: "Run subagent-driven plan, build, and review loops."
-  default_prompt: "Use trycycle for a full subagent-driven plan-review-implement-review loop when explicitly requested by name."
