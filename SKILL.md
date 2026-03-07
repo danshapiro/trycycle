@@ -19,9 +19,10 @@ When a step below references `{USER_REQUEST_TRANSCRIPT}`, `{INITIAL_REQUEST_AND_
 1. First, try direct session lookup:
    - Claude Code: `python3 <skill-directory>/orchestrator/user-request-transcript/build.py --cli claude-code`
    - Codex CLI: `python3 <skill-directory>/orchestrator/user-request-transcript/build.py --cli codex-cli`
-2. If the active transcript cannot be determined directly, run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` and capture stdout exactly as `{CANARY}`.
-3. Re-run `build.py` with `--canary "{CANARY}"`.
-4. Use that stdout exactly as the placeholder value.
+2. If that succeeds, use its stdout exactly as the placeholder value.
+3. Otherwise, run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` and capture stdout exactly as `{CANARY}`.
+4. Re-run `build.py` with `--canary "{CANARY}"`.
+5. Use that stdout exactly as the placeholder value.
 
 ## Subagent Defaults
 
