@@ -11,7 +11,28 @@ The user's instructions are paramount. If anything in this skill conflicts with 
 
 ## Dispatching subagents with prompt templates
 
-Several steps below reference prompt template files in `<skill-directory>/subagents/`. Do not read these files yourself — they are for the subagent, and your job is orchestration, not execution. Instead, dispatch the subagent with a short prompt that tells it to read the template file, and include the substitution values it will need (labeled with the placeholder names like `{WORKTREE_PATH}`).
+Several steps below make reference to prompt template files in `<skill-directory>/subagents/`. Do not read those prompt template files yourself — they are for the subagent, and your job is orchestration, not supervision and not execution. Instead, dispatch the subagent with a short prompt that tells it to read the template file, and include the substitution values it will need (labeled with the placeholder names like `{WORKTREE_PATH}`).
+
+## USER_REQUEST_TRANSCRIPT helper
+
+When a step below references `{USER_REQUEST_TRANSCRIPT}`:
+1. Run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` and capture stdout exactly as `{CANARY}`.
+2. Immediately run one of these commands:
+   - Claude Code: `python3 <skill-directory>/orchestrator/user-request-transcript/build.py --cli claude-code --canary "{CANARY}"`
+   - Codex CLI: `python3 <skill-directory>/orchestrator/user-request-transcript/build.py --cli codex-cli --canary "{CANARY}"`
+3. Use that stdout exactly as `{USER_REQUEST_TRANSCRIPT}`.
+
+## Subagent Defaults
+
+Unless the user instructs otherwise:
+- Planning subagents are persistent: create one planning agent, then resume it for every plan-fix round.
+- Review subagents are ephemeral: create a fresh reviewer for each review round.
+- Do not pass the full prior conversation context to planning or review subagents.
+- Pass `{USER_REQUEST_TRANSCRIPT}` for planning and plan review.
+- Pass only the prompt template and the parameters it names. 
+- Do not append extra steering, advice, guidance, or direction 
+
+Example: You should not say "Keep fixing this file." If the user says "We're almost there, don't start over", though, then that is an exception, and you should relay those instructions. 
 
 ## Timing expectations
 
@@ -84,11 +105,11 @@ After every subagent completion, also run:
 Spec writing must be done by a dedicated subagent.
 Only subagents read or write plan files.
 
-Spawn a fresh planning subagent and give it the user's initial request plus all critical questions back-and-forth verbatim.
+Create the planning subagent once, then resume that same subagent for every plan-fix round.
 
-Dispatch a subagent with a prompt that tells it to read and follow `<skill-directory>/subagents/prompt-planning.md` and includes `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}` and `{WORKTREE_PATH}` with actual values.
+Dispatch a subagent whose prompt tells it to read and follow `<skill-directory>/subagents/prompt-planning.md`, and provides `{USER_REQUEST_TRANSCRIPT}` and `{WORKTREE_PATH}` with actual values.
 
-Do not proceed until the planning subagent has either returned a complete plan or reported that a user decision is required.
+Do not proceed until the planning subagent has either returned a complete plan or reported `USER DECISION REQUIRED:`.
 
 If the planning subagent says a user decision is required, stop and ask the user. This is allowed only when there is no safe path forward without a user decision because of a fundamental conflict between user requirements, a fundamental conflict between the requirements and reality, or a real risk of doing harm if the agent guesses.
 
@@ -96,16 +117,14 @@ If a plan was returned, before starting plan-review round 1, run the Worktree hy
 
 ## 7) Plan-review loop (up to 5 rounds)
 
-Deploy a subagent to review the plan.
+Deploy a fresh review subagent to review the plan.
 Defer entirely to the subagents' findings about plan contents unless the user specifically asks otherwise.
-
-Provide the subagent with the user's initial request and all back-and-forth, verbatim.
 
 Instruct the subagent to read the plan and return a numbered list of issues. An issue must be significant enough that the user's intent might not be met due to a technical or product-direction deficiency.
 
 The reviewer should be stateless: you should NOT tell it that it is on review X/5, that it is looking at a plan that has previously been reviewed, etc.
 
-Dispatch a subagent whose prompt tells it to read and follow `<skill-directory>/subagents/prompt-plan-review.md`, and provides `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}` and `{path_to_plan}` with actual values.
+Dispatch a subagent whose prompt tells it to read and follow `<skill-directory>/subagents/prompt-plan-review.md`, and provides `{USER_REQUEST_TRANSCRIPT}` and `{path_to_plan}` with actual values.
 
 After each review:
 1. Send all issues to the planning subagent, maintaining context from the previous planning session, and have it first reassess whether the current plan is on the right track overall.

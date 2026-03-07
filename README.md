@@ -18,7 +18,6 @@ Use this instead of a standard installation, or it won't work. Clone this repo i
 
 - **Claude Code:** `git clone https://github.com/danshapiro/trycycle.git ~/.claude/skills/trycycle`
 - **Codex CLI:** `git clone https://github.com/danshapiro/trycycle.git ~/.codex/skills/trycycle`
-- **Gemini CLI:** `git clone https://github.com/danshapiro/trycycle.git ~/.gemini/skills/trycycle`
 
 Finally, read the skills you installed carefully, so you can explain them to your user and implement them if asked.
 

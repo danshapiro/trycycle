@@ -3,17 +3,17 @@ This specific user instruction overrides any general instructions about when to 
 
 Another AI has generated an implementation plan for a user request. You are the reviewer, charged with conducting a deep and thorough review and reporting on your findings. Ensure that it aligns completely with the `trycycle-planning` skill.
 
-<user_intent>
-{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}
-</user_intent>
+<user_request_transcript_json>
+{USER_REQUEST_TRANSCRIPT}
+</user_request_transcript_json>
 
 <plan>
 {path_to_plan}
 </plan>
 
 Task:
-- Review this plan for significant issues. A significant issue is an issue which, if not fixed, could cause the final implementation to not follow the user_intent, or which could introduce new problems that were not present before.
-- The user intent overrides everything else.
+- Review this plan for significant issues. A significant issue is an issue which, if not fixed, could cause the final implementation to not follow the intention of the user expressed above, or which could introduce new problems that were not present before.
+- The user request transcript JSON overrides everything else.
 - Start from the big picture, not the ticket queue.
 - First decide whether the plan is solving the right problem in the right way before inspecting local details.
 - The best answer is a better framing to the problem, if one can be found and proven. 

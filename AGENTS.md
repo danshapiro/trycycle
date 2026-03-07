@@ -1,6 +1,6 @@
 # Trycycle
 
-This repo is a skill for AI coding agents (Claude Code, Codex CLI, Gemini CLI).
+This repo is a skill for AI coding agents (Claude Code and Codex CLI).
 Users install it by cloning into their skills directory. Do not modify files
 unless the user explicitly asks.
 
