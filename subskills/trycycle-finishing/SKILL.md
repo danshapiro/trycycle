@@ -1,15 +1,9 @@
----
-name: trycycle-finishing
-description: "Internal trycycle subskill — do not invoke directly."
----
-<!-- trycycle-finishing: adapted from obra/superpowers finishing-a-development-branch -->
-<!-- source: https://github.com/obra/superpowers -->
-<!-- author: Jesse Vincent -->
+<!-- trycycle-finishing: adapted from https://github.com/obra/superpowers finishing-a-development-branch -->
 <!-- base-commit: e4a2375 -->
 <!-- imported: 2026-03-06 -->
 ---
 name: trycycle-finishing
-description: Use when implementation is complete, all tests pass, and you need to decide how to integrate the work - guides completion of development work by presenting structured options for merge, PR, or cleanup
+description: "Internal trycycle subskill — do not invoke directly."
 ---
 
 # Finishing a Development Branch

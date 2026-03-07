@@ -7,7 +7,7 @@ unset CLAUDECODE 2>/dev/null || true
 REPO_URL="https://github.com/obra/superpowers.git"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRYCYCLE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-SKILLS_DIR="$TRYCYCLE_ROOT/skills"
+SKILLS_DIR="$TRYCYCLE_ROOT/subskills"
 TEMP_DIR=""
 
 cleanup() {

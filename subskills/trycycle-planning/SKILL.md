@@ -1,15 +1,9 @@
----
-name: trycycle-planning
-description: "Internal trycycle subskill — do not invoke directly."
----
-<!-- trycycle-planning: adapted from obra/superpowers writing-plans -->
-<!-- source: https://github.com/obra/superpowers -->
-<!-- author: Jesse Vincent -->
+<!-- trycycle-planning: adapted from https://github.com/obra/superpowers writing-plans -->
 <!-- base-commit: e4a2375 -->
 <!-- imported: 2026-03-06 -->
 ---
 name: trycycle-planning
-description: Use when you have a spec or requirements for a multi-step task, before touching code
+description: "Internal trycycle subskill — do not invoke directly."
 ---
 
 # Writing Plans

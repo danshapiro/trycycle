@@ -1,15 +1,9 @@
----
-name: trycycle-worktrees
-description: "Internal trycycle subskill — do not invoke directly."
----
-<!-- trycycle-worktrees: adapted from obra/superpowers using-git-worktrees -->
-<!-- source: https://github.com/obra/superpowers -->
-<!-- author: Jesse Vincent -->
+<!-- trycycle-worktrees: adapted from https://github.com/obra/superpowers using-git-worktrees -->
 <!-- base-commit: e4a2375 -->
 <!-- imported: 2026-03-06 -->
 ---
 name: trycycle-worktrees
-description: Use when starting feature work that needs isolation from current workspace or before executing implementation plans - creates isolated git worktrees in .worktrees/ with safety verification
+description: "Internal trycycle subskill — do not invoke directly."
 ---
 
 # Using Git Worktrees (trycycle)
