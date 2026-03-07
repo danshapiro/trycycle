@@ -2,7 +2,7 @@ This skill is invoked in trycycle Step 5 ("Execute with executing-plans"). A ded
 
 **What the orchestrator already handles:**
 - The orchestrator spawns a dedicated implementation subagent with explicit overrides: "Do not pause between batches or wait for feedback — execute all tasks continuously. Do not ask for review."
-- The orchestrator tells the subagent: "If you hit a blocker, document it, use your best judgment to work around it, and continue. Only stop if you cannot find any way to continue without causing harm."
+- The orchestrator tells the subagent: "If you hit a genuine blocker (the agent cannot use its best judgment because there is no path forward, or because being wrong could cause harm), stop and report it. Do not try to work around blockers — they need human judgment."
 - After implementation, the orchestrator runs its own post-implementation review loop (Step 6) with up to 8 rounds.
 - The orchestrator handles finishing (Step 7) with `trycycle-finishing`.
 
@@ -10,7 +10,7 @@ This skill is invoked in trycycle Step 5 ("Execute with executing-plans"). A ded
 
 1. **Remove the batch-pause-feedback loop entirely.** Steps 3 ("Report") and 4 ("Continue") describe pausing between batches to wait for human feedback. The orchestrator explicitly overrides this — the subagent runs continuously. Remove these steps.
 
-2. **Remove "When to Stop and Ask for Help".** The orchestrator tells the subagent to use best judgment and work around blockers. Remove the "STOP executing immediately when" section. Replace with a brief note: if you hit a blocker you truly cannot work around, document it and continue with the next task.
+2. **Remove "When to Stop and Ask for Help".** Remove the "STOP executing immediately when" section entirely.
 
 3. **Remove "When to Revisit Earlier Steps".** The subagent doesn't revisit — it executes forward continuously.
 
@@ -20,11 +20,19 @@ This skill is invoked in trycycle Step 5 ("Execute with executing-plans"). A ded
 
 6. **Adjust batch size guidance.** Since there's no pausing between batches, the concept of "batches" becomes less relevant. Reframe: the subagent should execute all tasks sequentially, following each step exactly. Keep the concept of marking tasks in_progress/completed via TodoWrite.
 
-7. **Keep:** Step 1 (Load and Review Plan) — critical review before starting. Step 2 (Execute) — the actual execution mechanics. The "Follow plan steps exactly" and "Don't skip verifications" guidance. The TodoWrite tracking. The "Never start implementation on main/master branch" safety check.
+7. **Do NOT frame Step 1 as "review critically"** or imply the subagent should second-guess the plan. The orchestrator already ran up to 5 rounds of plan review. Step 1 is just: read the plan and create TodoWrite entries.
+
+**Critical framing requirement — binary stop/go:**
+
+The adapted skill must have exactly two modes: execute or stop for a blocker. There is no interim state — no "document concerns," no "review critically," no "questions about the plan." The subagent proceeds unless it hits a blocker it cannot work around.
+
+Blocker means the agent cannot use its best judgment because there is no path forward, or because being wrong could cause harm. If something is unfixably broken (system unstable, corrupted instructions, dirty file that cannot be handled properly while proceeding), the subagent MUST stop rather than silently produce broken output. But "I have concerns about the approach" is not a blocker — the plan is already reviewed.
+
+The blocker handling section should make this clear: the only reason to stop is a blocker (the agent cannot use its best judgment because there is no path forward, or because being wrong could cause harm). Everything else is proceed.
 
 **Resulting structure should be roughly:**
-- Overview (load plan, review, execute all tasks)
-- Step 1: Load and Review Plan (read, review critically, create TodoWrite)
+- Overview (load plan, execute all tasks continuously)
+- Step 1: Load Plan (read plan, create TodoWrite entries for all tasks)
 - Step 2: Execute All Tasks (for each task: mark in_progress, follow steps, verify, mark completed)
-- Blocker handling (brief: document and move on, stop only if truly stuck)
+- Blockers (the ONLY reason to stop — the agent cannot use its best judgment because there is no path forward, or because being wrong could cause harm; detecting these is critical)
 - Remember list (trimmed)

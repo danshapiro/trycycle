@@ -34,11 +34,11 @@ Repeat until all tasks are done, then commit your changes.
 
 There are two states: **execute** or **stop for a blocker**.
 
-A blocker is something that makes it impossible to continue without causing harm — a missing dependency that cannot be worked around, a test environment that is down, an suddenly dirty file in the repo that, if handled incorrectly, could cause data loss.
+A blocker is something where the agent cannot use its best judgment because there is no path forward, or because being wrong could cause harm — a missing dependency that cannot be worked around, a test environment that is down, a suddenly dirty file in the repo that, if handled incorrectly, could cause data loss.
 
 "I have concerns about the approach" is not a blocker. The plan is already reviewed.
 
-**If you hit a blocker:** stop and report your findings. Do not guess your way through something that could cause harm or produce silently broken output.
+**If you hit a blocker:** stop and report your findings. Do not guess your way through something that could produce silently broken output or cause harm.
 
 **Everything else:** proceed.
 
