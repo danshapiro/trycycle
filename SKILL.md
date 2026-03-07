@@ -63,7 +63,7 @@ Spec writing must be done by a dedicated subagent.
 
 Spawn a fresh planning subagent and give it the user's initial request plus all critical questions back-and-forth verbatim.
 
-Read the prompt template from `<skill-directory>/prompts/planning.md` and use it, substituting `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}` and `{WORKTREE_PATH}` with actual values.
+Read the prompt template from `<skill-directory>/subagents/prompt-planning.md` and use it, substituting `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}` and `{WORKTREE_PATH}` with actual values.
 
 Do not proceed until the planning subagent has returned a complete plan.
 
@@ -79,7 +79,7 @@ Instruct the subagent to read the plan and return a numbered list of issues. An 
 
 The reviewer should be stateless: you should NOT tell it that it is on review X/5, that it is looking at a plan that has previously been reviewed, etc.
 
-Read the prompt template from `<skill-directory>/prompts/plan-review.md` and use it, substituting `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}` and `{path_to_plan}` with actual values.
+Read the prompt template from `<skill-directory>/subagents/prompt-plan-review.md` and use it, substituting `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}` and `{path_to_plan}` with actual values.
 
 After each review:
 1. Send all issues to the planning subagent, maintaining context from the previous planning session, and have it revise the plan at the same file location.
@@ -99,7 +99,7 @@ Code implementation must be done by a new, dedicated subagent.
 
 Spawn a fresh implementation subagent and give it the final approved plan.
 
-Read the prompt template from `<skill-directory>/prompts/executing.md` and use it, substituting `{path_to_plan}` and `{WORKTREE_PATH}` with actual values.
+Read the prompt template from `<skill-directory>/subagents/prompt-executing.md` and use it, substituting `{path_to_plan}` and `{WORKTREE_PATH}` with actual values.
 
 Do not proceed to post-implementation review until the implementation subagent has completed execution.
 
@@ -109,7 +109,7 @@ After implementation completes, run the Worktree hygiene gate checks and verify 
 
 After execution completes, deploy a new reviewer with no prior context.
 
-Read the prompt template from `<skill-directory>/prompts/post-impl-review.md` and use it, substituting `{WORKTREE_PATH}` with the actual value.
+Read the prompt template from `<skill-directory>/subagents/prompt-post-impl-review.md` and use it, substituting `{WORKTREE_PATH}` with the actual value.
 
 Address all issues each round regardless of severity. Route issues back to the implementation subagent for fixes, then re-run with a fresh stateless reviewer each time.
 
