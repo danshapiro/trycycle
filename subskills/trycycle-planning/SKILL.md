@@ -18,6 +18,20 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 **Save plans to:** `docs/plans/YYYY-MM-DD-<feature-name>.md`
 
+## Strategy Gate (before task breakdown)
+
+Before writing any tasks, step back and challenge your current framing:
+
+- Is this the right problem to solve, or is there a simpler or more direct path to the user's actual goal?
+- Is the proposed architecture the right one, or would a different approach eliminate complexity?
+- Are there assumptions baked into the current direction that haven't been validated?
+
+**Low bar for changing direction.** Big rewrites, architecture resets, and fresh replans are always acceptable when they produce a better answer. Do not preserve earlier decisions just because they already exist. If a better path is visible, take it.
+
+**High bar for stopping to ask the user.** Use best judgment and keep going unless there is genuinely no safe path forward without a user decision. The only valid reasons to stop are: a fundamental conflict between user requirements, a fundamental conflict between the requirements and reality, or a real risk of doing harm if you guess. For everything else, make a decision and document it in the plan.
+
+Once the architectural direction is stable and you are confident you are solving the right problem in the right way, proceed to detailed task decomposition.
+
 ## Bite-Sized Task Granularity
 
 **Each step is one action (2-5 minutes):**
