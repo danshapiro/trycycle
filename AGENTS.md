@@ -21,6 +21,8 @@ upstream superpowers (by Jesse Vincent). Edit the prompt template and
 skill-specific instructions in `maintenance/`, then re-run the import script.
 Do not hand-edit the generated skill files.
 
+Don't add tests to this specific repo, regardless of more general instructions otherwise.
+
 ## Versioning
 
 Trycycle uses git tags for version tracking. `check-update.sh` runs at the
