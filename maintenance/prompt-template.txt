@@ -49,8 +49,8 @@ Transform the upstream source into a trycycle subskill. The guiding principle: *
 
 The adapted file MUST contain exactly these sections in this order:
 
-1. Attribution header (HTML comments)
-2. YAML frontmatter block (the `---` delimited block with name and description)
+1. YAML frontmatter block (the `---` delimited block with name and description)
+2. Attribution header (HTML comments)
 3. Skill content
 
 Here is the exact attribution header to use:
@@ -63,17 +63,17 @@ Here is the exact attribution header to use:
 
 ## Output format
 
-Wrap the entire adapted SKILL.md content (attribution header, frontmatter, skill content) in `<adapted-skill>` tags.  Everything between the tags is the file content — no commentary, no explanation, no markdown code fences.
+Wrap the entire adapted SKILL.md content (frontmatter, attribution header, skill content) in `<adapted-skill>` tags. Everything between the tags is the file content — no commentary, no explanation, no markdown code fences.
 
 ```
 <adapted-skill>
-<!-- {{TRYCYCLE_NAME}}: adapted from https://github.com/obra/superpowers {{SOURCE_NAME}} -->
-<!-- base-commit: {{UPSTREAM_HEAD}} -->
-<!-- imported: {{TODAY}} -->
 ---
 name: {{TRYCYCLE_NAME}}
 description: ...
 ---
+<!-- {{TRYCYCLE_NAME}}: adapted from https://github.com/obra/superpowers {{SOURCE_NAME}} -->
+<!-- base-commit: {{UPSTREAM_HEAD}} -->
+<!-- imported: {{TODAY}} -->
 
 # Skill Title
 ...

@@ -1,10 +1,10 @@
-<!-- trycycle-planning: adapted from https://github.com/obra/superpowers writing-plans -->
-<!-- base-commit: e4a2375 -->
-<!-- imported: 2026-03-06 -->
 ---
 name: trycycle-planning
 description: "Internal trycycle subskill — do not invoke directly."
 ---
+<!-- trycycle-planning: adapted from https://github.com/obra/superpowers writing-plans -->
+<!-- base-commit: e4a2375 -->
+<!-- imported: 2026-03-06 -->
 
 # Writing Plans
 
