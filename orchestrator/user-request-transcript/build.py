@@ -26,13 +26,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--canary",
-        help="Unique canary string already present in the target transcript.",
+        help="Fallback canary string for CLIs that cannot identify the current transcript directly.",
     )
     parser.add_argument(
         "--timeout-ms",
         type=int,
         default=60000,
-        help="How long to wait for the canary to appear in transcript files.",
+        help="How long to wait for a fallback canary to appear in transcript files.",
     )
     parser.add_argument(
         "--poll-ms",

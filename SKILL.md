@@ -16,11 +16,12 @@ Several steps below make reference to prompt template files in `<skill-directory
 ## USER_REQUEST_TRANSCRIPT helper
 
 When a step below references `{USER_REQUEST_TRANSCRIPT}`:
-1. Run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` and capture stdout exactly as `{CANARY}`.
-2. Immediately run one of these commands:
-   - Claude Code: `python3 <skill-directory>/orchestrator/user-request-transcript/build.py --cli claude-code --canary "{CANARY}"`
-   - Codex CLI: `python3 <skill-directory>/orchestrator/user-request-transcript/build.py --cli codex-cli --canary "{CANARY}"`
-3. Use that stdout exactly as `{USER_REQUEST_TRANSCRIPT}`.
+1. First, try direct session lookup:
+   - Claude Code: `python3 <skill-directory>/orchestrator/user-request-transcript/build.py --cli claude-code`
+   - Codex CLI: `python3 <skill-directory>/orchestrator/user-request-transcript/build.py --cli codex-cli`
+2. If the active transcript cannot be determined directly, run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` and capture stdout exactly as `{CANARY}`.
+3. Re-run `build.py` with `--canary "{CANARY}"`.
+4. Use that stdout exactly as `{USER_REQUEST_TRANSCRIPT}`.
 
 ## Subagent Defaults
 
