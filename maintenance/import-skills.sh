@@ -8,6 +8,7 @@ REPO_URL="https://github.com/obra/superpowers.git"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRYCYCLE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SKILLS_DIR="$TRYCYCLE_ROOT/subskills"
+SUBSKILL_DESCRIPTION="Internal trycycle subskill — do not invoke directly."
 TEMP_DIR=""
 
 cleanup() {
@@ -82,7 +83,8 @@ build_prompt() {
   local source_diff="$5"
   local adaptation_diff="$6"
   local existing_adaptation="$7"
-  local skill_instructions="$8"
+  local skill_description="$8"
+  local skill_instructions="$9"
   local today
   today="$(date +%Y-%m-%d)"
 
@@ -137,14 +139,64 @@ replacements = {
     '{{SOURCE_DIFF_SECTION}}': sys.argv[7],
     '{{ADAPTATION_DIFF_SECTION}}': sys.argv[8],
     '{{EXISTING_ADAPTATION_SECTION}}': sys.argv[9],
-    '{{SKILL_SPECIFIC_INSTRUCTIONS}}': sys.argv[10],
+    '{{TRYCYCLE_DESCRIPTION}}': sys.argv[10],
+    '{{SKILL_SPECIFIC_INSTRUCTIONS}}': sys.argv[11],
 }
 for key, val in replacements.items():
     template = template.replace(key, val)
 print(template)
 " "$TRYCYCLE_ROOT" "$source_name" "$trycycle_name" "$upstream_head" "$today" \
   "$upstream_source" "$source_diff_section" "$adaptation_diff_section" \
-  "$existing_adaptation_section" "$skill_instructions" <<< "$template"
+  "$existing_adaptation_section" "$skill_description" "$skill_instructions" <<< "$template"
+}
+
+validate_adapted_skill_frontmatter() {
+  local expected_name="$1"
+  local expected_description="$2"
+  local output="$3"
+
+  python3 - "$expected_name" "$expected_description" "$output" <<'PY'
+import sys
+
+expected_name, expected_description, output = sys.argv[1:4]
+lines = output.splitlines()
+
+if not lines or lines[0] != "---":
+    raise SystemExit("adapted skill must start with YAML frontmatter")
+
+try:
+    closing_idx = lines.index("---", 1)
+except ValueError as exc:
+    raise SystemExit("adapted skill is missing the closing frontmatter delimiter") from exc
+
+if closing_idx < 2:
+    raise SystemExit("adapted skill frontmatter is empty or malformed")
+
+values = {}
+for line in lines[1:closing_idx]:
+    if ":" not in line:
+        continue
+    key, value = line.split(":", 1)
+    values[key.strip()] = value.strip().strip('"').strip("'")
+
+actual_name = values.get("name")
+actual_description = values.get("description")
+
+if actual_name != expected_name:
+    raise SystemExit(
+        f"expected frontmatter name {expected_name!r}, got {actual_name!r}"
+    )
+
+if actual_description != expected_description:
+    raise SystemExit(
+        "expected frontmatter description "
+        f"{expected_description!r}, got {actual_description!r}"
+    )
+
+comment_idx = closing_idx + 1
+if comment_idx >= len(lines) or not lines[comment_idx].startswith("<!-- "):
+    raise SystemExit("adapted skill must put attribution comments immediately after frontmatter")
+PY
 }
 
 import_skill() {
@@ -197,7 +249,7 @@ import_skill() {
   local prompt
   prompt="$(build_prompt "$trycycle_name" "$source_name" "$upstream_head" \
     "$upstream_source" "$source_diff" "$adaptation_diff" "$existing_adaptation" \
-    "$skill_instructions")"
+    "$SUBSKILL_DESCRIPTION" "$skill_instructions")"
 
   # 6. Run claude -p
   echo "  Running claude -p for adaptation..."
@@ -222,6 +274,11 @@ import_skill() {
   if [[ "$output" == ABORT* ]]; then
     echo "  ABORTED — adaptation not possible:"
     echo "$output" | sed 's/^/    /'
+    return 1
+  fi
+
+  if ! validate_adapted_skill_frontmatter "$trycycle_name" "$SUBSKILL_DESCRIPTION" "$output"; then
+    echo "  ERROR: adapted skill frontmatter validation failed for $trycycle_name"
     return 1
   fi
 
