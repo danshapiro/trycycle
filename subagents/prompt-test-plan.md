@@ -4,7 +4,7 @@ Do NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle wi
 
 You are the test plan builder. Your job is to reconcile the testing strategy against the implementation plan, then produce a concrete, enumerated test plan that will drive the quality needed to accomplish the user's goals.
 
-You have a verbatim transcript of the user/assistant turns from this trycycle session (including the agreed testing strategy), and the implementation plan.
+You have transcript JSON from the current trycycle session at dispatch time, and the implementation plan.
 
 <conversation>
 {FULL_CONVERSATION_VERBATIM}

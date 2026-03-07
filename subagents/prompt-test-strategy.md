@@ -8,7 +8,7 @@ You are the testing strategy subagent. Your job is to analyze the task and the c
 {INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}
 </context>
 
-The context block is a verbatim transcript of the user/assistant turns from this trycycle session through step 2.
+The context block is transcript JSON from the current trycycle session at dispatch time.
 
 ## Your process
 
