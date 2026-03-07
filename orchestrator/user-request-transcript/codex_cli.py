@@ -1,11 +1,34 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from common import TranscriptError, TranscriptTurn, iter_jsonl_records, wait_for_matches
 
 
 DEFAULT_ROOT = Path.home() / ".codex" / "sessions"
+THREAD_ID_ENV = "CODEX_THREAD_ID"
+
+
+def find_current_transcript(search_root: Path | None = None) -> Path | None:
+    root = search_root or DEFAULT_ROOT
+    if not root.exists():
+        raise TranscriptError(f"Codex CLI transcript root does not exist: {root}")
+
+    thread_id = os.environ.get(THREAD_ID_ENV)
+    if not thread_id:
+        return None
+
+    # Codex exposes the active thread id, so we can read the live session file
+    # directly instead of racing transcript flushes for a printed canary.
+    matches = sorted(root.rglob(f"*{thread_id}.jsonl"))
+    if not matches:
+        return None
+    if len(matches) > 1:
+        raise TranscriptError(
+            f"Expected one Codex CLI transcript for {THREAD_ID_ENV}={thread_id}, found {len(matches)}."
+        )
+    return matches[0]
 
 
 def find_matching_transcripts(

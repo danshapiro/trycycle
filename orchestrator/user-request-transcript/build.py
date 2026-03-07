@@ -26,7 +26,6 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--canary",
-        required=True,
         help="Unique canary string already present in the target transcript.",
     )
     parser.add_argument(
@@ -59,13 +58,24 @@ def main() -> None:
     args = parse_args()
     adapter = ADAPTERS[args.cli_name]
     try:
-        matches = adapter.find_matching_transcripts(
-            canary=args.canary,
-            timeout_ms=args.timeout_ms,
-            poll_ms=args.poll_ms,
-            search_root=args.search_root,
-        )
-        chosen_path = choose_most_recent_match(matches)
+        chosen_path = None
+        find_current_transcript = getattr(adapter, "find_current_transcript", None)
+        if callable(find_current_transcript):
+            chosen_path = find_current_transcript(search_root=args.search_root)
+
+        if chosen_path is None:
+            if not args.canary:
+                raise TranscriptError(
+                    "A canary is required when the current session transcript cannot be determined directly."
+                )
+            matches = adapter.find_matching_transcripts(
+                canary=args.canary,
+                timeout_ms=args.timeout_ms,
+                poll_ms=args.poll_ms,
+                search_root=args.search_root,
+            )
+            chosen_path = choose_most_recent_match(matches)
+
         transcript = render_transcript(adapter.extract_transcript(chosen_path))
     except TranscriptError as exc:
         print(str(exc), file=sys.stderr)
