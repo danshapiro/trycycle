@@ -155,11 +155,7 @@ Code implementation must be done by a new, dedicated subagent.
 
 Spawn a fresh implementation subagent and give it the final approved plan.
 
-Dispatch a subagent whose prompt tells it to read and follow `<skill-directory>/subagents/prompt-executing.md`, and provides `{path_to_plan}` and `{WORKTREE_PATH}` with actual values. Additionally, append this to the prompt:
-
-```
-A test plan exists at `{TEST_PLAN_PATH}`. Your implementation MUST be TDD: for each feature or component, write the relevant failing test(s) from the test plan first, then implement the minimal code to make them pass. If the test plan specifies harnesses to build, those come first.
-```
+Dispatch a subagent whose prompt tells it to read and follow `<skill-directory>/subagents/prompt-executing.md`, and provides `{path_to_plan}`, `{TEST_PLAN_PATH}`, and `{WORKTREE_PATH}` with actual values.
 
 Do not proceed to post-implementation review until the implementation subagent has completed execution.
 

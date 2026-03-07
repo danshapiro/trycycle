@@ -12,6 +12,10 @@ All other trycycle-executing behaviors remain in effect (run verifications, foll
 {path_to_plan}
 </plan>
 
+The test plan is at `{TEST_PLAN_PATH}`.
+
 Work in the worktree at `{WORKTREE_PATH}`.
+
+Implement using TDD: for each feature or component, write the relevant failing test or tests from the test plan first, then implement the minimal code to make them pass. If the test plan specifies harnesses to build, build those first.
 
 Commit your changes, then return a concise implementation summary and verification results.
