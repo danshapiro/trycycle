@@ -13,6 +13,16 @@ The user's instructions are paramount. If anything in this skill conflicts with 
 
 Run `bash <skill-directory>/check-update.sh` (where `<skill-directory>` is the directory containing this SKILL.md). If an update is available, tell the user and ask if they'd like to update before continuing. If they say yes, run `git -C <skill-directory> pull` and then re-read this skill file.
 
+## 0.5) Brakes check
+
+Check if `trycycle-brakes.json` exists in the project root.
+
+If it exists, load it silently and confirm the verification commands are still valid (e.g., scripts referenced in `package.json` still exist). If any are stale, tell the user and offer to fix them.
+
+If it does not exist, use the `trycycle-brakes` skill to detect the project stack and propose a config. This sets up external verification hooks that enforce build/test/lint checks before commits and at session end. The agent cannot bypass these hooks.
+
+If the user declines brakes, continue without them. Do not ask again during this session.
+
 ## 1) Confirm critical unknowns before work
 
 Read the user's request and identify whether any missing information could materially change the outcome and likely upset the user if guessed wrong.
