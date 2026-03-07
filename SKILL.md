@@ -30,10 +30,10 @@ Unless the user instructs otherwise:
 - Review subagents are ephemeral: create a fresh reviewer for each review round.
 - Do not pass the full prior conversation context to planning or review subagents.
 - Pass `{USER_REQUEST_TRANSCRIPT}` for planning and plan review.
-- Pass only the prompt template and the parameters it names. 
-- Do not append extra steering, advice, guidance, or direction 
+- Pass only the prompt template and the parameters it names.
+- Do not append extra steering, advice, guidance, or direction
 
-Example: You should not say "Keep fixing this file." If the user says "We're almost there, don't start over", though, then that is an exception, and you should relay those instructions. 
+Example: You should not say "Keep fixing this file." If the user says "We're almost there, don't start over", though, then that is an exception, and you should relay those instructions.
 
 ## Timing expectations
 
