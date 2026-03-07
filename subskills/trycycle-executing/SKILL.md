@@ -1,10 +1,10 @@
 ---
 name: trycycle-executing
-description: Use when you have a written implementation plan to execute — reads the plan, creates todos, and executes all tasks continuously without pausing for review
+description: Internal trycycle subskill — do not invoke directly.
 ---
 <!-- trycycle-executing: adapted from https://github.com/obra/superpowers executing-plans -->
 <!-- base-commit: e4a2375 -->
-<!-- imported: 2026-03-06 -->
+<!-- imported: 2026-03-07 -->
 
 # Executing Plans
 

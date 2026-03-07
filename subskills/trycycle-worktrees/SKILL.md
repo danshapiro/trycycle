@@ -4,7 +4,7 @@ description: "Internal trycycle subskill — do not invoke directly."
 ---
 <!-- trycycle-worktrees: adapted from https://github.com/obra/superpowers using-git-worktrees -->
 <!-- base-commit: e4a2375 -->
-<!-- imported: 2026-03-06 -->
+<!-- imported: 2026-03-07 -->
 
 # Using Git Worktrees (trycycle)
 

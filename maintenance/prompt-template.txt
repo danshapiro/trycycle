@@ -31,7 +31,7 @@ Transform the upstream source into a trycycle subskill. The guiding principle: *
 
 ### Universal adaptations (apply to all skills)
 
-1. **Rename references.** All `superpowers:X` references become `trycycle-X`. The skill name in the YAML frontmatter becomes `{{TRYCYCLE_NAME}}`.
+1. **Rename references.** All `superpowers:X` references become `trycycle-X`. The skill name in the YAML frontmatter becomes `{{TRYCYCLE_NAME}}`, and the description becomes exactly `{{TRYCYCLE_DESCRIPTION}}`.
 
 2. **Remove integration/cross-reference sections.** Remove "Called by", "Pairs with", "Integration" sections that reference skills we don't ship (brainstorming, subagent-driven-development). If there's useful pairing info for skills we DO ship (trycycle-worktrees, trycycle-planning, trycycle-executing, trycycle-finishing), keep it but use the trycycle names.
 
@@ -53,6 +53,13 @@ The adapted file MUST contain exactly these sections in this order:
 2. Attribution header (HTML comments)
 3. Skill content
 
+The YAML frontmatter MUST contain exactly these key/value pairs:
+
+```
+name: {{TRYCYCLE_NAME}}
+description: {{TRYCYCLE_DESCRIPTION}}
+```
+
 Here is the exact attribution header to use:
 
 ```
@@ -69,7 +76,7 @@ Wrap the entire adapted SKILL.md content (frontmatter, attribution header, skill
 <adapted-skill>
 ---
 name: {{TRYCYCLE_NAME}}
-description: ...
+description: "{{TRYCYCLE_DESCRIPTION}}"
 ---
 <!-- {{TRYCYCLE_NAME}}: adapted from https://github.com/obra/superpowers {{SOURCE_NAME}} -->
 <!-- base-commit: {{UPSTREAM_HEAD}} -->
