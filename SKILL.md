@@ -30,6 +30,7 @@ Unless the user instructs otherwise:
 - Review subagents are ephemeral: create a fresh reviewer for each review round.
 - Do not pass the full prior conversation context to planning or review subagents.
 - Pass `{USER_REQUEST_TRANSCRIPT}` for planning and plan review.
+- Transcript placeholders are verbatim user/assistant turns from this trycycle session.
 - Pass only the prompt template and the parameters it names.
 - Do not append extra steering, advice, guidance, or direction
 
@@ -70,7 +71,7 @@ If the task specification already includes detailed instructions for testing, yo
 
 Otherwise, dispatch a subagent to analyze the task and the codebase and propose a testing strategy.
 
-Dispatch a subagent whose prompt tells it to read and follow `<skill-directory>/subagents/prompt-test-strategy.md`, and provides the full conversation so far as `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}`.
+Dispatch a subagent whose prompt tells it to read and follow `<skill-directory>/subagents/prompt-test-strategy.md`, and provides `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}` as the verbatim user/assistant transcript from this trycycle session so far: the user's request plus any step-2 critical-unknowns exchange.
 
 When the subagent returns a proposed strategy, present it to the user verbatim. Wait for the user to respond — they may accept, adjust, or redirect entirely. If the user adjusts, the adjusted version becomes the agreed strategy. Do not re-dispatch the subagent for adjustments; incorporate the user's changes directly.
 
@@ -144,7 +145,7 @@ If issues still remain after the 5th review:
 
 Now that the implementation plan has been reviewed and finalized, dispatch a subagent to reconcile the testing strategy against the plan and produce the concrete test plan.
 
-Dispatch a subagent whose prompt tells it to read and follow `<skill-directory>/subagents/prompt-test-plan.md`, and provides `{FULL_CONVERSATION_VERBATIM}` (the entire conversation so far: user request, critical unknowns, testing strategy, and the user's adjustments), `{IMPLEMENTATION_PLAN_PATH}` (the reviewed plan from step 6), and `{WORKTREE_PATH}` with actual values.
+Dispatch a subagent whose prompt tells it to read and follow `<skill-directory>/subagents/prompt-test-plan.md`, and provides `{FULL_CONVERSATION_VERBATIM}` as the verbatim user/assistant transcript from this trycycle session so far: the user's request, any critical-unknowns exchange, the testing strategy you presented, and the user's follow-up adjustments or approval; `{IMPLEMENTATION_PLAN_PATH}` (the reviewed plan from step 6); and `{WORKTREE_PATH}` with actual values.
 
 The subagent will check whether the implementation plan invalidates any assumptions in the agreed testing strategy (e.g. harness assumptions were wrong, interaction surface is larger than expected, an expensive external dependency is needed). If the strategy still holds, it proceeds directly to writing the test plan. If adjustments are needed, it includes them in its output.
 

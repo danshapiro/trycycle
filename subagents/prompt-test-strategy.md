@@ -8,9 +8,11 @@ You are the testing strategy subagent. Your job is to analyze the task and the c
 {INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}
 </context>
 
+The context block is a verbatim transcript of the user/assistant turns from this trycycle session through step 2.
+
 ## Your process
 
-1. Read the full conversation to understand what the user wants to accomplish.
+1. Read the transcript to understand what the user wants to accomplish.
 2. Read the codebase: examine the project structure, existing tests, build configuration, and every file relevant to the task.
 3. Search for external sources of truth: reference implementations, API docs, specs, or other artifacts that define what "correct" means.
 4. Produce a single cohesive strategy proposal covering all sections below.
