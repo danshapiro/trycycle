@@ -26,7 +26,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--canary",
-        help="Fallback canary string for CLIs that cannot identify the current transcript directly.",
+        help="Canary string used to identify the current transcript when direct lookup is unavailable or inconclusive.",
     )
     parser.add_argument(
         "--timeout-ms",
@@ -60,14 +60,17 @@ def main() -> None:
     try:
         chosen_path = None
         find_current_transcript = getattr(adapter, "find_current_transcript", None)
-        if callable(find_current_transcript):
+        can_lookup_directly = callable(find_current_transcript)
+        if can_lookup_directly:
             chosen_path = find_current_transcript(search_root=args.search_root)
 
         if chosen_path is None:
             if not args.canary:
-                raise TranscriptError(
-                    "A canary is required when the current session transcript cannot be determined directly."
-                )
+                if can_lookup_directly:
+                    raise TranscriptError(
+                        "A canary is required when the current session transcript cannot be determined directly."
+                    )
+                raise TranscriptError(f"A canary is required for {args.cli_name} transcript lookup.")
             matches = adapter.find_matching_transcripts(
                 canary=args.canary,
                 timeout_ms=args.timeout_ms,

@@ -16,13 +16,15 @@ Several steps below make reference to prompt template files in `<skill-directory
 ## Transcript placeholder helper
 
 When a step below references `{USER_REQUEST_TRANSCRIPT}`, `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}`, or `{FULL_CONVERSATION_VERBATIM}`:
-1. First, try direct session lookup:
-   - Claude Code: `python3 <skill-directory>/orchestrator/user-request-transcript/build.py --cli claude-code`
-   - Codex CLI: `python3 <skill-directory>/orchestrator/user-request-transcript/build.py --cli codex-cli`
-2. If that succeeds, use its stdout exactly as the placeholder value.
-3. Otherwise, run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` and capture stdout exactly as `{CANARY}`.
-4. Re-run `build.py` with `--canary "{CANARY}"`.
-5. Use that stdout exactly as the placeholder value.
+1. For Claude Code, always use the canary flow:
+   - Run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` and capture stdout exactly as `{CANARY}`.
+   - Run `python3 <skill-directory>/orchestrator/user-request-transcript/build.py --cli claude-code --canary "{CANARY}"`.
+   - Use its stdout exactly as the placeholder value.
+2. For Codex CLI, first try direct session lookup with `python3 <skill-directory>/orchestrator/user-request-transcript/build.py --cli codex-cli`.
+3. If that succeeds, use its stdout exactly as the placeholder value.
+4. Otherwise, run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` and capture stdout exactly as `{CANARY}`.
+5. Re-run `build.py` with `--cli codex-cli --canary "{CANARY}"`.
+6. Use that stdout exactly as the placeholder value.
 
 ## Subagent Defaults
 
