@@ -73,7 +73,7 @@ Otherwise, dispatch a subagent to analyze the task and the codebase and propose 
 
 Dispatch a subagent whose prompt tells it to read and follow `<skill-directory>/subagents/prompt-test-strategy.md`, and provides `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}` with the actual value.
 
-When the subagent returns a proposed strategy, present it to the user verbatim and ask for explicit approval or edits. Do not proceed unless the user explicitly accepts it or provides changes. Silence, implied approval, or the subagent's own recommendation does not count as agreement. If the user adjusts, the adjusted version becomes the agreed strategy. Do not re-dispatch the subagent for adjustments; incorporate the user's changes directly.
+When the subagent returns a proposed strategy, present it to the user verbatim and ask for explicit approval or edits. Do not proceed unless the user explicitly accepts it or provides changes. Silence, implied approval, or the subagent's own recommendation does not count as agreement. If the user requests changes or redirects the approach, rebuild `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}` to include that feedback, re-dispatch the testing-strategy subagent, and present the revised strategy verbatim. Repeat until the user explicitly approves a strategy.
 
 The agreed testing strategy is used in step 7.
 
