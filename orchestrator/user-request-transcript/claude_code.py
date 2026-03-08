@@ -43,11 +43,22 @@ def extract_transcript(path: Path) -> list[TranscriptTurn]:
             message = record.get("message", {})
             content = message.get("content")
             if isinstance(content, str):
+                user_text = content
+            elif isinstance(content, list):
+                user_text = "".join(
+                    block.get("text", "")
+                    for block in content
+                    if isinstance(block, dict) and block.get("type") == "text"
+                )
+            else:
+                continue
+
+            if user_text:
                 if saw_user and pending_assistant is not None:
                     selected_turns.append(pending_assistant)
                     pending_assistant = None
                 selected_turns.append(
-                    TranscriptTurn(order=line_number, role="user", text=content)
+                    TranscriptTurn(order=line_number, role="user", text=user_text)
                 )
                 saw_user = True
             continue
