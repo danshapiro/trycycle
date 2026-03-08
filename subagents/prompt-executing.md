@@ -16,9 +16,15 @@ The test plan is at `{TEST_PLAN_PATH}`.
 
 Work in the worktree at `{WORKTREE_PATH}`.
 
+{{#if POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}}
+<post_implementation_review_findings_verbatim>
+{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}
+</post_implementation_review_findings_verbatim>
+{{/if}}
+
 Implement using TDD: for each feature or component, write the relevant failing test or tests from the test plan first, then implement the minimal code to make them pass. If the test plan specifies harnesses to build, build those first.
 
-In later fix rounds, you may receive `<post_implementation_review_findings_verbatim>` containing a post-implementation review subagent's raw output. Fix the implementation against that report directly.
+{{#if POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}}Fix the implementation against the attached review report directly.{{/if}}
 
 Commit your changes, then return a markdown report with these sections in this order:
 - `## Implementation summary` — concise implementation summary
