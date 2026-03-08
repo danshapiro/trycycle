@@ -366,12 +366,36 @@ Expected:
 - planning/executing review-only sections appear only in revision/fix renders
 - missing bindings and unreadable `--set-file` inputs fail loudly
 
-**Step 2: Run a Codex smoke flow in a disposable clean repo**
+**Step 2: Choose a usable primary CLI and keep the second CLI optional**
 
-Use a clean temp repo so the smoke agent never sees this trycycle repo as the working project:
+Detect which local agents are actually usable for smoke runs:
 
 ```bash
-smoke_root="$(mktemp -d /tmp/trycycle-codex-smoke-XXXXXX)"
+codex_bin="$(command -v codex || true)"
+claude_bin="$(command -v claude || true)"
+if [[ -n "$codex_bin" ]]; then
+  primary_cli="codex"
+  secondary_cli="${claude_bin:+claude}"
+elif [[ -n "$claude_bin" ]]; then
+  primary_cli="claude"
+  secondary_cli=""
+else
+  echo "heavy verification blocker: neither codex nor claude is installed" >&2
+  exit 1
+fi
+printf 'primary=%s secondary=%s\n' "$primary_cli" "${secondary_cli:-none}"
+```
+
+If the chosen primary CLI fails before trycycle logic because of local auth or unrelated machine setup, retry once. If it still cannot start a trycycle run, record the exact environment blocker and stop verification rather than changing the implementation to work around local CLI setup.
+
+**Step 3: Run one happy-path smoke task in a disposable clean repo**
+
+Use a clean temp repo so the smoke agent never sees this trycycle repo as the working project. Run the happy-path task on the usable primary CLI only.
+
+For `codex`:
+
+```bash
+smoke_root="$(mktemp -d /tmp/trycycle-happy-codex-XXXXXX)"
 repo="$smoke_root/repo"
 codex_home="$smoke_root/codex-home"
 mkdir -p "$repo" "$codex_home/skills"
@@ -381,30 +405,15 @@ git -C "$repo" add README.md
 git -C "$repo" commit -m "chore: init smoke repo"
 ln -s /home/user/code/trycycle/.worktrees/unify-prompt-builder-and-planner "$codex_home/skills/trycycle"
 CODEX_HOME="$codex_home" codex exec -C "$repo" --sandbox danger-full-access --ask-for-approval never \
-  "Use trycycle to add smoke-note.txt containing exactly 'codex smoke'. Testing instructions: do not add tests; verify the file exists, verify its exact contents, and verify the changed-file list in the implementation branch includes smoke-note.txt." \
-  | tee "$smoke_root/codex-output.txt"
+  "Use trycycle to add smoke-note.txt containing exactly 'primary smoke'. Testing instructions: do not add tests; verify the file exists, verify its exact contents, and verify the changed-file list in the implementation branch includes smoke-note.txt." \
+  | tee "$smoke_root/output.txt"
+git -C "$repo" worktree list --porcelain >"$smoke_root/worktrees.txt"
 ```
 
-After the run:
+For `claude`:
 
 ```bash
-git -C "$repo" worktree list --porcelain >"$smoke_root/codex-worktrees.txt"
-```
-
-Inspect the logged output and the listed worktrees. Success means:
-
-- the run reaches trycycle planning/execution rather than failing on skill discovery or prompt rendering
-- a trycycle-created worktree exists under the clean smoke repo
-- that worktree contains the expected `smoke-note.txt` change in its `main...HEAD` diff
-
-If the CLI fails before trycycle logic because of local auth or unrelated environment issues, record the exact failure in the verification notes and stop after one retry; do not mutate the implementation to chase local CLI setup problems.
-
-**Step 3: Run a Claude smoke flow in a second disposable clean repo**
-
-Use a separate clean repo and a project-local `.claude/skills/trycycle` symlink to the target worktree:
-
-```bash
-smoke_root="$(mktemp -d /tmp/trycycle-claude-smoke-XXXXXX)"
+smoke_root="$(mktemp -d /tmp/trycycle-happy-claude-XXXXXX)"
 repo="$smoke_root/repo"
 git init -b main "$repo"
 printf '# Smoke Repo\n' >"$repo/README.md"
@@ -413,19 +422,103 @@ git -C "$repo" commit -m "chore: init smoke repo"
 mkdir -p "$repo/.claude/skills"
 ln -s /home/user/code/trycycle/.worktrees/unify-prompt-builder-and-planner "$repo/.claude/skills/trycycle"
 (cd "$repo" && claude -p --dangerously-skip-permissions \
-  "Use trycycle to add smoke-note.txt containing exactly 'claude smoke'. Testing instructions: do not add tests; verify the file exists, verify its exact contents, and verify the changed-file list in the implementation branch includes smoke-note.txt.") \
-  | tee "$smoke_root/claude-output.txt"
+  "Use trycycle to add smoke-note.txt containing exactly 'primary smoke'. Testing instructions: do not add tests; verify the file exists, verify its exact contents, and verify the changed-file list in the implementation branch includes smoke-note.txt.") \
+  | tee "$smoke_root/output.txt"
+git -C "$repo" worktree list --porcelain >"$smoke_root/worktrees.txt"
+```
+
+Inspect the logged output and the listed worktrees. Success means:
+
+- the run reaches trycycle planning and execution rather than failing on skill discovery or prompt rendering
+- a trycycle-created worktree exists under the clean smoke repo
+- that worktree contains the expected `smoke-note.txt` change in its `main...HEAD` diff
+
+**Step 4: Run one controlled smoke task aimed at provoking both review loops**
+
+Create a second clean disposable repo with just enough structure that reviewers are likely to find at least one omission if the new loops are broken:
+
+```bash
+smoke_root="$(mktemp -d /tmp/trycycle-controlled-smoke-XXXXXX)"
+repo="$smoke_root/repo"
+git init -b main "$repo"
+cat >"$repo/notes.txt" <<'EOF'
+alpha
+beta
+gamma
+EOF
+cat >"$repo/notes.py" <<'EOF'
+#!/usr/bin/env python3
+from pathlib import Path
+
+
+def main() -> None:
+    for line in Path("notes.txt").read_text(encoding="utf-8").splitlines():
+        print(f"NOTE: {line}")
+
+
+if __name__ == "__main__":
+    main()
+EOF
+cat >"$repo/README.md" <<'EOF'
+# Notes
+
+Run `python3 notes.py` to print each note.
+EOF
+chmod +x "$repo/notes.py"
+git -C "$repo" add README.md notes.py notes.txt
+git -C "$repo" commit -m "chore: init controlled smoke repo"
+```
+
+Then run trycycle on the same usable primary CLI with a task that has enough surface area to stress both review loops:
+
+- extend `notes.py` with `--prefix TEXT`, `--format text|json`, and `--limit N`
+- preserve the existing default text output when no flags are passed
+- reject invalid `--format` values and non-positive `--limit` values with non-zero exit status and a clear error message
+- update the README examples for default output, prefixed output, json output, and invalid-input behavior
+- do not add tests; verify the example commands and changed-file list
+
+For `codex`:
+
+```bash
+codex_home="$smoke_root/codex-home"
+mkdir -p "$codex_home/skills"
+ln -s /home/user/code/trycycle/.worktrees/unify-prompt-builder-and-planner "$codex_home/skills/trycycle"
+CODEX_HOME="$codex_home" codex exec -C "$repo" --sandbox danger-full-access --ask-for-approval never \
+  "Use trycycle to extend notes.py with --prefix TEXT, --format text|json, and --limit N. Keep the current default text output unchanged when no flags are passed. Reject invalid --format values and non-positive --limit values with a non-zero exit status and a clear error message. Update README examples for default output, prefixed output, json output, and invalid-input behavior. Testing instructions: do not add tests; verify the example commands, error handling, and the changed-file list." \
+  | tee "$smoke_root/output.txt"
+```
+
+For `claude`:
+
+```bash
+mkdir -p "$repo/.claude/skills"
+ln -s /home/user/code/trycycle/.worktrees/unify-prompt-builder-and-planner "$repo/.claude/skills/trycycle"
+(cd "$repo" && claude -p --dangerously-skip-permissions \
+  "Use trycycle to extend notes.py with --prefix TEXT, --format text|json, and --limit N. Keep the current default text output unchanged when no flags are passed. Reject invalid --format values and non-positive --limit values with a non-zero exit status and a clear error message. Update README examples for default output, prefixed output, json output, and invalid-input behavior. Testing instructions: do not add tests; verify the example commands, error handling, and the changed-file list.") \
+  | tee "$smoke_root/output.txt"
 ```
 
 After the run:
 
 ```bash
-git -C "$repo" worktree list --porcelain >"$smoke_root/claude-worktrees.txt"
+git -C "$repo" worktree list --porcelain >"$smoke_root/worktrees.txt"
 ```
 
-Inspect the output and listed worktrees with the same success criteria as the Codex smoke flow.
+Inspect the output and confirm the run shows evidence of both new review-loop behaviors:
 
-**Step 4: Confirm the implementation worktree is still clean**
+- at least one failed plan review followed by a planning revision round
+- at least one post-implementation review that triggers an implementation fix round
+- successful completion after those retries
+
+Use the final trycycle report plus the logged transcript to confirm loop counts. If this first controlled smoke does not trigger both loops, run one more controlled smoke in a fresh disposable repo with the same structure but one broader request that also requires a new `--summary` mode in both text and json output, then inspect that rerun instead of silently accepting missing loop coverage.
+
+**Step 5: If both CLIs are usable, exercise the secondary transcript-binding path**
+
+Only if both CLIs are actually usable on this machine, run one additional happy-path smoke on the secondary CLI in a fresh disposable repo using the same `smoke-note.txt` task as Step 3. This step is only to cover the alternate transcript-binding path; it is not a substitute for the controlled loop-stressing smoke above.
+
+If the secondary CLI is unavailable or unusable due to local auth/setup, note that the secondary transcript path was skipped and keep the primary-CLI heavy verification as the main result.
+
+**Step 6: Confirm the implementation worktree is still clean**
 
 Run:
 
