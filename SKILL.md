@@ -51,7 +51,7 @@ Planning and review subagents typically take 10-30 minutes. The implementation s
 
 ## 1) Version check
 
-Run `bash <skill-directory>/check-update.sh` (where `<skill-directory>` is the directory containing this SKILL.md). If an update is available, tell the user and ask if they'd like to update before continuing. If they say yes, run `git -C <skill-directory> pull` and then re-read this skill file.
+Run `python3 <skill-directory>/check-update.py` (where `<skill-directory>` is the directory containing this SKILL.md). If an update is available, tell the user and ask if they'd like to update before continuing. If they say yes, run `git -C <skill-directory> pull` and then re-read this skill file.
 
 ## 2) Ask about critical unknowns before work
 

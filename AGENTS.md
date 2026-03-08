@@ -25,7 +25,7 @@ Don't add tests to this specific repo, regardless of more general instructions o
 
 ## Versioning
 
-Trycycle uses git tags for version tracking. `check-update.sh` runs at the
+Trycycle uses git tags for version tracking. `check-update.py` runs at the
 start of every Trycycle session (SKILL.md step 0) and compares the user's
 local tag against `origin/main` to prompt for updates.
 
