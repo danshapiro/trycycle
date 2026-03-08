@@ -79,7 +79,7 @@ The agreed testing strategy is used in step 7.
 
 ## 4) Create worktree
 
-Use the `trycycle-worktrees` skill to create an isolated worktree for the implementation with an appropriately named branch, for example `add-connection-status-icon`.
+Read and follow `<skill-directory>/subskills/trycycle-worktrees/SKILL.md` to create an isolated worktree for the implementation with an appropriately named branch, for example `add-connection-status-icon`.
 
 Immediately after creating the worktree, run:
 - `git -C {WORKTREE_PATH} branch --show-current`
@@ -194,4 +194,4 @@ Clean up temporary artifacts created during the loop (for example plan scratch f
 
 Summarize the ENTIRE process to the user: how many plan-review rounds, how many code-review rounds, what was changed in the codebase, any notes about unresolved minor issues or concerns, and where things stand.
 
-Then use the `trycycle-finishing` skill to present the user with options for integrating the worktree (merge, PR, etc.).
+Then read and follow `<skill-directory>/subskills/trycycle-finishing/SKILL.md` to present the user with options for integrating the worktree (merge, PR, etc.).
