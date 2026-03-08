@@ -18,4 +18,6 @@ Work in the worktree at `{WORKTREE_PATH}`.
 
 Implement using TDD: for each feature or component, write the relevant failing test or tests from the test plan first, then implement the minimal code to make them pass. If the test plan specifies harnesses to build, build those first.
 
+In later fix rounds, you may receive `<post_implementation_review_findings_verbatim>` containing a post-implementation review subagent's raw output. Fix the implementation against that report directly.
+
 Commit your changes, then return a concise implementation summary and verification results.

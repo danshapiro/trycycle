@@ -11,7 +11,7 @@ The user's instructions are paramount. If anything in this skill conflicts with 
 
 ## Dispatching subagents with prompt templates
 
-Several steps below make reference to prompt template files in `<skill-directory>/subagents/`. Do not read those prompt template files yourself — they are for the subagent, and your job is orchestration, not supervision and not execution. Instead, dispatch the subagent with a short prompt that tells it to read the template file, and include the substitution values it will need (labeled with the placeholder names like `{WORKTREE_PATH}`).
+Several steps below reference prompt template files in `<skill-directory>/subagents/`. Treat them as subagent inputs: dispatch the subagent with a short prompt that points it to the template file and supplies the substitution values it needs, labeled with the placeholder names such as `{WORKTREE_PATH}`.
 
 ## Transcript placeholder helper
 
@@ -26,17 +26,18 @@ When a step below references `{USER_REQUEST_TRANSCRIPT}`, `{INITIAL_REQUEST_AND_
 5. Re-run `build.py` with `--cli codex-cli --canary "{CANARY}"`.
 6. Use that stdout exactly as the placeholder value.
 
+When a step below references `{PLAN_REVIEW_FINDINGS_VERBATIM}` or `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}`, use the corresponding review subagent's stdout exactly as the placeholder value.
+
 ## Subagent Defaults
 
 - Planning subagents are persistent: create one planning agent, then resume it for every plan-fix round.
+- Implementation subagents are persistent: create one implementation agent, then resume it for every implementation-fix round.
 - Review subagents are ephemeral: create a fresh reviewer for each review round.
-- Do not pass the full prior conversation context to planning or review subagents.
-- Pass `{USER_REQUEST_TRANSCRIPT}` for planning and plan review.
-- Pass only the prompt template and the parameters it names.
-- Do not append extra steering, advice, guidance, or direction.
-- Remember that user instructions override all other instructions.
+- For planning and plan review, pass `{USER_REQUEST_TRANSCRIPT}` rather than the full prior conversation.
+- Pass the prompt template together with the parameters it names.
+- User instructions still apply and may be relayed when relevant.
 
-Example: You should not say "Keep fixing this file." If the user says "We're almost there, don't start over", though, then relay those instructions.
+Example: if the user says "We're almost there, don't start over," relay that instruction.
 
 ## Timing expectations
 
@@ -46,9 +47,9 @@ Planning and review subagents typically take 10-30 minutes. The implementation s
 
 Run `bash <skill-directory>/check-update.sh` (where `<skill-directory>` is the directory containing this SKILL.md). If an update is available, tell the user and ask if they'd like to update before continuing. If they say yes, run `git -C <skill-directory> pull` and then re-read this skill file.
 
-## 2) Confirm critical unknowns before work
+## 2) Ask about critical unknowns before work
 
-Read the user's request and identify whether any missing information could materially change the outcome and likely upset the user if guessed wrong.
+If the request leaves out information that could materially change the outcome and likely upset the user if guessed wrong, ask about it.
 
 Assume the user cares about outcomes, not technologies. Mention technology choices only when they impact user experience.
 
@@ -58,12 +59,12 @@ If there are no critical unknowns, reply exactly:
 
 If there are critical unknowns, list each succinctly as:
 
-`1. Question? (recommended answer)`
+`1. Question?`
 
 Example:
-`1. Webapp or local? (recommendation: webapp)`
+`1. Webapp or local?`
 
-If needed, follow up with additional questions of similar importance or discussion. Proceed either when the user indicates they are ready, or when the user has answered all critical questions.
+If more than one blocking question exists, ask them together. Proceed once the blocking questions have been answered.
 
 ## 3) Testing strategy
 
@@ -111,34 +112,47 @@ Create the planning subagent once, then resume that same subagent for every plan
 
 Dispatch a subagent whose prompt tells it to read and follow `<skill-directory>/subagents/prompt-planning.md`, and provides `{USER_REQUEST_TRANSCRIPT}` and `{WORKTREE_PATH}` with actual values.
 
-Do not proceed until the planning subagent has either returned a complete plan or reported `USER DECISION REQUIRED:`. Do not poll, and do not inspect or second guess the agent's work unless the users asks.
+Wait for the planning subagent to return either a complete plan path or a report beginning with `USER DECISION REQUIRED:`.
 
-If the planning subagent says a user decision is required, stop and relay the question to the user, and then relay the answer to the subagent.
+If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user and send the user's answer back to the same planning subagent.
 
 If a plan was returned, before starting plan-review round 1, run the Worktree hygiene gate checks and confirm the plan file exists at the returned path.
 
 ## 7) Plan-review loop (up to 5 rounds)
 
 Deploy a fresh review subagent to review the plan.
-Defer entirely to the subagents' findings about plan contents unless the user specifically asks otherwise.
+Use the subagents' findings about plan contents as the loop inputs.
 
 Instruct the subagent to read the plan and return a numbered list of issues. An issue must be significant enough that the user's intent might not be met due to a technical or product-direction deficiency.
 
-The reviewer should be stateless: you should NOT tell it that it is on review X/5, that it is looking at a plan that has previously been reviewed, etc.
+The reviewer is stateless: dispatch each review as a fresh first-look review with only the template and the current plan.
 
 Dispatch a subagent whose prompt tells it to read and follow `<skill-directory>/subagents/prompt-plan-review.md`, and provides `{USER_REQUEST_TRANSCRIPT}` and `{path_to_plan}` with actual values.
 
 After each review:
-1. Send all issues to the same planning subagent you used before.
-2. If the planning subagent says a user decision is required, stop and relay that question to the user, and relay any answers to the subagent.
-3. Run the Worktree hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
-4. Re-run a fresh reviewer, with no context history, with the same template and updated plan.
-5. Repeat up to 5 rounds.
+1. If the reviewer returns `No significant issues.`, continue to step 8 with the current plan.
+2. Capture the review subagent's stdout exactly as `{PLAN_REVIEW_FINDINGS_VERBATIM}`.
+3. Resume the same planning subagent you used before and send exactly this message, substituting the placeholder value without changing it:
+
+   ```
+   Revise the current implementation plan against this review report.
+
+   <plan_review_findings_verbatim>
+   {PLAN_REVIEW_FINDINGS_VERBATIM}
+   </plan_review_findings_verbatim>
+
+   Return only the absolute path to the updated plan file, or a detailed report beginning with `USER DECISION REQUIRED:`.
+   ```
+
+4. If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user and send the user's answer back to the same planning subagent.
+5. Run the Worktree hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
+6. Re-run a fresh reviewer, with no context history, with the same template and updated plan.
+7. Repeat up to 5 rounds.
 
 If issues still remain after the 5th review:
 1. Stop looping.
 2. Dispatch a subagent to review past subagent sessions and hypothesize why the loop is not converging.
-3. Relay this, plus a concrete list of remaining issues, to the user and await user instructions.
+3. Present that report and the latest review output to the user and await user instructions.
 
 ## 8) Build test plan (subagent-owned)
 
@@ -148,7 +162,7 @@ Dispatch a subagent whose prompt tells it to read and follow `<skill-directory>/
 
 When the subagent returns:
 
-1. Check whether it flagged any strategy changes that require user approval — specifically changes that increase cost, scope, or require access to paid/external resources that weren't part of the original agreement. If so, present these to the user and wait for approval before proceeding.
+1. If the test plan begins with a `## Strategy changes requiring user approval` section, present that section to the user verbatim and wait for approval before proceeding.
 2. Run the Worktree hygiene gate checks and verify the test plan file exists at the returned path.
 
 ## 9) Execute with trycycle-executing (subagent-owned)
@@ -169,7 +183,17 @@ After execution completes, deploy a new reviewer with no prior context.
 
 Dispatch a subagent whose prompt tells it to read and follow `<skill-directory>/subagents/prompt-post-impl-review.md`, and provides `{WORKTREE_PATH}` with the actual value.
 
-Address all issues each round regardless of severity. Route issues back to the implementation subagent for fixes, then re-run with a fresh stateless reviewer each time.
+Use the review subagent's output as the fix-loop input. When another fix round is needed, capture the reviewer stdout exactly as `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}` and resume the same implementation subagent with this message:
+
+```
+Fix the implementation against this review report.
+
+<post_implementation_review_findings_verbatim>
+{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}
+</post_implementation_review_findings_verbatim>
+
+Commit your changes, then return a concise implementation summary and verification results.
+```
 
 After each implementation-subagent fix round, run the Worktree hygiene gate checks and verify commit hash plus changed-file list before starting the next fresh review round.
 
@@ -179,9 +203,8 @@ Stop when either condition is met:
 
 If critical or major issues still remain after the 8th review:
 1. Stop looping.
-2. Summarize the remaining issues.
-3. Speculate briefly why the loop is not converging.
-4. Await user instructions.
+2. Dispatch a subagent to review past subagent sessions and hypothesize why the loop is not converging.
+3. Present that report and the latest review output to the user and await user instructions.
 
 ## 11) Finish
 
@@ -192,6 +215,6 @@ Clean up temporary artifacts created during the loop (for example plan scratch f
 - `git -C {WORKTREE_PATH} rev-parse --short HEAD`
 - `git -C {WORKTREE_PATH} diff --name-only main...HEAD`
 
-Summarize the ENTIRE process to the user: how many plan-review rounds, how many code-review rounds, what was changed in the codebase, any notes about unresolved minor issues or concerns, and where things stand.
+Report the process to the user using concrete facts and returned artifacts: how many plan-review rounds, how many code-review rounds, the current `HEAD`, the changed-file list, the implementation subagent's latest summary and verification results, and any reviewer-reported residual issues.
 
 Then read and follow `<skill-directory>/subskills/trycycle-finishing/SKILL.md` to present the user with options for integrating the worktree (merge, PR, etc.).

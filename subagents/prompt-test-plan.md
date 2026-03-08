@@ -23,7 +23,7 @@ Work in the worktree at `{WORKTREE_PATH}`.
    - Is the interaction surface larger or different than expected?
    - Does the plan reveal external dependencies (paid APIs, infrastructure, services) that the strategy didn't account for?
    - Are there components or behaviors the strategy didn't anticipate?
-   If the strategy still holds, note that briefly and proceed. If adjustments are needed that don't change the cost or scope the user agreed to, make them and document what changed and why. If adjustments would increase cost, require access to paid/external resources, or materially change scope, flag these clearly in a `## Strategy changes requiring user approval` section at the top of your output — these will be presented to the user before proceeding.
+   If the strategy still holds, note that briefly and proceed. If adjustments are needed that don't change the cost or scope the user agreed to, make them and document what changed and why. If adjustments would increase cost, require access to paid/external resources, or materially change scope, put them in a `## Strategy changes requiring user approval` section as the first section of the file — that section will be presented to the user before proceeding.
 4. Read the codebase: examine every file, directory, and artifact relevant to the task. If there are reference implementations, specs, API docs, or other sources of truth identified in the strategy, read those thoroughly.
 5. Identify the full action space: every user-facing action, command, endpoint, interaction, or behavior that the task touches or could affect.
 6. Write tests against the planned interfaces and architecture that verify the product works from the user's perspective — not tests that verify the code agrees with itself.

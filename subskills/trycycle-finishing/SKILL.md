@@ -96,10 +96,13 @@ git push -u origin <feature-branch>
 # Create PR
 gh pr create --title "<title>" --body "$(cat <<'EOF'
 ## Summary
-<2-3 bullets of what changed>
+<paste the implementation subagent's implementation summary here>
 
 ## Test Plan
-- [ ] <verification steps>
+<paste the implementation subagent's verification results here>
+
+## Residual Issues
+<if the reviewer reported any residual issues, list them here; otherwise omit this section>
 EOF
 )"
 ```

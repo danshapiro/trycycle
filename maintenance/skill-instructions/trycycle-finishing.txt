@@ -12,8 +12,8 @@ This skill is invoked in trycycle Step 7 ("Finish"). After the post-implementati
 2. **Keep almost everything else.** This skill is already lean and focused:
    - Step 1 (Verify Tests) — keep. Even though the review loop passed, a final test run before merge is good hygiene.
    - Step 2 (Determine Base Branch) — keep.
-   - Step 3 (Present Options) — keep the 4 options exactly as-is.
-   - Step 4 (Execute Choice) — keep all 4 option implementations.
+   - Step 3 (Present Options) — keep the 4 options and their mechanics, but replace any placeholder summary-writing or verification-writing with reuse of artifacts already produced earlier in trycycle. For the PR option, the `## Summary` section should say to paste the existing implementation summary, the `## Test Plan` section should say to paste the existing verification results, and any reviewer-reported residual issues should be carried through if present.
+   - Step 4 (Execute Choice) — keep all 4 option implementations, and keep using those same existing implementation-summary / verification-result / residual-issue artifacts whenever an option needs PR text or user-facing reporting.
    - Step 5 (Cleanup Worktree) — keep.
    - Quick Reference table — keep.
    - Common Mistakes — keep the ones about skipping test verification, no confirmation for discard. Remove ones about integration with skills we don't ship.
