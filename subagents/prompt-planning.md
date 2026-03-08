@@ -22,4 +22,7 @@ Task:
 - Work in the worktree at `{WORKTREE_PATH}`.
 - Commit the plan to the worktree.
 - Skip the execution handoff section of `trycycle-planning`.
-- Return only the absolute path to the plan file.
+- Otherwise, return a markdown report with these sections in this order:
+  - `## Plan path` — the absolute path to the current plan file
+  - `## Commit` — the latest short commit hash
+  - `## Changed files` — one changed path per line

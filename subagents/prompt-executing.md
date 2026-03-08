@@ -9,7 +9,7 @@ You are the implementation subagent. Use the trycycle-executing skill to impleme
 All other trycycle-executing behaviors remain in effect (run verifications, follow plan steps exactly, etc.).
 
 <plan>
-{path_to_plan}
+{IMPLEMENTATION_PLAN_PATH}
 </plan>
 
 The test plan is at `{TEST_PLAN_PATH}`.
@@ -20,4 +20,8 @@ Implement using TDD: for each feature or component, write the relevant failing t
 
 In later fix rounds, you may receive `<post_implementation_review_findings_verbatim>` containing a post-implementation review subagent's raw output. Fix the implementation against that report directly.
 
-Commit your changes, then return a concise implementation summary and verification results.
+Commit your changes, then return a markdown report with these sections in this order:
+- `## Implementation summary` — concise implementation summary
+- `## Verification results` — verification commands and outcomes
+- `## Commit` — the latest short commit hash
+- `## Changed files` — one changed path per line

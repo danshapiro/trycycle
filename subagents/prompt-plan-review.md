@@ -8,7 +8,7 @@ Another AI has generated an implementation plan for a user request. You are the 
 </user_request_transcript_json>
 
 <plan>
-{path_to_plan}
+{IMPLEMENTATION_PLAN_PATH}
 </plan>
 
 Task:
