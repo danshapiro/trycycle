@@ -11,7 +11,18 @@ The user's instructions are paramount. If anything in this skill conflicts with 
 
 ## Dispatching subagents with prompt templates
 
-Several steps below reference prompt template files in `<skill-directory>/subagents/`. Treat them as subagent inputs: dispatch the subagent with a short prompt that points it to the template file and supplies the substitution values it needs, labeled with the placeholder names such as `{WORKTREE_PATH}`. Do not read them yourself; you're the orchestrator, not the overseer.
+Several steps below reference prompt template files in `<skill-directory>/subagents/`. Do not reconstruct those prompts yourself. Render the final prompt with `python3 <skill-directory>/orchestrator/prompt_builder/build.py`, then send that rendered prompt verbatim to the target subagent.
+
+## Prompt builder helper
+
+When a step below tells you to render a prompt template:
+- Run `python3 <skill-directory>/orchestrator/prompt_builder/build.py --template <template-path> ...`
+- Pass short scalar values such as `{WORKTREE_PATH}`, `{IMPLEMENTATION_PLAN_PATH}`, and `{TEST_PLAN_PATH}` with `--set NAME=VALUE`
+- Pass multiline values such as transcripts and reviewer outputs with `--set-file NAME=PATH`
+- When a multiline placeholder comes from command or subagent stdout, save it to a temp file immediately before rendering so you can bind it with `--set-file`
+- Use the builder's stdout exactly as the prompt you send to the subagent
+
+The prompt builder supports conditional blocks inside templates. A block guarded by `{{#if NAME}} ... {{/if}}` is included only when `NAME` is bound to a non-empty value.
 
 ## Transcript placeholder helper
 
@@ -26,7 +37,8 @@ When a step below references `{USER_REQUEST_TRANSCRIPT}`, `{INITIAL_REQUEST_AND_
 5. Re-run `build.py` with `--cli codex-cli --canary "{CANARY}"`.
 6. Use that stdout exactly as the placeholder value.
 
-Build transcript placeholder values immediately before each dispatch that uses them. If the conversation changes, rebuild the placeholder value before the next dispatch.
+Build transcript placeholder values immediately before each rendered prompt that uses them. If the conversation changes, rebuild the placeholder value before the next render.
+When a rendered prompt needs a transcript placeholder, save that stdout to a temp file and bind it with `--set-file`.
 
 When a step below references `{PLAN_REVIEW_FINDINGS_VERBATIM}` or `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}`, use the corresponding review subagent's stdout exactly as the placeholder value.
 
@@ -36,11 +48,11 @@ When a step below references `{TEST_PLAN_PATH}`, use the latest absolute test-pl
 
 ## Subagent Defaults
 
-- Planning subagents are persistent: create one planning agent, then resume it for every plan-fix round.
+- Planning subagents are ephemeral across plan-review rounds: spawn a fresh planning agent for the initial plan and for every plan-fix round after a failed review verdict.
 - Implementation subagents are persistent: create one implementation agent, then resume it for every implementation-fix round.
 - Review subagents are ephemeral: create a fresh reviewer for each review round.
 - For planning and plan review, pass `{USER_REQUEST_TRANSCRIPT}`. Do not use the full prior conversation.
-- Pass the prompt template together with the parameters it names.
+- Render the prompt template with the prompt builder and pass the rendered prompt verbatim.
 - User instructions still apply. When they are relevant, relay them.
 
 Example: if the user says "We're almost there, don't start over," relay that instruction.
@@ -75,9 +87,9 @@ If the task specification already includes detailed instructions for testing, yo
 
 Otherwise, dispatch a subagent to analyze the task and the codebase and propose a testing strategy.
 
-Dispatch a subagent whose prompt tells it to read and follow `<skill-directory>/subagents/prompt-test-strategy.md`, and provides `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}` with the actual value.
+Immediately before rendering, rebuild `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}`, save it to a temp file, render `<skill-directory>/subagents/prompt-test-strategy.md` with the prompt builder using `--set-file INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION=<temp-file>`, and dispatch a subagent with that rendered prompt.
 
-When the subagent returns a proposed strategy, present it to the user verbatim and ask for explicit approval or edits. Do not proceed unless the user explicitly accepts it or provides changes. Silence, implied approval, or the subagent's own recommendation does not count as agreement. If the user requests changes or redirects the approach, rebuild `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}` to include that feedback, re-dispatch the testing-strategy subagent, and present the revised strategy verbatim. Repeat until the user explicitly approves a strategy.
+When the subagent returns a proposed strategy, present it to the user verbatim and ask for explicit approval or edits. Do not proceed unless the user explicitly accepts it or provides changes. Silence, implied approval, or the subagent's own recommendation does not count as agreement. If the user requests changes or redirects the approach, rebuild `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}` immediately before the next render, save it to a temp file again, re-render `<skill-directory>/subagents/prompt-test-strategy.md` with the updated value, re-dispatch the testing-strategy subagent with that rendered prompt, and present the revised strategy verbatim. Repeat until the user explicitly approves a strategy.
 
 The agreed testing strategy is used in step 7.
 
@@ -111,15 +123,15 @@ After every subagent completion, also run:
 Spec writing must be done by a dedicated subagent.
 Only subagents read or write plan files.
 
-Create the planning subagent once, then resume that same subagent for every plan-fix round. 
+Spawn a fresh planning subagent for each planning round.
 
-Dispatch a subagent whose prompt tells it to read and follow `<skill-directory>/subagents/prompt-planning.md`, and provides `{USER_REQUEST_TRANSCRIPT}` and `{WORKTREE_PATH}` with actual values.
+Immediately before rendering, rebuild `{USER_REQUEST_TRANSCRIPT}`, save it to a temp file, render `<skill-directory>/subagents/prompt-planning.md` with the prompt builder using `--set WORKTREE_PATH={WORKTREE_PATH}` and `--set-file USER_REQUEST_TRANSCRIPT=<temp-file>`, and dispatch the planning subagent with that rendered prompt.
 
 Wait for the planning subagent to return either:
 - a planning report containing `## Plan path`, `## Commit`, and `## Changed files`
 - or a report beginning with `USER DECISION REQUIRED:`
 
-If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to the same planning subagent, and wait again for either a planning report or another `USER DECISION REQUIRED:` report.
+If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either a planning report or another `USER DECISION REQUIRED:` report.
 
 If a planning report was returned, update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path`, then run the Worktree hygiene gate checks, verify the latest commit hash plus changed-file list match the planning subagent's report, and confirm the plan file exists at `{IMPLEMENTATION_PLAN_PATH}`.
 
@@ -132,29 +144,19 @@ Instruct the subagent to read the plan and return a numbered list of issues. An 
 
 The reviewer is stateless: dispatch each review as a fresh first-look review with only the template and the current plan.
 
-Dispatch a subagent whose prompt tells it to read and follow `<skill-directory>/subagents/prompt-plan-review.md`, and provides `{USER_REQUEST_TRANSCRIPT}` and `{IMPLEMENTATION_PLAN_PATH}` with actual values.
+Immediately before each review render, rebuild `{USER_REQUEST_TRANSCRIPT}`, save it to a temp file, render `<skill-directory>/subagents/prompt-plan-review.md` with the prompt builder using `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}` and `--set-file USER_REQUEST_TRANSCRIPT=<temp-file>`, and dispatch a review subagent with that rendered prompt.
 
 After each review:
 1. If the reviewer returns `No significant issues.`, continue to step 8 with the current `{IMPLEMENTATION_PLAN_PATH}`.
 2. Capture the review subagent's stdout exactly as `{PLAN_REVIEW_FINDINGS_VERBATIM}`.
-3. Resume the same planning subagent you used before and send exactly this message, substituting the placeholder value without changing it:
-
-   ```
-   Revise the current implementation plan against this review report.
-
-   <plan_review_findings_verbatim>
-   {PLAN_REVIEW_FINDINGS_VERBATIM}
-   </plan_review_findings_verbatim>
-
-   Return either a markdown report with `## Plan path`, `## Commit`, and `## Changed files`, or a detailed report beginning with `USER DECISION REQUIRED:`.
-   ```
-
-4. Wait for the planning subagent to return either an updated planning report or a report beginning with `USER DECISION REQUIRED:`.
-5. If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to the same planning subagent, and wait again for either an updated planning report or another `USER DECISION REQUIRED:` report.
-6. Update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path` in the latest planning report.
-7. Run the Worktree hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
-8. Re-run a fresh reviewer, with rebuilt `{USER_REQUEST_TRANSCRIPT}`, the same template, and the updated `{IMPLEMENTATION_PLAN_PATH}`.
-9. Repeat up to 5 rounds.
+3. Save `{PLAN_REVIEW_FINDINGS_VERBATIM}` to a temp file immediately.
+4. Do not resume the previous planning subagent. Spawn a fresh planning subagent for this revision round.
+5. Immediately before rendering the revision prompt, rebuild `{USER_REQUEST_TRANSCRIPT}`, save it to a temp file, render `<skill-directory>/subagents/prompt-planning.md` with the prompt builder using `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set-file USER_REQUEST_TRANSCRIPT=<temp-file>`, and `--set-file PLAN_REVIEW_FINDINGS_VERBATIM=<review-findings-temp-file>`, then dispatch that new planning subagent with the rendered prompt.
+6. Wait for the planning subagent to return either an updated planning report or a report beginning with `USER DECISION REQUIRED:`.
+7. If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either an updated planning report or another `USER DECISION REQUIRED:` report.
+8. Update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path` in the latest planning report.
+9. Run the Worktree hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
+10. Repeat up to 5 rounds.
 
 If issues still remain after the 5th review:
 1. Stop looping.
@@ -165,13 +167,13 @@ If issues still remain after the 5th review:
 
 Now that the implementation plan has been reviewed and finalized, dispatch a subagent to reconcile the testing strategy against the plan and produce the concrete test plan.
 
-Dispatch a subagent whose prompt tells it to read and follow `<skill-directory>/subagents/prompt-test-plan.md`, and provides `{FULL_CONVERSATION_VERBATIM}`, `{IMPLEMENTATION_PLAN_PATH}` (the latest approved plan path from step 7), and `{WORKTREE_PATH}` with actual values.
+Immediately before rendering, rebuild `{FULL_CONVERSATION_VERBATIM}`, save it to a temp file, render `<skill-directory>/subagents/prompt-test-plan.md` with the prompt builder using `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, and `--set-file FULL_CONVERSATION_VERBATIM=<temp-file>`, and dispatch a subagent with that rendered prompt.
 
 When the subagent returns:
 
 1. Update `{TEST_PLAN_PATH}` from `## Test plan path` in the latest test-plan report.
 2. If the test-plan report includes `## Strategy changes requiring user approval`, present that section to the user verbatim.
-3. If the user requests changes or redirects the approach, rebuild `{FULL_CONVERSATION_VERBATIM}` to include that feedback, re-dispatch the test-plan subagent with the latest `{IMPLEMENTATION_PLAN_PATH}` and `{WORKTREE_PATH}`, update `{TEST_PLAN_PATH}` from the latest test-plan report, and repeat until the user explicitly approves or the report no longer includes that section.
+3. If the user requests changes or redirects the approach, rebuild `{FULL_CONVERSATION_VERBATIM}` immediately before the next render, save it to a temp file again, re-render `<skill-directory>/subagents/prompt-test-plan.md` with the latest `{IMPLEMENTATION_PLAN_PATH}` and `{WORKTREE_PATH}`, re-dispatch the test-plan subagent with that rendered prompt, update `{TEST_PLAN_PATH}` from the latest test-plan report, and repeat until the user explicitly approves or the report no longer includes that section.
 4. Do not proceed until the current test-plan report either has no `## Strategy changes requiring user approval` section or the user has explicitly approved it.
 5. Run the Worktree hygiene gate checks, verify the latest commit hash plus changed-file list match the test-plan subagent's report, and verify the test plan file exists at `{TEST_PLAN_PATH}`.
 
@@ -181,7 +183,7 @@ Code implementation must be done by a new, dedicated subagent.
 
 Spawn a fresh implementation subagent and give it the final approved plan.
 
-Dispatch a subagent whose prompt tells it to read and follow `<skill-directory>/subagents/prompt-executing.md`, and provides `{IMPLEMENTATION_PLAN_PATH}`, `{TEST_PLAN_PATH}`, and `{WORKTREE_PATH}` with actual values.
+Render `<skill-directory>/subagents/prompt-executing.md` with the prompt builder using `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, and `--set WORKTREE_PATH={WORKTREE_PATH}`, then dispatch the implementation subagent with that rendered prompt.
 
 Do not proceed to post-implementation review until the implementation subagent has returned an implementation report.
 
@@ -191,19 +193,13 @@ After implementation completes, run the Worktree hygiene gate checks and verify 
 
 After execution completes, deploy a new reviewer with no prior context.
 
-Dispatch a subagent whose prompt tells it to read and follow `<skill-directory>/subagents/prompt-post-impl-review.md`, and provides `{WORKTREE_PATH}` with the actual value.
+Render `<skill-directory>/subagents/prompt-post-impl-review.md` with the prompt builder using `--set WORKTREE_PATH={WORKTREE_PATH}`, and dispatch a review subagent with that rendered prompt.
 
-Use the review subagent's output as the fix-loop input. When another fix round is needed, capture the reviewer stdout exactly as `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}` and resume the same implementation subagent with this message:
-
-```
-Fix the implementation against this review report.
-
-<post_implementation_review_findings_verbatim>
-{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}
-</post_implementation_review_findings_verbatim>
-
-Commit your changes, then return a markdown report with `## Implementation summary`, `## Verification results`, `## Commit`, and `## Changed files`.
-```
+Use the review subagent's output as the fix-loop input. When another fix round is needed:
+1. Capture the reviewer stdout exactly as `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}`.
+2. Save `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}` to a temp file immediately.
+3. Render `<skill-directory>/subagents/prompt-executing.md` with the prompt builder using `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, and `--set-file POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM=<review-findings-temp-file>`.
+4. Resume the same implementation subagent and send that rendered prompt verbatim.
 
 After each implementation-subagent fix round, run the Worktree hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next fresh review round.
 
