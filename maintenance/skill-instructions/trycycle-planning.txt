@@ -2,6 +2,7 @@ This skill is invoked in trycycle Step 3 ("Plan with writing-plans"). A dedicate
 
 **What the orchestrator already handles:**
 - The orchestrator spawns a dedicated subagent for planning. The subagent is told not to spawn additional subagents.
+- If a plan reviewer returns a failure verdict, the orchestrator does not resume the previous planning subagent. It spawns a fresh planning subagent for that revision round and may include the current plan path plus the raw reviewer findings in that new dispatch.
 - The orchestrator tells the subagent: "The writing-plans skill may reference a brainstorming phase as a precondition. Disregard that — the context above replaces brainstorming output."
 - The orchestrator tells the subagent: "Skip the execution handoff section of writing-plans — just return the absolute path to your plan."
 - After the plan is written, the orchestrator runs its own plan-review loop (Step 4) with up to 5 rounds of independent reviewers.

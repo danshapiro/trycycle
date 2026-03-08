@@ -62,10 +62,10 @@ def parse_args() -> argparse.Namespace:
 
 def parse_binding(raw: str) -> tuple[str, str]:
     if "=" not in raw:
-        raise TemplateError(f"binding must be NAME=VALUE, got {raw!r}")
+        raise TemplateError(f"Binding must be NAME=VALUE, got: {raw!r}")
     name, value = raw.split("=", 1)
     if not re.fullmatch(r"[A-Z][A-Z0-9_]*", name):
-        raise TemplateError(f"invalid placeholder name: {name!r}")
+        raise TemplateError(f"Invalid placeholder name: {name!r}")
     return name, value
 
 
@@ -85,12 +85,12 @@ def load_bindings(args: argparse.Namespace) -> dict[str, str]:
     for raw in args.set_file:
         name, file_path = parse_binding(raw)
         if name in bindings:
-            raise TemplateError(f"duplicate binding for {name}")
+            raise TemplateError(f"Duplicate binding for {name}")
         try:
             value = Path(file_path).read_text(encoding="utf-8")
         except OSError as exc:
             raise TemplateError(
-                f"could not read binding file for {name}: {file_path}"
+                f"Could not read binding file for {name}: {file_path}"
             ) from exc
         add_binding(bindings, name, value)
 
@@ -142,18 +142,18 @@ def parse_nodes(
             falsy: list[Node] = []
 
             if index >= len(tokens):
-                raise TemplateError(f"unclosed conditional block for {value}")
+                raise TemplateError(f"Unclosed conditional block for {value}")
 
             end_kind, _ = tokens[index]
             if end_kind == "else":
                 falsy, index = parse_nodes(tokens, index + 1, {"endif"})
                 if index >= len(tokens) or tokens[index][0] != "endif":
                     raise TemplateError(
-                        f"conditional block for {value} is missing {{/if}}"
+                        f"Conditional block for {value} is missing {{/if}}"
                     )
             elif end_kind != "endif":
                 raise TemplateError(
-                    f"unexpected token {end_kind!r} in conditional block for {value}"
+                    f"Unexpected token {end_kind!r} in conditional block for {value}"
                 )
 
             nodes.append(IfNode(name=value, truthy=truthy, falsy=falsy))
@@ -164,7 +164,7 @@ def parse_nodes(
 
     if stop:
         expected = " or ".join(sorted(stop))
-        raise TemplateError(f"expected {expected} before end of template")
+        raise TemplateError(f"Expected {expected} before end of template")
 
     return nodes, index
 
@@ -173,7 +173,7 @@ def render_text(text: str, bindings: dict[str, str]) -> str:
     def replace(match: re.Match[str]) -> str:
         name = match.group(1)
         if name not in bindings:
-            raise TemplateError(f"missing placeholder value for {name}")
+            raise TemplateError(f"Missing placeholder value for {name}")
         return bindings[name]
 
     return PLACEHOLDER_RE.sub(replace, text)
@@ -198,13 +198,13 @@ def main() -> int:
     try:
         template_text = args.template.read_text(encoding="utf-8")
     except OSError as exc:
-        raise TemplateError(f"could not read template: {args.template}") from exc
+        raise TemplateError(f"Could not read template: {args.template}") from exc
 
     bindings = load_bindings(args)
     tokens = tokenize(template_text)
     nodes, index = parse_nodes(tokens)
     if index != len(tokens):
-        raise TemplateError("template parsing stopped early")
+        raise TemplateError("Template parsing stopped early")
 
     sys.stdout.write(render_nodes(nodes, bindings))
     return 0
