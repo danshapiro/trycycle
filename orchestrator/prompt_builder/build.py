@@ -88,7 +88,7 @@ def load_bindings(args: argparse.Namespace) -> dict[str, str]:
             raise TemplateError(f"Duplicate binding for {name}")
         try:
             value = Path(file_path).read_text(encoding="utf-8")
-        except OSError as exc:
+        except (OSError, UnicodeError) as exc:
             raise TemplateError(
                 f"Could not read binding file for {name}: {file_path}"
             ) from exc
@@ -197,7 +197,7 @@ def main() -> int:
     args = parse_args()
     try:
         template_text = args.template.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeError) as exc:
         raise TemplateError(f"Could not read template: {args.template}") from exc
 
     bindings = load_bindings(args)
