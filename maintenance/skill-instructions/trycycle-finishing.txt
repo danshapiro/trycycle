@@ -1,7 +1,7 @@
-This skill is invoked in trycycle Step 7 ("Finish"). After the post-implementation review loop passes, the orchestrator tells the main agent to use this skill to present integration options.
+This skill is invoked in trycycle Step 11 ("Finish"). After the post-implementation review loop passes, the orchestrator tells the main agent to use this skill to present integration options.
 
 **What the orchestrator already handles:**
-- The orchestrator has already verified correctness through up to 8 rounds of code review (Step 6).
+- The orchestrator has already verified correctness through up to 8 rounds of code review (Step 10).
 - The orchestrator runs its own cleanup of temporary artifacts before invoking this skill.
 - The orchestrator runs final worktree hygiene checks (status, HEAD, changed files) before this step.
 

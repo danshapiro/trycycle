@@ -40,18 +40,18 @@ When a step below references `{USER_REQUEST_TRANSCRIPT}`, `{INITIAL_REQUEST_AND_
 Build transcript placeholder values immediately before each rendered prompt that uses them. If the conversation changes, rebuild the placeholder value before the next render.
 When a rendered prompt needs a transcript placeholder, save that stdout to a temp file and bind it with `--set-file`.
 
-When a step below references `{PLAN_REVIEW_FINDINGS_VERBATIM}` or `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}`, use the corresponding review subagent's stdout exactly as the placeholder value.
+When a step below references `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}`, use the corresponding review subagent's stdout exactly as the placeholder value.
 
-When a step below references `{IMPLEMENTATION_PLAN_PATH}`, use the latest absolute plan path returned by the planning subagent in the current trycycle session. Update it after the initial planning result and after every plan-revision result.
+When a step below references `{IMPLEMENTATION_PLAN_PATH}`, use the latest absolute plan path returned by the planning subagent in the current trycycle session. Update it after the initial planning result and after every plan-edit result.
 
 When a step below references `{TEST_PLAN_PATH}`, use the latest absolute test-plan path returned by the test-plan subagent in the current trycycle session. Update it after every test-plan result.
 
 ## Subagent Defaults
 
-- Planning subagents are ephemeral across plan-review rounds: spawn a fresh planning agent for the initial plan and for every plan-fix round after a failed review verdict.
+- Planning subagents are ephemeral across plan-edit rounds so they can remain independent: spawn a fresh planning agent for the initial plan and for every plan-edit round until the plan is judged already excellent without changes.
 - Implementation subagents are persistent: create one implementation agent, then resume it for every implementation-fix round.
-- Review subagents are ephemeral: create a fresh reviewer for each review round.
-- For planning and plan review, pass `{USER_REQUEST_TRANSCRIPT}`. Do not use the full prior conversation.
+- Review subagents are ephemeral: create a fresh reviewer for each post-implementation review round.
+- For planning rounds, pass `{USER_REQUEST_TRANSCRIPT}` as the task input. Do not use the full prior conversation.
 - Render the prompt template with the prompt builder and pass the rendered prompt verbatim.
 - User instructions still apply. When they are relevant, relay them.
 
@@ -59,7 +59,7 @@ Example: if the user says "We're almost there, don't start over," relay that ins
 
 ## Timing expectations
 
-Planning and review subagents typically take 10-30 minutes. The implementation subagent typically takes 30-60 minutes. Do not poll frequently
+Planning and code-review subagents typically take 10-30 minutes. The implementation subagent typically takes 30-60 minutes. Do not poll frequently
 
 ## 1) Version check
 
@@ -105,7 +105,7 @@ Do not continue until the branch is correct and the status is clean.
 
 ## 5) Worktree hygiene gate (mandatory)
 
-Before and after each major phase (`plan-review`, `execution`, `post-implementation review`), run:
+Before and after each major phase (`plan-editing`, `execution`, `post-implementation review`), run:
 - `git -C {WORKTREE_PATH} branch --show-current`
 - `git -C {WORKTREE_PATH} status --short`
 
@@ -125,47 +125,41 @@ Only subagents read or write plan files.
 
 Spawn a fresh planning subagent for each planning round.
 
-Immediately before rendering, rebuild `{USER_REQUEST_TRANSCRIPT}`, save it to a temp file, render `<skill-directory>/subagents/prompt-planning.md` with the prompt builder using `--set WORKTREE_PATH={WORKTREE_PATH}` and `--set-file USER_REQUEST_TRANSCRIPT=<temp-file>`, and dispatch the planning subagent with that rendered prompt.
+Immediately before rendering, rebuild `{USER_REQUEST_TRANSCRIPT}`, save it to a temp file, render `<skill-directory>/subagents/prompt-planning-initial.md` with the prompt builder using `--set WORKTREE_PATH={WORKTREE_PATH}` and `--set-file USER_REQUEST_TRANSCRIPT=<temp-file>`, and dispatch the planning subagent with that rendered prompt.
 
 Wait for the planning subagent to return either:
-- a planning report containing `## Plan path`, `## Commit`, and `## Changed files`
+- a planning report containing `## Plan verdict`, `## Plan path`, `## Commit`, and `## Changed files`
 - or a report beginning with `USER DECISION REQUIRED:`
 
 If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either a planning report or another `USER DECISION REQUIRED:` report.
 
 If a planning report was returned, update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path`, then run the Worktree hygiene gate checks, verify the latest commit hash plus changed-file list match the planning subagent's report, and confirm the plan file exists at `{IMPLEMENTATION_PLAN_PATH}`.
 
-## 7) Plan-review loop (up to 5 rounds)
+## 7) Plan-editor loop (up to 5 rounds)
 
-Deploy a fresh review subagent to review the plan.
-Use the subagents' findings about plan contents as the loop inputs.
+Deploy a fresh planning subagent to critique the current plan against the user's request and the repo, then either declare it already excellent unchanged or improve it directly.
 
-Instruct the subagent to read the plan and return a numbered list of issues. An issue must be significant enough that the user's intent might not be met due to a technical or product-direction deficiency.
+The plan editor is stateless: each round is a fresh first-look pass with only the template, the same task input used for initial planning, and the current plan.
 
-The reviewer is stateless: dispatch each review as a fresh first-look review with only the template and the current plan.
+Immediately before each edit render, rebuild `{USER_REQUEST_TRANSCRIPT}`, save it to a temp file, render `<skill-directory>/subagents/prompt-planning-edit.md` with the prompt builder using `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, and `--set-file USER_REQUEST_TRANSCRIPT=<temp-file>`, then dispatch a fresh planning subagent with that rendered prompt.
 
-Immediately before each review render, rebuild `{USER_REQUEST_TRANSCRIPT}`, save it to a temp file, render `<skill-directory>/subagents/prompt-plan-review.md` with the prompt builder using `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}` and `--set-file USER_REQUEST_TRANSCRIPT=<temp-file>`, and dispatch a review subagent with that rendered prompt.
+After each edit round:
+1. Wait for the planning subagent to return either an updated planning report containing `## Plan verdict`, `## Plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
+2. If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either an updated planning report or another `USER DECISION REQUIRED:` report.
+3. Update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path` in the latest planning report.
+4. Run the Worktree hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
+5. If `## Plan verdict` is `ALREADY-EXCELLENT`, continue to step 8 with the current `{IMPLEMENTATION_PLAN_PATH}`.
+6. If `## Plan verdict` is `MADE-EXCELLENT`, repeat with a fresh planning subagent.
+7. Repeat up to 5 rounds.
 
-After each review:
-1. If the reviewer returns `No significant issues.`, continue to step 8 with the current `{IMPLEMENTATION_PLAN_PATH}`.
-2. Capture the review subagent's stdout exactly as `{PLAN_REVIEW_FINDINGS_VERBATIM}`.
-3. Save `{PLAN_REVIEW_FINDINGS_VERBATIM}` to a temp file immediately.
-4. Do not resume the previous planning subagent. Spawn a fresh planning subagent for this revision round.
-5. Immediately before rendering the revision prompt, rebuild `{USER_REQUEST_TRANSCRIPT}`, save it to a temp file, render `<skill-directory>/subagents/prompt-planning.md` with the prompt builder using `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set-file USER_REQUEST_TRANSCRIPT=<temp-file>`, and `--set-file PLAN_REVIEW_FINDINGS_VERBATIM=<review-findings-temp-file>`, then dispatch that new planning subagent with the rendered prompt.
-6. Wait for the planning subagent to return either an updated planning report or a report beginning with `USER DECISION REQUIRED:`.
-7. If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either an updated planning report or another `USER DECISION REQUIRED:` report.
-8. Update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path` in the latest planning report.
-9. Run the Worktree hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
-10. Repeat up to 5 rounds.
-
-If issues still remain after the 5th review:
+If the plan still is not judged already excellent after the 5th editor round:
 1. Stop looping.
 2. Dispatch a subagent to review past subagent sessions and hypothesize why the loop is not converging.
-3. Present that report and the latest review output to the user and await user instructions.
+3. Present that report and the latest planning report to the user and await user instructions.
 
 ## 8) Build test plan (subagent-owned)
 
-Now that the implementation plan has been reviewed and finalized, dispatch a subagent to reconcile the testing strategy against the plan and produce the concrete test plan.
+Now that the implementation plan has passed the plan-editor loop and is finalized, dispatch a subagent to reconcile the testing strategy against the plan and produce the concrete test plan.
 
 Immediately before rendering, rebuild `{FULL_CONVERSATION_VERBATIM}`, save it to a temp file, render `<skill-directory>/subagents/prompt-test-plan.md` with the prompt builder using `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, and `--set-file FULL_CONVERSATION_VERBATIM=<temp-file>`, and dispatch a subagent with that rendered prompt.
 
@@ -181,7 +175,7 @@ When the subagent returns:
 
 Code implementation must be done by a new, dedicated subagent.
 
-Spawn a fresh implementation subagent and give it the final approved plan.
+Spawn a fresh implementation subagent and give it the final excellent plan.
 
 Render `<skill-directory>/subagents/prompt-executing.md` with the prompt builder using `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, and `--set WORKTREE_PATH={WORKTREE_PATH}`, then dispatch the implementation subagent with that rendered prompt.
 
@@ -221,6 +215,6 @@ Clean up temporary artifacts created during the loop (for example plan scratch f
 - `git -C {WORKTREE_PATH} rev-parse --short HEAD`
 - `git -C {WORKTREE_PATH} diff --name-only main...HEAD`
 
-Report the process to the user using concrete facts and returned artifacts: how many plan-review rounds, how many code-review rounds, the current `HEAD`, the changed-file list, the implementation subagent's latest summary and verification results, and any reviewer-reported residual issues.
+Report the process to the user using concrete facts and returned artifacts: how many plan-editor rounds, how many code-review rounds, the current `HEAD`, the changed-file list, the implementation subagent's latest summary and verification results, and any reviewer-reported residual issues.
 
 Then read and follow `<skill-directory>/subskills/trycycle-finishing/SKILL.md` to present the user with options for integrating the worktree (merge, PR, etc.).

@@ -1,10 +1,10 @@
-This skill is invoked in trycycle Step 5 ("Execute with executing-plans"). A dedicated implementation subagent is spawned and told to use this skill to implement the plan.
+This skill is invoked in trycycle Step 9 ("Execute with trycycle-executing"). A dedicated implementation subagent is spawned and told to use this skill to implement the plan.
 
 **What the orchestrator already handles:**
 - The orchestrator spawns a dedicated implementation subagent with explicit overrides: "Do not pause between batches or wait for feedback — execute all tasks continuously. Do not ask for review."
 - The orchestrator tells the subagent: "If you hit a genuine blocker (the agent cannot use its best judgment because there is no path forward, or because being wrong could cause harm), stop and report it. Do not try to work around blockers — they need human judgment."
-- After implementation, the orchestrator runs its own post-implementation review loop (Step 6) with up to 8 rounds.
-- The orchestrator handles finishing (Step 7) with `trycycle-finishing`.
+- After implementation, the orchestrator runs its own post-implementation review loop (Step 10) with up to 8 rounds.
+- The orchestrator handles finishing (Step 11) with `trycycle-finishing`.
 
 **What to strip:**
 

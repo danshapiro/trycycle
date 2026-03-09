@@ -31,13 +31,13 @@ Once installed, you can use Trycycle from any Claude Code or Codex CLI session. 
 Use trycycle to add a dark mode toggle to the settings page.
 ```
 
-Trycycle will ask you any questions it needs answered before starting, then handle the rest. It creates a git worktree, writes a plan, reviews the plan, builds the code, and reviews the code -- all without further input from you unless something comes up that needs your judgment.
+Trycycle will ask you any questions it needs answered before starting, then handle the rest. It creates a git worktree, writes a plan, strengthens that plan until a fresh editor approves it unchanged, builds a test plan, builds the code, and reviews the code -- all without further input from you unless something comes up that needs your judgment.
 
 You can use Trycycle for anything from small features to large refactors. It works best when you have a clear goal in mind and a codebase that Trycycle can read and test.
 
 ## How it works
 
-Trycycle is a hill climber. It writes a plan, sends it to a reviewer, revises the plan based on feedback, and repeats until the reviewer finds no more issues (up to five rounds). Then it builds the code from the finished plan, sends the code to a fresh reviewer, fixes what the reviewer finds, and repeats that loop too (up to eight rounds). Each review round uses a new reviewer with no memory of previous rounds, and each failed plan-review round respawns a fresh planning agent, so stale context is reset before execution begins.
+Trycycle is a hill climber. It writes a plan, then sends the current plan to a fresh plan editor with the same task input and repo context as the original planner. That editor either approves the plan unchanged or rewrites it to make it stronger, repeating up to five rounds. Once the plan is locked, Trycycle builds a concrete test plan, then builds the code from the finished plan, sends the code to a fresh reviewer, fixes what the reviewer finds, and repeats that loop too (up to eight rounds). Each code-review round uses a new reviewer with no memory of previous rounds, and each failed plan-editor round respawns a fresh planning agent, so stale context is reset before execution begins.
 
 ## Credits
 

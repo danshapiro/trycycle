@@ -1,21 +1,18 @@
-This skill is invoked in trycycle Step 3 ("Plan with writing-plans"). A dedicated planning subagent is spawned and told to use this skill to produce an implementation plan.
+This skill is invoked in trycycle Step 6 ("Plan with trycycle-planning"). A dedicated planning subagent is spawned and told to use this skill to produce an implementation plan.
 
 **What the orchestrator already handles:**
 - The orchestrator spawns a dedicated subagent for planning. The subagent is told not to spawn additional subagents.
-- If a plan reviewer returns a failure verdict, the orchestrator does not resume the previous planning subagent. It spawns a fresh planning subagent for that revision round and may include the current plan path plus the raw reviewer findings in that new dispatch.
-- The orchestrator tells the subagent: "The writing-plans skill may reference a brainstorming phase as a precondition. Disregard that — the context above replaces brainstorming output."
-- The orchestrator tells the subagent: "Skip the execution handoff section of writing-plans — just return the absolute path to your plan."
-- After the plan is written, the orchestrator runs its own plan-review loop (Step 4) with up to 5 rounds of independent reviewers.
+- After the initial plan is written, the orchestrator may spawn fresh planning subagents for plan-editor rounds. Each fresh subagent receives the same task input plus the current plan path and must either declare the plan already excellent unchanged or improve it directly.
+- The orchestrator wraps this skill with separate prompt templates for initial planning and plan-editor rounds. Keep those wrappers distinct; they share context, but their jobs are meaningfully different.
+- In the plan-editor loop, each fresh planning subagent must either leave the plan already excellent unchanged or make it excellent itself. If it is not deemed already excellent, the loop continues with a fresh plan-editor cycle.
 
 **What to strip:**
 
-1. **Remove the entire "Execution Handoff" section.** The orchestrator explicitly tells the subagent to skip this. It handles execution dispatch itself (Step 5). Remove the handoff section entirely — no mention of subagent-driven-development, no "which approach?" question.
+1. **Remove brainstorming preconditions.** The line "This should be run in a dedicated worktree (created by brainstorming skill)" should change to something like "This should be run in a dedicated worktree" (drop the brainstorming reference). The orchestrator creates the worktree in Step 4.
 
-2. **Remove brainstorming preconditions.** The line "This should be run in a dedicated worktree (created by brainstorming skill)" should change to something like "This should be run in a dedicated worktree" (drop the brainstorming reference). The orchestrator creates the worktree in Step 2.
+2. **Remove the plan header line about executing-plans.** The template header says `> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.` — change this to reference `trycycle-executing`.
 
-3. **Remove the plan header line about executing-plans.** The template header says `> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.` — change this to reference `trycycle-executing`.
-
-4. **Keep everything else.** The bite-sized task granularity, the plan document header format, the task structure template, the "Remember" list — these are all core operational content the planning subagent needs. The TDD emphasis, exact file paths, complete code in plan — all essential. Keep them intact.
+3. **Keep everything else.** The bite-sized task granularity, the plan document header format, the task structure template, the "Remember" list — these are all core operational content the planning subagent needs. The TDD emphasis, exact file paths, complete code in plan — all essential. Keep them intact.
 
 **Resulting structure should be roughly:**
 - Overview (plan writing guidance)

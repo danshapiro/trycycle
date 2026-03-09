@@ -1,0 +1,160 @@
+digraph trycycle_information_flow {
+  graph [
+    label="Trycycle Runtime Information Flow",
+    labelloc=t,
+    labeljust=l,
+    rankdir=LR,
+    splines=polyline,
+    pad=0.3,
+    nodesep=0.5,
+    ranksep=0.9,
+    bgcolor="white",
+    fontname="Helvetica",
+    fontsize=20
+  ];
+
+  node [
+    shape=box,
+    style="rounded,filled",
+    fontname="Helvetica",
+    fontsize=11,
+    color="#475569",
+    fillcolor="white",
+    margin="0.16,0.10"
+  ];
+
+  edge [
+    fontname="Helvetica",
+    fontsize=10,
+    color="#64748b",
+    arrowsize=0.8,
+    penwidth=1.2
+  ];
+
+  subgraph cluster_session {
+    label="Session Inputs";
+    color="#bfdbfe";
+    fillcolor="#eff6ff";
+    style="rounded,filled";
+
+    user_request [label="User request"];
+    repo_state [label="Repository state\n(files, git history, worktree status)"];
+    transcript_source [label="Session transcript source\n(Codex CLI or Claude Code)"];
+    version_tags [label="Version tags\n(local repo + origin/main)"];
+  }
+
+  subgraph cluster_tooling {
+    label="Shared Tooling";
+    color="#cbd5e1";
+    fillcolor="#f8fafc";
+    style="rounded,filled";
+
+    orchestrator [
+      label="Trycycle orchestrator\n(SKILL.md)",
+      fillcolor="#0f172a",
+      fontcolor="white",
+      color="#0f172a"
+    ];
+    check_update [label="Update check\n(check-update.py)"];
+    transcript_builder [label="Transcript builder\n(orchestrator/user-request-transcript)"];
+    prompt_templates [label="Prompt templates\n(subagents/*.md)"];
+    prompt_builder [label="Prompt builder\n(orchestrator/prompt_builder)"];
+    worktree_manager [label="Worktree manager\n(subskills/trycycle-worktrees)"];
+  }
+
+  subgraph cluster_planning {
+    label="Planning Loop";
+    color="#bbf7d0";
+    fillcolor="#f0fdf4";
+    style="rounded,filled";
+
+    planner [label="Planning subagent\n(subskills/trycycle-planning)"];
+    implementation_plan [
+      label="Implementation plan\n(plan + test plan)",
+      shape=note,
+      fillcolor="#ffffff"
+    ];
+    plan_reviewer [label="Fresh plan reviewer"];
+  }
+
+  subgraph cluster_execution {
+    label="Implementation Loop";
+    color="#fde68a";
+    fillcolor="#fffbeb";
+    style="rounded,filled";
+
+    executor [label="Implementation subagent\n(subskills/trycycle-executing)"];
+    code_artifacts [
+      label="Code changes\n+ verification output",
+      shape=note,
+      fillcolor="#ffffff"
+    ];
+    post_review [label="Fresh code reviewer"];
+  }
+
+  subgraph cluster_finish {
+    label="Finish";
+    color="#fecdd3";
+    fillcolor="#fff1f2";
+    style="rounded,filled";
+
+    finisher [label="Finishing workflow\n(subskills/trycycle-finishing)"];
+    run_summary [
+      label="Run summary\n(HEAD, changed files,\nresidual findings)",
+      shape=note,
+      fillcolor="#ffffff"
+    ];
+    integration [label="Integration options\n(merge, PR, keep, discard)"];
+  }
+
+  loop_legend [
+    label="Dashed arrows = repeat on review findings",
+    shape=note,
+    fillcolor="#fff7ed",
+    color="#d97706",
+    fontcolor="#9a3412"
+  ];
+
+  user_request -> orchestrator [label="intent"];
+  repo_state -> orchestrator [label="codebase context"];
+  version_tags -> check_update [label="compare"];
+  check_update -> orchestrator [label="update status"];
+  transcript_source -> transcript_builder [label="raw session data"];
+  transcript_builder -> orchestrator [label="recent conversation"];
+
+  orchestrator -> worktree_manager [label="create isolated branch"];
+  repo_state -> worktree_manager [label="shared git history"];
+  orchestrator -> prompt_builder [label="bind runtime values"];
+  prompt_templates -> prompt_builder [label="template text"];
+  transcript_builder -> prompt_builder [label="transcript excerpt"];
+  worktree_manager -> prompt_builder [label="worktree path"];
+
+  prompt_builder -> planner [label="planning prompt"];
+  worktree_manager -> planner [label="isolated repo view"];
+  planner -> implementation_plan [label="proposed plan"];
+  implementation_plan -> plan_reviewer [label="review input"];
+  prompt_builder -> plan_reviewer [label="review prompt"];
+  plan_reviewer -> planner [
+    label="critical/major findings\n(fresh round, up to 5)",
+    style=dashed,
+    color="#d97706",
+    fontcolor="#b45309"
+  ];
+
+  implementation_plan -> executor [label="approved tasks"];
+  prompt_builder -> executor [label="execution prompt"];
+  worktree_manager -> executor [label="working directory"];
+  executor -> code_artifacts [label="commits + test results"];
+  code_artifacts -> post_review [label="review input"];
+  prompt_builder -> post_review [label="review prompt"];
+  post_review -> executor [
+    label="critical/major findings\n(fix round, up to 8)",
+    style=dashed,
+    color="#d97706",
+    fontcolor="#b45309"
+  ];
+
+  post_review -> finisher [label="no critical/major issues"];
+  finisher -> run_summary [label="collect final facts"];
+  run_summary -> integration [label="present choices"];
+}
