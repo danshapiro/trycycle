@@ -59,7 +59,7 @@ Example: if the user says "We're almost there, don't start over," relay that ins
 
 ## Timing expectations
 
-Planning and code-review subagents typically take 10-30 minutes. The implementation subagent typically takes 30-60 minutes. Do not poll frequently
+Planning, plan-editor, and code-review subagents typically take 30-60 minutes. The implementation subagent typically takes 60-180 minutes. Do not poll frequently
 
 ## 1) Version check
 
