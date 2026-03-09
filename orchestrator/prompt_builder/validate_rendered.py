@@ -38,6 +38,16 @@ def parse_args() -> argparse.Namespace:
             "block after trimming whitespace."
         ),
     )
+    parser.add_argument(
+        "--ignore-tag-for-placeholders",
+        action="append",
+        default=[],
+        metavar="TAG",
+        help=(
+            "Ignore placeholder-like text inside <TAG>...</TAG> when checking "
+            "for unsubstituted placeholders."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -57,6 +67,16 @@ def validate_no_placeholders(prompt_text: str) -> None:
         )
 
 
+def strip_tag_bodies(prompt_text: str, tags: list[str]) -> str:
+    stripped = prompt_text
+    for tag in tags:
+        if not re.fullmatch(r"[a-z][a-z0-9_-]*", tag):
+            raise ValidationError(f"invalid tag name: {tag!r}")
+        pattern = re.compile(TAG_RE_TEMPLATE.format(tag=re.escape(tag)), re.DOTALL)
+        stripped = pattern.sub(f"<{tag}></{tag}>", stripped)
+    return stripped
+
+
 def validate_nonempty_tag(prompt_text: str, tag: str) -> None:
     if not re.fullmatch(r"[a-z][a-z0-9_-]*", tag):
         raise ValidationError(f"invalid tag name: {tag!r}")
@@ -73,7 +93,10 @@ def validate_nonempty_tag(prompt_text: str, tag: str) -> None:
 def main() -> int:
     args = parse_args()
     prompt_text = read_prompt(args.prompt_file)
-    validate_no_placeholders(prompt_text)
+    placeholder_scan_text = strip_tag_bodies(
+        prompt_text, args.ignore_tag_for_placeholders
+    )
+    validate_no_placeholders(placeholder_scan_text)
     for tag in args.require_nonempty_tag:
         validate_nonempty_tag(prompt_text, tag)
     return 0

@@ -50,6 +50,17 @@ class ValidateRenderedPromptTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("empty <task_input_json> block", result.stderr)
 
+    def test_ignores_placeholder_like_text_inside_allowed_tag(self) -> None:
+        result = self.run_validator(
+            "<task_input_json>{\"text\": \"historical {WORKTREE_PATH}\"}</task_input_json>\n"
+            "Work in /tmp/example\n",
+            "--require-nonempty-tag",
+            "task_input_json",
+            "--ignore-tag-for-placeholders",
+            "task_input_json",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
