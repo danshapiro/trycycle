@@ -1,0 +1,237 @@
+[display]
+title = "Trycycle Explorer"
+subtitle = "Inspect gate prompts, bindings, and loop outcomes from the real trycycle repo."
+
+[[groups]]
+id = "session-setup"
+label = "Session setup"
+gates = [
+  "version-check",
+  "ask-about-critical-unknowns-before-work",
+  "testing-strategy",
+  "create-worktree",
+  "worktree-hygiene-gate",
+]
+
+[[groups]]
+id = "planning-loop"
+label = "Planning loop"
+gates = [
+  "plan-with-trycycle-planning",
+  "plan-editor-loop",
+  "build-test-plan",
+]
+
+[[groups]]
+id = "implementation-loop"
+label = "Implementation loop"
+gates = [
+  "execute-with-trycycle-executing",
+  "post-implementation-review-loop",
+]
+
+[[groups]]
+id = "finish"
+label = "Finish"
+gates = ["finish"]
+
+[bindings.INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION]
+label = "Conversation context JSON"
+help = "Transcript JSON used for the testing-strategy prompt."
+widget = "textarea"
+source_category = "user-input"
+
+[bindings.USER_REQUEST_TRANSCRIPT]
+label = "Task input transcript JSON"
+help = "Transcript JSON injected into planning prompts."
+widget = "textarea"
+source_category = "user-input"
+
+[bindings.FULL_CONVERSATION_VERBATIM]
+label = "Full conversation JSON"
+help = "Transcript JSON used when building the test plan."
+widget = "textarea"
+source_category = "user-input"
+
+[bindings.POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM]
+label = "Post-implementation review findings"
+help = "Reviewer findings fed back into the execution loop."
+widget = "textarea"
+source_category = "user-input"
+
+[bindings.WORKTREE_PATH]
+label = "Worktree path"
+help = "Absolute path to the isolated implementation worktree."
+widget = "text"
+source_category = "derived-path"
+
+[bindings.IMPLEMENTATION_PLAN_PATH]
+label = "Implementation plan path"
+help = "Absolute path to the current implementation plan file."
+widget = "text"
+source_category = "derived-path"
+
+[bindings.TEST_PLAN_PATH]
+label = "Test plan path"
+help = "Absolute path to the current test plan file."
+widget = "text"
+source_category = "derived-path"
+
+[provenance_palette.template-text]
+label = "Template text"
+fill = "#f7f1df"
+ink = "#2c2416"
+accent = "#8c6a2b"
+
+[provenance_palette.user-input]
+label = "User input"
+fill = "#d7eef2"
+ink = "#12333a"
+accent = "#1f6d7a"
+
+[provenance_palette.derived-path]
+label = "Derived path"
+fill = "#eadfc9"
+ink = "#3c2d1b"
+accent = "#9c6427"
+
+[provenance_palette.sidecar-overlay]
+label = "Sidecar overlay"
+fill = "#f5d9d0"
+ink = "#43211d"
+accent = "#a4432a"
+
+[provenance_palette.missing-binding]
+label = "Missing binding"
+fill = "#f4c7c3"
+ink = "#4d1111"
+accent = "#b42318"
+
+[[sample_inputs]]
+id = "simple-feature"
+label = "Simple feature request"
+path = "trycycle_explorer/samples/simple-feature.json"
+
+[[sample_inputs]]
+id = "plan-review-loop"
+label = "Plan review loop"
+path = "trycycle_explorer/samples/plan-review-loop.json"
+
+[[sample_inputs]]
+id = "post-review-fix"
+label = "Post-review fix loop"
+path = "trycycle_explorer/samples/post-review-fix.json"
+
+[[outcomes]]
+from = "version-check"
+id = "ready"
+label = "Continue"
+to = "ask-about-critical-unknowns-before-work"
+
+[[outcomes]]
+from = "ask-about-critical-unknowns-before-work"
+id = "questions-answered"
+label = "Critical unknowns resolved"
+to = "testing-strategy"
+
+[[outcomes]]
+from = "testing-strategy"
+id = "approved"
+label = "Strategy approved"
+to = "create-worktree"
+
+[[outcomes]]
+from = "testing-strategy"
+id = "revise-strategy"
+label = "Revise strategy"
+to = "testing-strategy"
+
+[[outcomes]]
+from = "create-worktree"
+id = "worktree-ready"
+label = "Worktree ready"
+to = "worktree-hygiene-gate"
+
+[[outcomes]]
+from = "worktree-hygiene-gate"
+id = "planning-ready"
+label = "Planning phase ready"
+to = "plan-with-trycycle-planning"
+
+[[outcomes]]
+from = "plan-with-trycycle-planning"
+id = "plan-created"
+label = "Plan created"
+to = "plan-editor-loop"
+
+[[outcomes]]
+from = "plan-with-trycycle-planning"
+id = "user-decision-required"
+label = "User decision required"
+to = "plan-with-trycycle-planning"
+
+[[outcomes]]
+from = "plan-editor-loop"
+id = "already-excellent"
+label = "Already excellent"
+to = "build-test-plan"
+
+[[outcomes]]
+from = "plan-editor-loop"
+id = "made-excellent"
+label = "Made excellent and loop"
+to = "plan-editor-loop"
+
+[[outcomes]]
+from = "plan-editor-loop"
+id = "not-converging"
+label = "Not converging"
+to = "finish"
+
+[[outcomes]]
+from = "build-test-plan"
+id = "test-plan-approved"
+label = "Test plan approved"
+to = "execute-with-trycycle-executing"
+
+[[outcomes]]
+from = "build-test-plan"
+id = "strategy-changes-required"
+label = "Strategy changes required"
+to = "build-test-plan"
+
+[[outcomes]]
+from = "execute-with-trycycle-executing"
+id = "implementation-complete"
+label = "Implementation complete"
+to = "post-implementation-review-loop"
+
+[[outcomes]]
+from = "execute-with-trycycle-executing"
+id = "blocked"
+label = "Blocked"
+to = "finish"
+
+[[outcomes]]
+from = "post-implementation-review-loop"
+id = "fix-round"
+label = "Fix round needed"
+to = "execute-with-trycycle-executing"
+
+[[outcomes]]
+from = "post-implementation-review-loop"
+id = "approved"
+label = "No critical or major issues"
+to = "finish"
+
+[[outcomes]]
+from = "post-implementation-review-loop"
+id = "not-converging"
+label = "Review loop exhausted"
+to = "finish"
+
+[[outcomes]]
+from = "finish"
+id = "integration-choice"
+label = "Choose integration path"
+to = "finish"

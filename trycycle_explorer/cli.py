@@ -1,8 +1,16 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
+
+from .extract import ExplorerError, build_model
+
+
+def emit_log(severity: str, event: str, **fields: object) -> None:
+    payload = {"severity": severity, "event": event, **fields}
+    print(json.dumps(payload, ensure_ascii=False), file=sys.stderr)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -46,6 +54,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("build/trycycle-explorer/explorer-model.json"),
         help="Path to the JSON file to write.",
     )
+    dump_model_parser.add_argument(
+        "--sidecar",
+        type=Path,
+        default=None,
+        help="Override the explorer sidecar config path.",
+    )
     dump_model_parser.set_defaults(handler=handle_dump_model)
     return parser
 
@@ -59,11 +73,36 @@ def handle_build(args: argparse.Namespace) -> int:
 
 
 def handle_dump_model(args: argparse.Namespace) -> int:
-    print(
-        "trycycle explorer dump-model is not implemented yet",
-        file=sys.stderr,
+    repo_root = args.repo.resolve()
+    output_path = args.output.resolve()
+    sidecar_path = args.sidecar.resolve() if args.sidecar is not None else None
+    emit_log(
+        "INFO",
+        "dump_model_start",
+        repo_root=str(repo_root),
+        output=str(output_path),
+        sidecar=str(sidecar_path) if sidecar_path is not None else None,
     )
-    return 1
+    try:
+        model = build_model(repo_root, sidecar_path=sidecar_path)
+    except ExplorerError as exc:
+        emit_log("ERROR", "dump_model_failed", error=str(exc))
+        print(f"trycycle explorer error: {exc}", file=sys.stderr)
+        return 1
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(model.to_dict(), indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    emit_log(
+        "INFO",
+        "dump_model_complete",
+        gate_count=len(model.gates),
+        sample_count=len(model.sample_inputs),
+        output=str(output_path),
+    )
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:

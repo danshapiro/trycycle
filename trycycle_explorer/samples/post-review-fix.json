@@ -1,0 +1,43 @@
+{
+  "id": "post-review-fix",
+  "label": "Post-review fix loop",
+  "description": "A scenario that keeps the execution prompt focused on reviewer findings and the fix loop.",
+  "selected_gate_id": "post-implementation-review-loop",
+  "selected_outcome_id": "fix-round",
+  "bindings": {
+    "INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION": [
+      {
+        "role": "user",
+        "text": "Build a trycycle explorer that lets me inspect path decisions, rendered prompts, and rerender diffs."
+      },
+      {
+        "role": "assistant",
+        "text": "The strategy is approved; proceed with the static-site implementation."
+      }
+    ],
+    "USER_REQUEST_TRANSCRIPT": [
+      {
+        "role": "user",
+        "text": "Build a trycycle explorer that lets me inspect path decisions, rendered prompts, and rerender diffs."
+      }
+    ],
+    "FULL_CONVERSATION_VERBATIM": [
+      {
+        "role": "user",
+        "text": "Build a trycycle explorer that lets me inspect path decisions, rendered prompts, and rerender diffs."
+      },
+      {
+        "role": "user",
+        "text": "Inspect screenshots at each step for legibility, attractiveness, and correctness."
+      },
+      {
+        "role": "user",
+        "text": "approved"
+      }
+    ],
+    "POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM": "1. major [trycycle_explorer/assets/app.js:142] Missing-binding diagnostics are not visible after rerender.\n2. minor [trycycle_explorer/assets/app.css:88] Mobile input chips clip at narrow widths.",
+    "WORKTREE_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer",
+    "IMPLEMENTATION_PLAN_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer/docs/plans/2026-03-10-trycycle-explorer.md",
+    "TEST_PLAN_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer/docs/plans/2026-03-10-trycycle-explorer-test-plan.md"
+  }
+}

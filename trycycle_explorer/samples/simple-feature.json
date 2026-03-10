@@ -1,0 +1,67 @@
+{
+  "id": "simple-feature",
+  "label": "Simple feature request",
+  "description": "A straightforward request that has already answered the first blocking questions and approved the strategy.",
+  "selected_gate_id": "testing-strategy",
+  "selected_outcome_id": "approved",
+  "bindings": {
+    "INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION": [
+      {
+        "role": "user",
+        "text": "Create a python app that builds a static web page that's a beautiful, intuitive trycycle explorer."
+      },
+      {
+        "role": "assistant",
+        "text": "Trycycle is paused at its first decision gate. It needs these two choices before it can produce the testing strategy and continue."
+      },
+      {
+        "role": "user",
+        "text": "The explorer should be generated dynamically from the actual trycycle gates and templates. No LLM integration."
+      },
+      {
+        "role": "assistant",
+        "text": "Revised testing strategy: medium fidelity with screenshot checkpoints and no manual QA."
+      },
+      {
+        "role": "user",
+        "text": "approved"
+      }
+    ],
+    "USER_REQUEST_TRANSCRIPT": [
+      {
+        "role": "user",
+        "text": "Create a python app that builds a static web page that's a beautiful, intuitive trycycle explorer."
+      },
+      {
+        "role": "user",
+        "text": "The explorer should be generated dynamically from the actual trycycle gates and templates. No LLM integration."
+      }
+    ],
+    "FULL_CONVERSATION_VERBATIM": [
+      {
+        "role": "user",
+        "text": "Create a python app that builds a static web page that's a beautiful, intuitive trycycle explorer."
+      },
+      {
+        "role": "assistant",
+        "text": "Trycycle is paused at its first decision gate."
+      },
+      {
+        "role": "user",
+        "text": "The explorer should be generated dynamically from the actual trycycle gates and templates, with a simple sidecar for non-derivable transitions."
+      },
+      {
+        "role": "user",
+        "text": "Medium plus you inspect screenshots at each step for legibility, attractiveness, and correctness."
+      },
+      {
+        "role": "user",
+        "text": "approved"
+      }
+    ],
+    "POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM": "1. minor [README.md:31] Explorer usage is undocumented.",
+    "WORKTREE_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer",
+    "IMPLEMENTATION_PLAN_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer/docs/plans/2026-03-10-trycycle-explorer.md",
+    "TEST_PLAN_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer/docs/plans/2026-03-10-trycycle-explorer-test-plan.md"
+  }
+}
