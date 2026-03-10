@@ -2,48 +2,50 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use trycycle-executing to implement this plan task-by-task.
 
-**Goal:** Build a Python-first static-site generator that derives a navigable trycycle explorer from the real repo flow and prompt templates, lets users pick sample inputs or edit their own bindings in-browser, and shows path-specific rendered prompts, provenance, diagnostics, and before/after simulation changes.
+**Goal:** Build a Python-first static-site generator that turns the real trycycle repo into a navigable explorer: users can pick a sample or enter custom bindings, click gates and outcomes, view the exact rendered prompt markdown for the active path, see provenance and diagnostics, rerender locally, and compare the new result without any LLM or backend integration.
 
-**Architecture:** Keep trycycle itself as the source of truth. Extract gates, prompt templates, and flow metadata from `SKILL.md`, `subagents/*.md`, and `docs/trycycle-information-flow.dot`, then merge only the non-derivable pieces from a small root sidecar at `.trycycle-explorer.toml`. Emit one canonical `explorer-model.json` plus a static `index.html`/`app.js`/`app.css`; the browser handles path traversal, prompt rendering, markdown preview, provenance highlighting, missing-binding diagnostics, and render-to-render diffing with no backend.
+**Architecture:** Treat `docs/trycycle-information-flow.dot` as the canonical graph topology, the prompt templates in `subagents/*.md` as the canonical prompt text, and `SKILL.md` as the canonical dispatch semantics. Keep only the non-derivable pieces in a root sidecar, `.trycycle-explorer.toml`: prompt-variant recipes per DOT node, outcome labels where DOT prose is too thin, binding-field metadata, palette metadata, and sample scenarios. Refactor the existing prompt builder into a shared AST and render-trace module so the explorer can rerender prompts in-browser from serialized template structure, preserving trycycle’s real placeholder/conditional semantics while emitting provenance segments and missing-binding diagnostics.
 
-**Tech Stack:** Python 3.12 standard library, existing `orchestrator/prompt_builder` logic factored into a shared template AST module, TOML sidecar config, vanilla HTML/CSS/ES modules, vendored browser markdown renderer, disposable `/tmp` probes, `python3 -m http.server`, Playwright CLI
+**Tech Stack:** Python 3.12 standard library, TOML, existing `orchestrator/prompt_builder` logic factored into shared AST/trace helpers, vanilla HTML/CSS/ES modules, vendored browser markdown renderer, disposable verification scripts under `/tmp`, `python3 -m http.server`, Playwright CLI
 
 ---
 
-### Task 1: Share prompt-template semantics and add the explorer CLI entrypoint
+### Task 1: Refactor the prompt builder into a reusable AST and render-trace library
 
 **Files:**
 - Create: `orchestrator/prompt_builder/template_ast.py`
 - Modify: `orchestrator/prompt_builder/build.py`
-- Create: `trycycle_explorer/__init__.py`
-- Create: `trycycle_explorer/__main__.py`
-- Create: `trycycle_explorer/cli.py`
-- Modify: `.gitignore`
 
-**Why this task exists:** The explorer must render the exact same placeholder and conditional semantics that trycycle uses today. Do not build a second prompt language implementation in parallel. Move the current parser/renderer into a shared module, keep `build.py` behavior stable, and make the new explorer CLI consume the same shared AST so the repo has one definition of “how a trycycle template works.”
+**Why this task exists:** The explorer cannot be trustworthy if it invents a second prompt-language implementation. The shared module must expose placeholder nodes, conditional nodes, JSON-safe serialization, and render traces so the browser can show what came from template text versus bound values.
 
 **Step 1: Write a failing disposable probe**
 
+Run:
+
 ```bash
-tmpdir="$(mktemp -d /tmp/trycycle-explorer-cli-XXXXXX)"
+tmpdir="$(mktemp -d /tmp/trycycle-explorer-ast-XXXXXX)"
 cat >"$tmpdir/probe.py" <<'PY'
-from orchestrator.prompt_builder.template_ast import parse_template_text
+from orchestrator.prompt_builder.template_ast import parse_template_text, render_with_trace
 PY
 python3 "$tmpdir/probe.py"
-python3 -m trycycle_explorer --help
 rm -rf "$tmpdir"
 ```
 
-Expected: the import fails because `template_ast.py` does not exist yet, and `python3 -m trycycle_explorer --help` fails because the package entrypoint is missing.
+Expected: the import fails because the shared AST module does not exist yet.
 
-**Step 2: Implement the shared AST module and CLI scaffold**
+**Step 2: Implement the shared AST and trace helpers**
 
-Implement `orchestrator/prompt_builder/template_ast.py` around the current `build.py` logic:
+Create `orchestrator/prompt_builder/template_ast.py` with these core types:
 
 ```python
 @dataclass(frozen=True)
 class TextNode:
     text: str
+
+
+@dataclass(frozen=True)
+class PlaceholderNode:
+    name: str
 
 
 @dataclass(frozen=True)
@@ -53,31 +55,32 @@ class IfNode:
     falsy: list["Node"]
 
 
-Node = TextNode | IfNode
+@dataclass(frozen=True)
+class RenderSegment:
+    text: str
+    category: str
+    source_key: str | None
 ```
 
-Required behaviors:
+Implement these exact behaviors:
 
-- Move tokenization, conditional parsing, placeholder substitution, and rendering helpers out of `build.py` into this module.
-- Add a JSON-safe serializer for AST nodes so later tasks can ship template structure to the browser without re-parsing markdown there.
-- Keep `build.py` as a thin CLI wrapper over the shared module. Its current CLI contract, stderr prefix, and exit codes must stay unchanged.
-- Create `trycycle_explorer/__main__.py` and `trycycle_explorer/cli.py` with subcommands `build` and `dump-model`.
-- Default the build output directory to `build/trycycle-explorer`.
-- Add `build/trycycle-explorer/` to `.gitignore`.
+- Move tokenization and recursive parsing out of `build.py` into this shared module.
+- Split literal text from placeholders so provenance can highlight bound values separately from template prose.
+- Add `parse_template_text()`, `render_to_string()`, `render_with_trace()`, and `serialize_nodes()` helpers.
+- `render_with_trace()` must return both the final string and ordered `RenderSegment` records tagged at minimum as `template-text`, `binding-value`, and `missing-binding`.
+- Missing placeholders must still raise in strict mode for the existing CLI, but the shared render path must also support a non-strict mode that substitutes `<<MISSING:NAME>>` and emits a diagnostic segment. The explorer will use that mode later.
+- Keep `orchestrator/prompt_builder/build.py` behavior unchanged for current callers: same CLI flags, same error prefix, same exit behavior.
 
-**Step 3: Verify the shared parser and CLI**
+**Step 3: Verify the refactor**
 
 Run:
 
 ```bash
 python3 -m py_compile \
   orchestrator/prompt_builder/template_ast.py \
-  orchestrator/prompt_builder/build.py \
-  trycycle_explorer/__init__.py \
-  trycycle_explorer/__main__.py \
-  trycycle_explorer/cli.py
+  orchestrator/prompt_builder/build.py
 
-tmpdir="$(mktemp -d /tmp/trycycle-explorer-cli-XXXXXX)"
+tmpdir="$(mktemp -d /tmp/trycycle-explorer-ast-XXXXXX)"
 cat >"$tmpdir/template.md" <<'EOF'
 hello {NAME}
 {{#if EXTRA}}extra: {EXTRA}{{else}}no extra{{/if}}
@@ -86,228 +89,378 @@ python3 orchestrator/prompt_builder/build.py \
   --template "$tmpdir/template.md" \
   --set NAME=world \
   --set EXTRA=value
-python3 -m trycycle_explorer --help
+python3 - <<'PY' "$tmpdir/template.md"
+from pathlib import Path
+from orchestrator.prompt_builder.template_ast import parse_template_text, render_with_trace
+
+nodes = parse_template_text(Path(__import__('sys').argv[1]).read_text(encoding='utf-8'))
+rendered, trace = render_with_trace(nodes, {"NAME": "world"})
+assert "hello world" in rendered
+assert any(segment.category == "binding-value" and segment.source_key == "NAME" for segment in trace)
+assert any(segment.category == "missing-binding" and segment.source_key == "EXTRA" for segment in trace)
+print("trace ok")
+PY
 rm -rf "$tmpdir"
 ```
 
 Expected:
 
-- `py_compile` succeeds with no stderr.
-- The prompt builder still prints `hello world` and `extra: value`.
-- The explorer CLI prints usage text with `build` and `dump-model`.
+- `py_compile` succeeds.
+- The existing prompt builder still renders `hello world` and `extra: value`.
+- The trace probe prints `trace ok`.
 
 **Step 4: Commit**
 
 ```bash
-git add .gitignore orchestrator/prompt_builder/template_ast.py orchestrator/prompt_builder/build.py trycycle_explorer/__init__.py trycycle_explorer/__main__.py trycycle_explorer/cli.py
-git commit -m "feat: add trycycle explorer cli scaffold"
+git add orchestrator/prompt_builder/template_ast.py orchestrator/prompt_builder/build.py
+git commit -m "feat: share prompt template ast for explorer"
 ```
 
-### Task 2: Build the canonical explorer model from repo sources plus a minimal sidecar
+### Task 2: Add the explorer package, CLI scaffold, and model types
 
 **Files:**
-- Create: `.trycycle-explorer.toml`
-- Create: `trycycle_explorer/model.py`
-- Create: `trycycle_explorer/extract.py`
-- Create: `trycycle_explorer/simulate.py`
-- Create: `trycycle_explorer/samples/simple-feature.json`
-- Create: `trycycle_explorer/samples/plan-review-loop.json`
-- Create: `trycycle_explorer/samples/post-review-fix.json`
-- Modify: `trycycle_explorer/cli.py`
+- Create: `orchestrator/trycycle_explorer/__init__.py`
+- Create: `orchestrator/trycycle_explorer/__main__.py`
+- Create: `orchestrator/trycycle_explorer/cli.py`
+- Create: `orchestrator/trycycle_explorer/model.py`
+- Modify: `.gitignore`
 
-**Why this task exists:** The user explicitly rejected a standalone mock. The model must come from the real trycycle flow and templates so future repo changes flow into the explorer automatically. Use `.trycycle-explorer.toml` only for information the code cannot derive reliably from prose: gate grouping/order, outcome labels, sample scenarios, binding field descriptions, palette categories, and loop edges that live only in human instructions.
+**Why this task exists:** The repo is tooling-oriented and already keeps Python helpers under `orchestrator/`. The explorer should follow that shape instead of introducing a new top-level application layout or packaging story.
 
-**Step 1: Write a failing disposable model-build probe**
+**Step 1: Write a failing CLI probe**
 
 Run:
 
 ```bash
-outdir="$(mktemp -d /tmp/trycycle-explorer-build-XXXXXX)"
-python3 -m trycycle_explorer dump-model --repo . --output "$outdir/model.json"
-rm -rf "$outdir"
+python3 -m orchestrator.trycycle_explorer --help
+python3 - <<'PY'
+from orchestrator.trycycle_explorer.model import ExplorerModel
+PY
 ```
 
-Expected: the command fails because the extractor, model types, and sidecar schema do not exist yet.
+Expected: both commands fail because the package and model module do not exist yet.
 
-**Step 2: Implement extraction, sidecar merge, and deterministic simulation data**
+**Step 2: Implement the package scaffold**
 
-Implement these model layers in `trycycle_explorer/model.py`:
+Create `orchestrator/trycycle_explorer/model.py` with JSON-oriented dataclasses at least as rich as:
 
 ```python
 @dataclass(frozen=True)
-class Gate:
+class GraphNode:
     id: str
     title: str
-    group: str
-    source_path: str
-    prompt_template_path: str | None
-    template_ast: list[dict[str, object]] | None
-    outcomes: list["Outcome"]
+    cluster: str | None
+    prompt_variants: list["PromptVariant"]
 
 
 @dataclass(frozen=True)
-class Outcome:
+class GraphEdge:
     id: str
+    from_node_id: str
+    to_node_id: str
     label: str
-    to_gate_id: str
-    provenance: str
+    style: str
 
 
 @dataclass(frozen=True)
-class SampleInput:
+class PromptVariant:
     id: str
-    label: str
-    bindings: dict[str, str]
+    template_path: str
+    binding_order: list[str]
+    activate_on_edge_ids: list[str]
 ```
 
-Implement `trycycle_explorer/extract.py` with these responsibilities:
+Implement `orchestrator/trycycle_explorer/cli.py` and `__main__.py` with these commands:
 
-- Parse `SKILL.md` section headings into stable gate ids by slugifying the numbered step titles.
-- Extract prompt template references from `SKILL.md` and `subagents/*.md`.
-- Parse `docs/trycycle-information-flow.dot` for node ids, human labels, and documented edges.
-- Merge `.trycycle-explorer.toml` to add the pieces prose cannot safely encode:
-  - gate cluster/group order
-  - outcome labels and loop edges
-  - binding field labels/help text/widget types
-  - provenance palette categories
-  - sample scenario manifest
-- Load the sample JSON files listed in the TOML sidecar.
+- `python3 -m orchestrator.trycycle_explorer dump-model`
+- `python3 -m orchestrator.trycycle_explorer build`
 
-Use this TOML structure so maintainers can comment and update it without learning a new schema:
+Required CLI behaviors:
 
-```toml
-[display]
-title = "Trycycle Explorer"
+- `--repo` defaults to `.`
+- `--sidecar` defaults to `.trycycle-explorer.toml`
+- `--output` defaults to `build/trycycle-explorer`
+- `dump-model` writes canonical JSON
+- `build` will later write the static site
+- `.gitignore` must ignore `build/trycycle-explorer/`
 
-[bindings.USER_REQUEST_TRANSCRIPT]
-label = "Task input transcript JSON"
-widget = "textarea"
-source_category = "user-input"
+**Step 3: Verify the scaffold**
 
-[[sample_inputs]]
-id = "simple-feature"
-label = "Simple feature request"
-path = "trycycle_explorer/samples/simple-feature.json"
+Run:
 
-[[outcomes]]
-from = "plan-with-trycycle-planning"
-id = "plan-created"
-label = "Plan created"
-to = "plan-editor-loop"
+```bash
+python3 -m py_compile \
+  orchestrator/trycycle_explorer/__init__.py \
+  orchestrator/trycycle_explorer/__main__.py \
+  orchestrator/trycycle_explorer/cli.py \
+  orchestrator/trycycle_explorer/model.py
+python3 -m orchestrator.trycycle_explorer --help
+python3 -m orchestrator.trycycle_explorer dump-model --help
 ```
 
-Implement `trycycle_explorer/simulate.py` so a scenario produces a canonical render snapshot with:
+Expected: all compile checks pass and the help output names both `dump-model` and `build`.
 
-- selected gate id
-- selected outcome id
-- rendered prompt markdown
-- rendered prompt segments with provenance tags
-- rendered HTML-safe markdown source
-- missing-binding diagnostics instead of hard crashes
-- previous vs current render diff inputs for later UI comparison
+**Step 4: Commit**
 
-Important decision: when a binding is missing in custom input mode, return a diagnostic record and substitute a visible placeholder token such as `<<MISSING:USER_REQUEST_TRANSCRIPT>>` in the raw markdown view. Do not silently drop content and do not throw an uncaught exception in the browser. The point of this explorer is to surface prompt-quality gaps.
+```bash
+git add .gitignore orchestrator/trycycle_explorer/__init__.py orchestrator/trycycle_explorer/__main__.py orchestrator/trycycle_explorer/cli.py orchestrator/trycycle_explorer/model.py
+git commit -m "feat: add trycycle explorer cli scaffold"
+```
 
-**Step 3: Verify the model output**
+### Task 3: Extract the real graph from DOT and merge only the missing metadata from a sidecar
+
+**Files:**
+- Create: `.trycycle-explorer.toml`
+- Create: `orchestrator/trycycle_explorer/extract.py`
+- Create: `orchestrator/trycycle_explorer/samples/simple-feature.json`
+- Create: `orchestrator/trycycle_explorer/samples/plan-review-loop.json`
+- Create: `orchestrator/trycycle_explorer/samples/post-review-fix.json`
+- Modify: `orchestrator/trycycle_explorer/cli.py`
+
+**Why this task exists:** The current plan’s weakest point was treating `SKILL.md` step headings as the primary graph. That is the wrong source. `docs/trycycle-information-flow.dot` is the graph; the sidecar should annotate it, not replace it.
+
+**Step 1: Write a failing model-build probe**
 
 Run:
 
 ```bash
 outdir="$(mktemp -d /tmp/trycycle-explorer-model-XXXXXX)"
-python3 -m trycycle_explorer dump-model --repo . --output "$outdir/model.json"
+python3 -m orchestrator.trycycle_explorer dump-model --repo . --output "$outdir/model.json"
+rm -rf "$outdir"
+```
+
+Expected: the command fails because the extractor and sidecar schema do not exist yet.
+
+**Step 2: Implement DOT-first extraction and sidecar validation**
+
+Implement `orchestrator/trycycle_explorer/extract.py` with this source-of-truth order:
+
+1. Parse `docs/trycycle-information-flow.dot` for node ids, labels, clusters, and edges.
+2. Parse `.trycycle-explorer.toml` for prompt variants, outcome labels, binding metadata, palette categories, and sample manifests.
+3. Validate that every sidecar node id and edge id refers to a real DOT node or edge.
+4. Validate that every sidecar template path exists under the repo.
+5. Load sample JSON files referenced by the sidecar.
+
+Use a sidecar shape like:
+
+```toml
+[ui]
+title = "Trycycle Explorer"
+
+[bindings.USER_REQUEST_TRANSCRIPT]
+label = "Task input transcript JSON"
+widget = "textarea"
+source_category = "transcript"
+
+[prompt_variants.planner.initial]
+template = "subagents/prompt-planning-initial.md"
+binding_order = ["WORKTREE_PATH", "USER_REQUEST_TRANSCRIPT"]
+activate_on_edge_ids = []
+
+[prompt_variants.planner.revision]
+template = "subagents/prompt-planning-edit.md"
+binding_order = ["WORKTREE_PATH", "USER_REQUEST_TRANSCRIPT", "IMPLEMENTATION_PLAN_PATH"]
+activate_on_edge_ids = ["plan_reviewer_to_planner_review_findings"]
+
+[[sample_inputs]]
+id = "simple-feature"
+label = "Simple feature request"
+path = "orchestrator/trycycle_explorer/samples/simple-feature.json"
+```
+
+Critical decisions:
+
+- Keep prompt-variant definitions keyed by DOT node id so the graph remains derived from the repo.
+- Use `SKILL.md` only for human-facing descriptions and binding help text where useful; do not re-derive topology from prose.
+- Store dashed-loop edge ids in the extractor deterministically so sidecar variant activation can reference stable ids.
+
+**Step 3: Verify model extraction**
+
+Run:
+
+```bash
+outdir="$(mktemp -d /tmp/trycycle-explorer-model-XXXXXX)"
+python3 -m orchestrator.trycycle_explorer dump-model --repo . --output "$outdir/model.json"
 python3 - <<'PY' "$outdir/model.json"
-import json, sys
+import json
+import sys
+
 model = json.load(open(sys.argv[1], encoding="utf-8"))
-gate_ids = {gate["id"] for gate in model["gates"]}
-assert "testing-strategy" in gate_ids
-assert "plan-with-trycycle-planning" in gate_ids
-assert "execute-with-trycycle-executing" in gate_ids
+node_ids = {node["id"] for node in model["nodes"]}
+assert {"planner", "plan_reviewer", "executor", "post_review"} <= node_ids
+planner = next(node for node in model["nodes"] if node["id"] == "planner")
+variant_ids = {variant["id"] for variant in planner["prompt_variants"]}
+assert {"initial", "revision"} <= variant_ids
 assert len(model["sample_inputs"]) >= 3
 assert model["bindings"]["USER_REQUEST_TRANSCRIPT"]["widget"] == "textarea"
-assert any(outcome["to_gate_id"] == "plan-editor-loop" for gate in model["gates"] for outcome in gate["outcomes"])
 print("model ok")
 PY
 rm -rf "$outdir"
 ```
 
-Expected: `dump-model` succeeds, the Python assertion script prints `model ok`, and the model contains real trycycle gates, at least three samples, binding metadata, and at least one loop edge sourced through the sidecar.
+Expected: the probe prints `model ok` and the model is keyed by real DOT nodes rather than invented heading slugs.
 
 **Step 4: Commit**
 
 ```bash
-git add .trycycle-explorer.toml trycycle_explorer/model.py trycycle_explorer/extract.py trycycle_explorer/simulate.py trycycle_explorer/samples/simple-feature.json trycycle_explorer/samples/plan-review-loop.json trycycle_explorer/samples/post-review-fix.json trycycle_explorer/cli.py
-git commit -m "feat: extract a canonical trycycle explorer model"
+git add .trycycle-explorer.toml orchestrator/trycycle_explorer/extract.py orchestrator/trycycle_explorer/samples/simple-feature.json orchestrator/trycycle_explorer/samples/plan-review-loop.json orchestrator/trycycle_explorer/samples/post-review-fix.json orchestrator/trycycle_explorer/cli.py
+git commit -m "feat: extract trycycle explorer graph from dot"
 ```
 
-### Task 3: Emit the static site and browser runtime for path traversal and prompt rendering
+### Task 4: Simulate path state, choose prompt variants, and render provenance-rich prompt snapshots
 
 **Files:**
-- Create: `trycycle_explorer/site.py`
-- Create: `trycycle_explorer/assets/index.html`
-- Create: `trycycle_explorer/assets/app.js`
-- Create: `trycycle_explorer/assets/app.css`
-- Create: `trycycle_explorer/assets/vendor/marked.min.js`
-- Modify: `trycycle_explorer/cli.py`
+- Create: `orchestrator/trycycle_explorer/simulate.py`
+- Modify: `orchestrator/trycycle_explorer/model.py`
+- Modify: `orchestrator/trycycle_explorer/extract.py`
+- Modify: `orchestrator/trycycle_explorer/cli.py`
 
-**Why this task exists:** The product the user asked for is not the JSON model. It is an explorable static page. Keep the output dead-simple and durable: one build command writes a self-contained static directory that can be served by any basic file server.
+**Why this task exists:** “Click a gate and outcome” is not enough. The same gate can have different prompts depending on how the user arrived there. The simulator must choose the active prompt variant from path context and then render with the shared AST trace.
 
-**Step 1: Write a failing browser probe against the empty site**
+**Step 1: Write a failing simulation probe**
+
+Run:
+
+```bash
+python3 - <<'PY'
+from orchestrator.trycycle_explorer.simulate import simulate_gate
+PY
+```
+
+Expected: the import fails because the simulation module does not exist yet.
+
+**Step 2: Implement the simulation engine**
+
+Implement `orchestrator/trycycle_explorer/simulate.py` with these outputs:
+
+```python
+@dataclass(frozen=True)
+class PromptSnapshot:
+    gate_id: str
+    variant_id: str | None
+    edge_path: list[str]
+    raw_markdown: str | None
+    rendered_segments: list[dict[str, object]]
+    diagnostics: list[dict[str, str]]
+```
+
+Required behaviors:
+
+- Resolve the active prompt variant from the selected node plus the traversed edge path.
+- Render template ASTs with the non-strict trace mode from Task 1 so missing bindings appear as `<<MISSING:NAME>>` rather than killing the whole simulation.
+- Tag rendered segments with categories at minimum:
+  - `template-text`
+  - `binding-value`
+  - `missing-binding`
+  - `sidecar-note`
+  - `path-derived`
+- Emit diagnostics for:
+  - missing bindings
+  - node with no applicable prompt variant
+  - sidecar variant that cannot activate because its trigger edge is missing
+- Preserve the previous snapshot input so the browser can compute a before/after diff later.
+- Do not invent LLM behavior. Regeneration means rerendering the same static logic with changed bindings or changed selected path.
+
+**Step 3: Verify prompt-variant selection and diagnostics**
+
+Run:
+
+```bash
+python3 - <<'PY'
+from pathlib import Path
+from orchestrator.trycycle_explorer.extract import load_explorer_model
+from orchestrator.trycycle_explorer.simulate import simulate_gate
+
+model = load_explorer_model(Path("."), Path(".trycycle-explorer.toml"))
+bindings = {
+    "WORKTREE_PATH": "/tmp/example-worktree",
+    "USER_REQUEST_TRANSCRIPT": '[{"role":"user","text":"plan it"}]',
+    "IMPLEMENTATION_PLAN_PATH": "/tmp/example/docs/plans/example.md",
+}
+initial = simulate_gate(model=model, gate_id="planner", edge_path=[], bindings=bindings)
+revision = simulate_gate(
+    model=model,
+    gate_id="planner",
+    edge_path=["plan_reviewer_to_planner_review_findings"],
+    bindings=bindings,
+)
+missing = simulate_gate(model=model, gate_id="planner", edge_path=[], bindings={"WORKTREE_PATH": "/tmp/example-worktree"})
+assert initial.variant_id == "initial"
+assert revision.variant_id == "revision"
+assert any(diag["code"] == "missing-binding" for diag in missing.diagnostics)
+assert "<<MISSING:USER_REQUEST_TRANSCRIPT>>" in (missing.raw_markdown or "")
+print("simulation ok")
+PY
+```
+
+Expected: the probe prints `simulation ok`.
+
+**Step 4: Commit**
+
+```bash
+git add orchestrator/trycycle_explorer/simulate.py orchestrator/trycycle_explorer/model.py orchestrator/trycycle_explorer/extract.py orchestrator/trycycle_explorer/cli.py
+git commit -m "feat: simulate explorer prompt variants"
+```
+
+### Task 5: Emit the static site shell and render the graph overview
+
+**Files:**
+- Create: `orchestrator/trycycle_explorer/site.py`
+- Create: `orchestrator/trycycle_explorer/assets/index.html`
+- Create: `orchestrator/trycycle_explorer/assets/app.js`
+- Create: `orchestrator/trycycle_explorer/assets/app.css`
+- Create: `orchestrator/trycycle_explorer/assets/vendor/marked.min.js`
+- Modify: `orchestrator/trycycle_explorer/cli.py`
+
+**Why this task exists:** The explorer is a built artifact, not just a JSON dump. The first browser milestone is a clean overview page that loads the model and renders the real trycycle graph legibly.
+
+**Step 1: Write a failing site-build probe**
 
 Run:
 
 ```bash
 outdir="$(mktemp -d /tmp/trycycle-explorer-site-XXXXXX)"
-python3 -m trycycle_explorer build --repo . --output "$outdir"
-server_log="$outdir/http.log"
-(cd "$outdir" && python3 -m http.server 4173 >"$server_log" 2>&1 & echo $! >"$outdir/http.pid")
-cat >"$outdir/check.mjs" <<'EOF'
-import { chromium } from 'playwright';
-const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
-await page.goto('http://127.0.0.1:4173/', { waitUntil: 'networkidle' });
-await page.waitForSelector('[data-test="flow-map"]', { timeout: 3000 });
-await browser.close();
-EOF
-node "$outdir/check.mjs"
-kill "$(cat "$outdir/http.pid")"
+python3 -m orchestrator.trycycle_explorer build --repo . --output "$outdir"
 rm -rf "$outdir"
 ```
 
-Expected: this fails because the site emitter and required DOM structure do not exist yet.
+Expected: the command fails because the site generator does not exist yet.
 
-**Step 2: Implement the site generator and interactive runtime**
+**Step 2: Implement the static site emitter and overview UI**
 
-Implement `trycycle_explorer/site.py` and the browser assets with these exact responsibilities:
+Implement `orchestrator/trycycle_explorer/site.py` so `build` writes:
 
-- `python3 -m trycycle_explorer build --repo . --output <dir>` writes:
-  - `<dir>/index.html`
-  - `<dir>/app.js`
-  - `<dir>/app.css`
-  - `<dir>/explorer-model.json`
-  - `<dir>/vendor/marked.min.js`
-- `index.html` includes three stable panels with `data-test` hooks:
-  - `flow-map`
-  - `input-panel`
-  - `prompt-panel`
-- `app.js` loads `explorer-model.json`, renders the initial sample scenario, and allows:
-  - sample selection
-  - editing binding fields generated from sidecar metadata
-  - clicking a gate
-  - clicking an outcome
-  - re-running the simulation without a backend
-  - showing both rendered markdown HTML and raw markdown source
-- Use the AST emitted in Task 2 to render prompts client-side. Do not re-parse the original `.md` templates in the browser.
-- Use the vendored markdown library only for markdown-to-HTML conversion. All trycycle template semantics still come from the shared AST, not from the library.
-- Surface missing bindings, unresolved edges, or sidecar drift in a visible diagnostics tray instead of hiding them.
+- `<output>/index.html`
+- `<output>/app.js`
+- `<output>/app.css`
+- `<output>/explorer-model.json`
+- `<output>/vendor/marked.min.js`
 
-**Step 3: Verify the built site renders and responds**
+Implement the initial browser shell with these stable regions and hooks:
+
+- `[data-test="flow-map"]`
+- `[data-test="input-panel"]`
+- `[data-test="prompt-panel"]`
+- `[data-test="sample-select"]`
+
+The first milestone UI requirements are:
+
+- load `explorer-model.json`
+- render every DOT node and edge with stable `data-node-id` and `data-edge-id` attributes
+- show the bundled sample selector
+- show an empty-state prompt panel when no prompt-bearing node is selected
+- establish the final visual direction early: warm paper page background, dark surfaces, teal/rust/gold accents, distinct cluster treatments, and non-generic typography
+
+Do not add path traversal or rerendering yet in this task; this task is only the overview shell.
+
+**Step 3: Verify the overview page**
 
 Run:
 
 ```bash
 outdir="$(mktemp -d /tmp/trycycle-explorer-site-XXXXXX)"
-python3 -m trycycle_explorer build --repo . --output "$outdir"
-(cd "$outdir" && python3 -m http.server 4173 >"$outdir/http.log" 2>&1 & echo $! >"$outdir/http.pid")
+python3 -m orchestrator.trycycle_explorer build --repo . --output "$outdir/site"
+(cd "$outdir/site" && python3 -m http.server 4173 >"$outdir/http.log" 2>&1 & echo $! >"$outdir/http.pid")
 cat >"$outdir/check.mjs" <<'EOF'
 import { chromium } from 'playwright';
 const browser = await chromium.launch({ headless: true });
@@ -316,57 +469,60 @@ await page.goto('http://127.0.0.1:4173/', { waitUntil: 'networkidle' });
 await page.waitForSelector('[data-test="flow-map"]');
 await page.waitForSelector('[data-test="input-panel"]');
 await page.waitForSelector('[data-test="prompt-panel"]');
-await page.selectOption('[data-test="sample-select"]', 'plan-review-loop');
-await page.click('[data-gate-id="plan-with-trycycle-planning"]');
-await page.click('[data-outcome-id="plan-created"]');
-const promptText = await page.textContent('[data-test="prompt-source"]');
-if (!promptText || !promptText.includes('<task_input_json>')) throw new Error('prompt source missing');
+await page.screenshot({ path: process.argv[2], fullPage: true });
 await browser.close();
 EOF
-node "$outdir/check.mjs"
+node "$outdir/check.mjs" "$outdir/01-overview.png"
 kill "$(cat "$outdir/http.pid")"
-rm -rf "$outdir"
 ```
 
-Expected: the page loads, the three panels render, clicking a gate and outcome updates the prompt panel, and the raw prompt source includes real prompt content from the selected trycycle step.
+Expected: the page loads, all three panels render, and `01-overview.png` is created.
 
-**Step 4: Commit**
+**Step 4: Inspect the screenshot before committing**
+
+Open `01-overview.png` with the available image-viewing tool in the execution environment and verify:
+
+- graph labels are readable without zooming
+- clusters are visually distinct
+- no text overlaps or clipped nodes are visible
+- the page looks intentional rather than like default browser styles
+
+If any of those fail, fix the UI before committing.
+
+**Step 5: Commit**
 
 ```bash
-git add trycycle_explorer/site.py trycycle_explorer/assets/index.html trycycle_explorer/assets/app.js trycycle_explorer/assets/app.css trycycle_explorer/assets/vendor/marked.min.js trycycle_explorer/cli.py
-git commit -m "feat: generate the trycycle explorer static site"
+git add orchestrator/trycycle_explorer/site.py orchestrator/trycycle_explorer/assets/index.html orchestrator/trycycle_explorer/assets/app.js orchestrator/trycycle_explorer/assets/app.css orchestrator/trycycle_explorer/assets/vendor/marked.min.js orchestrator/trycycle_explorer/cli.py
+git commit -m "feat: generate trycycle explorer overview site"
 ```
 
-### Task 4: Add provenance-aware diagnostics, before/after diffing, and visual polish
+### Task 6: Add sample selection, custom bindings, gate/outcome traversal, and prompt rendering
 
 **Files:**
-- Modify: `trycycle_explorer/simulate.py`
-- Modify: `trycycle_explorer/assets/app.js`
-- Modify: `trycycle_explorer/assets/app.css`
-- Modify: `trycycle_explorer/assets/index.html`
-- Modify: `.trycycle-explorer.toml`
+- Modify: `orchestrator/trycycle_explorer/site.py`
+- Modify: `orchestrator/trycycle_explorer/assets/index.html`
+- Modify: `orchestrator/trycycle_explorer/assets/app.js`
+- Modify: `orchestrator/trycycle_explorer/assets/app.css`
 
-**Why this task exists:** The user’s actual goal is prompt debugging, not just browsing. The UI must make it obvious what came from the template, what came from user-provided bindings, what was injected by sidecar logic, and what changed between one simulation run and the next.
+**Why this task exists:** This is the core user flow. The explorer only becomes useful when a user can choose a sample, edit bindings, click through outcomes, and see the exact rendered prompt for the active path.
 
-**Step 1: Write a failing custom-input and diff probe**
+**Step 1: Write a failing interaction probe**
 
 Run:
 
 ```bash
-outdir="$(mktemp -d /tmp/trycycle-explorer-diff-XXXXXX)"
-python3 -m trycycle_explorer build --repo . --output "$outdir"
-(cd "$outdir" && python3 -m http.server 4173 >"$outdir/http.log" 2>&1 & echo $! >"$outdir/http.pid")
+outdir="$(mktemp -d /tmp/trycycle-explorer-interact-XXXXXX)"
+python3 -m orchestrator.trycycle_explorer build --repo . --output "$outdir/site"
+(cd "$outdir/site" && python3 -m http.server 4173 >"$outdir/http.log" 2>&1 & echo $! >"$outdir/http.pid")
 cat >"$outdir/check.mjs" <<'EOF'
 import { chromium } from 'playwright';
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
 await page.goto('http://127.0.0.1:4173/', { waitUntil: 'networkidle' });
-await page.fill('[name="USER_REQUEST_TRANSCRIPT"]', '');
-await page.click('[data-test="rerender"]');
-await page.waitForSelector('[data-test="diagnostics"] [data-severity="missing-binding"]', { timeout: 3000 });
-await page.fill('[name="USER_REQUEST_TRANSCRIPT"]', '[{\"role\":\"user\",\"text\":\"rewrite the plan\"}]');
-await page.click('[data-test="rerender"]');
-await page.waitForSelector('[data-test="diff-panel"] .diff-added', { timeout: 3000 });
+await page.selectOption('[data-test="sample-select"]', 'plan-review-loop');
+await page.click('[data-node-id="planner"]');
+await page.click('[data-edge-id="planner_to_implementation_plan"]');
+await page.waitForSelector('[data-test="prompt-source"]', { timeout: 3000 });
 await browser.close();
 EOF
 node "$outdir/check.mjs"
@@ -374,98 +530,207 @@ kill "$(cat "$outdir/http.pid")"
 rm -rf "$outdir"
 ```
 
-Expected: this fails because the diagnostics tray, rerender flow, and diff panel do not exist yet.
+Expected: the probe fails because traversal and prompt rendering do not exist yet.
 
-**Step 2: Implement diagnostics, provenance, and diff-oriented UI**
+**Step 2: Implement interaction and prompt display**
 
-Implement these product behaviors:
+Implement these exact UI behaviors:
 
-- Raw markdown view shows inline provenance spans with stable categories such as:
-  - `template-text`
-  - `user-input`
-  - `derived-path`
-  - `sidecar-overlay`
-  - `missing-binding`
-- Add a visible legend that maps those categories to colors.
-- Add a diagnostics tray summarizing missing bindings, unresolved edges, and sidecar mismatches.
-- Preserve the previous render snapshot in browser state and compute a line-oriented diff against the current render after each rerender.
-- Show a “before / after” summary card so the user can see whether a prompt improved after editing inputs.
-- Use an intentional visual system instead of default styling:
-  - warm paper background, dark ink surfaces, teal/rust/gold accents
-  - CSS custom properties at the top of `app.css`
-  - responsive two-column desktop layout that collapses cleanly to one column on mobile
-  - readable code/pre blocks and sticky path inspector
-- Keep all user-visible text legible at narrow widths. No clipped chips, no horizontal scroll in the main panels, and no color-only state indication without labels.
+- selecting a sample populates all binding widgets from sidecar metadata
+- binding widgets are generated from the sidecar, not hard-coded
+- clicking a node selects the gate and highlights incoming/outgoing edges
+- clicking an outcome edge updates the active path and rerenders the prompt snapshot
+- prompt panel shows:
+  - gate title
+  - active prompt variant id
+  - rendered markdown HTML
+  - raw markdown source
+  - prompt template path
+- raw markdown source uses serialized AST rendering from the model, not reparsing source `.md` files in the browser
+- no network calls beyond fetching the built static assets
 
-**Step 3: Verify diagnostics, screenshots, and responsive layout**
+Add these stable hooks:
+
+- `[data-test="prompt-html"]`
+- `[data-test="prompt-source"]`
+- `[data-test="path-inspector"]`
+- `[data-test="rerender"]`
+
+**Step 3: Verify interaction and capture screenshots**
 
 Run:
 
 ```bash
-outdir="$(mktemp -d /tmp/trycycle-explorer-ui-XXXXXX)"
-shots="$outdir/shots"
-mkdir -p "$shots"
-python3 -m trycycle_explorer build --repo . --output "$outdir/site"
+outdir="$(mktemp -d /tmp/trycycle-explorer-interact-XXXXXX)"
+python3 -m orchestrator.trycycle_explorer build --repo . --output "$outdir/site"
+(cd "$outdir/site" && python3 -m http.server 4173 >"$outdir/http.log" 2>&1 & echo $! >"$outdir/http.pid")
+cat >"$outdir/check.mjs" <<'EOF'
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ headless: true });
+const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
+await page.goto('http://127.0.0.1:4173/', { waitUntil: 'networkidle' });
+await page.selectOption('[data-test="sample-select"]', 'plan-review-loop');
+await page.click('[data-node-id="planner"]');
+await page.screenshot({ path: process.argv[2] + '/02-selected-gate.png', fullPage: true });
+await page.click('[data-edge-id="plan_reviewer_to_planner_review_findings"]');
+await page.waitForSelector('[data-test="prompt-source"]');
+const promptText = await page.textContent('[data-test="prompt-source"]');
+if (!promptText || !promptText.includes('<current_implementation_plan_path>')) {
+  throw new Error('expected planning-edit prompt content');
+}
+await page.screenshot({ path: process.argv[2] + '/03-selected-path.png', fullPage: true });
+await browser.close();
+EOF
+mkdir -p "$outdir/shots"
+node "$outdir/check.mjs" "$outdir/shots"
+kill "$(cat "$outdir/http.pid")"
+```
+
+Expected: both screenshots are created and the selected path shows the revision planning prompt.
+
+**Step 4: Inspect the screenshots before committing**
+
+Open `02-selected-gate.png` and `03-selected-path.png` and verify:
+
+- the selected node and selected edge are unmistakable
+- the prompt panel remains readable when populated with real markdown
+- the path inspector explains how the current prompt variant was chosen
+- the page still looks cohesive after real content appears
+
+If any of those fail, fix them before committing.
+
+**Step 5: Commit**
+
+```bash
+git add orchestrator/trycycle_explorer/site.py orchestrator/trycycle_explorer/assets/index.html orchestrator/trycycle_explorer/assets/app.js orchestrator/trycycle_explorer/assets/app.css
+git commit -m "feat: add explorer traversal and prompt rendering"
+```
+
+### Task 7: Add provenance coloring, diagnostics, before/after diffing, and responsive polish
+
+**Files:**
+- Modify: `.trycycle-explorer.toml`
+- Modify: `orchestrator/trycycle_explorer/simulate.py`
+- Modify: `orchestrator/trycycle_explorer/assets/index.html`
+- Modify: `orchestrator/trycycle_explorer/assets/app.js`
+- Modify: `orchestrator/trycycle_explorer/assets/app.css`
+
+**Why this task exists:** The user asked for a prompt-debugging tool, not just a browser for templates. Provenance, visible diagnostics, and before/after comparisons are what make it useful for spotting missing information and trying alternate inputs.
+
+**Step 1: Write a failing diagnostics and mobile probe**
+
+Run:
+
+```bash
+outdir="$(mktemp -d /tmp/trycycle-explorer-polish-XXXXXX)"
+python3 -m orchestrator.trycycle_explorer build --repo . --output "$outdir/site"
 (cd "$outdir/site" && python3 -m http.server 4173 >"$outdir/http.log" 2>&1 & echo $! >"$outdir/http.pid")
 cat >"$outdir/check.mjs" <<'EOF'
 import { chromium } from 'playwright';
 
-async function assertNoHorizontalOverflow(page, selector) {
+async function assertNoOverflow(page, selector) {
   const ok = await page.$eval(selector, (el) => el.scrollWidth <= el.clientWidth + 1);
-  if (!ok) throw new Error(`horizontal overflow in ${selector}`);
+  if (!ok) throw new Error(`overflow in ${selector}`);
 }
 
 const browser = await chromium.launch({ headless: true });
 const desktop = await browser.newPage({ viewport: { width: 1440, height: 960 } });
 await desktop.goto('http://127.0.0.1:4173/', { waitUntil: 'networkidle' });
-await desktop.screenshot({ path: process.argv[2] + '/overview.png', fullPage: true });
-await desktop.click('[data-gate-id="plan-with-trycycle-planning"]');
-await desktop.click('[data-outcome-id="plan-created"]');
-await desktop.screenshot({ path: process.argv[2] + '/selected-path.png', fullPage: true });
 await desktop.fill('[name="USER_REQUEST_TRANSCRIPT"]', '');
 await desktop.click('[data-test="rerender"]');
-await desktop.screenshot({ path: process.argv[2] + '/custom-input-diagnostic.png', fullPage: true });
-await assertNoHorizontalOverflow(desktop, '[data-test="flow-map"]');
-await assertNoHorizontalOverflow(desktop, '[data-test="prompt-panel"]');
+await desktop.waitForSelector('[data-test="diagnostics"] [data-code="missing-binding"]', { timeout: 3000 });
+await desktop.waitForSelector('[data-test="provenance-legend"]', { timeout: 3000 });
+await desktop.waitForSelector('[data-test="diff-panel"]', { timeout: 3000 });
+await assertNoOverflow(desktop, '[data-test="prompt-panel"]');
 const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
 await mobile.goto('http://127.0.0.1:4173/', { waitUntil: 'networkidle' });
-await mobile.screenshot({ path: process.argv[2] + '/mobile.png', fullPage: true });
-await assertNoHorizontalOverflow(mobile, '[data-test="input-panel"]');
+await assertNoOverflow(mobile, '[data-test="input-panel"]');
 await browser.close();
 EOF
-node "$outdir/check.mjs" "$shots"
+node "$outdir/check.mjs"
 kill "$(cat "$outdir/http.pid")"
-python3 - <<'PY' "$shots"
-from pathlib import Path
-import sys
-shots = Path(sys.argv[1])
-expected = {"overview.png", "selected-path.png", "custom-input-diagnostic.png", "mobile.png"}
-found = {p.name for p in shots.iterdir()}
-missing = expected - found
-assert not missing, missing
-print("screenshots ok")
-PY
 rm -rf "$outdir"
 ```
 
-Expected: the DOM assertions pass, the screenshot set is complete, and the images are ready for the executor to inspect during the run for legibility, attractiveness, and correctness before committing. The pass/fail gate is still explicit: no horizontal overflow in key panels, diagnostics visible for missing input, and screenshots successfully captured for all required states.
+Expected: the probe fails because diagnostics, legend, diffing, and mobile-safe layout do not exist yet.
 
-**Step 4: Commit**
+**Step 2: Implement debugging-oriented UI**
+
+Implement these exact behaviors:
+
+- add provenance coloring and labels for at least:
+  - `template-text`
+  - `binding-value`
+  - `missing-binding`
+  - `sidecar-note`
+  - `path-derived`
+- add a visible legend with stable hook `[data-test="provenance-legend"]`
+- add a diagnostics tray with stable hook `[data-test="diagnostics"]`
+- preserve the previous prompt snapshot after each rerender and show a line-oriented before/after diff in `[data-test="diff-panel"]`
+- keep missing bindings visible in raw markdown as `<<MISSING:NAME>>`
+- ensure narrow-screen layout collapses to one column without clipped chips, hidden labels, or horizontal scrolling in the main panels
+- keep the in-app scope strict: editing bindings and rerendering is supported, but editing templates or calling an LLM is not
+
+**Step 3: Verify polished states and capture screenshots**
+
+Run:
 
 ```bash
-git add .trycycle-explorer.toml trycycle_explorer/simulate.py trycycle_explorer/assets/index.html trycycle_explorer/assets/app.js trycycle_explorer/assets/app.css
+outdir="$(mktemp -d /tmp/trycycle-explorer-polish-XXXXXX)"
+mkdir -p "$outdir/shots"
+python3 -m orchestrator.trycycle_explorer build --repo . --output "$outdir/site"
+(cd "$outdir/site" && python3 -m http.server 4173 >"$outdir/http.log" 2>&1 & echo $! >"$outdir/http.pid")
+cat >"$outdir/check.mjs" <<'EOF'
+import { chromium } from 'playwright';
+
+const browser = await chromium.launch({ headless: true });
+const desktop = await browser.newPage({ viewport: { width: 1440, height: 960 } });
+await desktop.goto('http://127.0.0.1:4173/', { waitUntil: 'networkidle' });
+await desktop.click('[data-node-id="planner"]');
+await desktop.click('[data-edge-id="plan_reviewer_to_planner_review_findings"]');
+await desktop.screenshot({ path: process.argv[2] + '/04-provenance.png', fullPage: true });
+await desktop.fill('[name="USER_REQUEST_TRANSCRIPT"]', '');
+await desktop.click('[data-test="rerender"]');
+await desktop.screenshot({ path: process.argv[2] + '/05-diagnostics.png', fullPage: true });
+const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
+await mobile.goto('http://127.0.0.1:4173/', { waitUntil: 'networkidle' });
+await mobile.screenshot({ path: process.argv[2] + '/06-mobile.png', fullPage: true });
+await browser.close();
+EOF
+node "$outdir/check.mjs" "$outdir/shots"
+kill "$(cat "$outdir/http.pid")"
+```
+
+Expected: the screenshot set is complete and the desktop state includes provenance, diagnostics, and diff UI.
+
+**Step 4: Inspect the screenshots before committing**
+
+Open `04-provenance.png`, `05-diagnostics.png`, and `06-mobile.png` and verify:
+
+- provenance colors are distinct and the legend is understandable
+- diagnostic messages are visible and clearly associated with the missing input
+- the diff panel explains what changed after rerender
+- the mobile view remains attractive and readable rather than merely unbroken
+
+If any of those fail, fix them before committing.
+
+**Step 5: Commit**
+
+```bash
+git add .trycycle-explorer.toml orchestrator/trycycle_explorer/simulate.py orchestrator/trycycle_explorer/assets/index.html orchestrator/trycycle_explorer/assets/app.js orchestrator/trycycle_explorer/assets/app.css
 git commit -m "feat: add explorer diagnostics and visual polish"
 ```
 
-### Task 5: Harden build outputs, failure reporting, and verification surfaces
+### Task 8: Harden validation, failure reporting, and maintainer docs
 
 **Files:**
-- Modify: `trycycle_explorer/extract.py`
-- Modify: `trycycle_explorer/simulate.py`
-- Modify: `trycycle_explorer/site.py`
-- Modify: `trycycle_explorer/cli.py`
+- Modify: `orchestrator/trycycle_explorer/extract.py`
+- Modify: `orchestrator/trycycle_explorer/site.py`
+- Modify: `orchestrator/trycycle_explorer/cli.py`
+- Modify: `README.md`
+- Create: `docs/trycycle-explorer.md`
 
-**Why this task exists:** The approved strategy emphasized reproducible artifacts over silent failure. This task turns the explorer into a dependable tool instead of a demo by making drift and bad inputs obvious and by exposing enough machine-readable output to verify behavior without adding repo tests.
+**Why this task exists:** The explorer must fail clearly when trycycle changes out from under it, and maintainers need a crisp rule for when to update the sidecar.
 
 **Step 1: Write failing boundary probes**
 
@@ -474,158 +739,175 @@ Run:
 ```bash
 tmpdir="$(mktemp -d /tmp/trycycle-explorer-boundary-XXXXXX)"
 cat >"$tmpdir/bad-sidecar.toml" <<'EOF'
-[[outcomes]]
-from = "non-existent-gate"
-id = "bad-edge"
-label = "Broken"
-to = "also-missing"
+[prompt_variants.planner.bad]
+template = "subagents/prompt-planning-initial.md"
+binding_order = ["WORKTREE_PATH"]
+activate_on_edge_ids = ["not-a-real-edge"]
 EOF
-! python3 -m trycycle_explorer dump-model --repo . --sidecar "$tmpdir/bad-sidecar.toml" --output "$tmpdir/model.json"
-! python3 -m trycycle_explorer build --repo . --sample does-not-exist --output "$tmpdir/site"
+! python3 -m orchestrator.trycycle_explorer dump-model --repo . --sidecar "$tmpdir/bad-sidecar.toml" --output "$tmpdir/model.json"
+! python3 -m orchestrator.trycycle_explorer build --repo . --sample does-not-exist --output "$tmpdir/site"
 rm -rf "$tmpdir"
 ```
 
-Expected: both commands fail, but today they will not fail with precise explorer-specific messages because the validation/reporting layer does not exist yet.
+Expected: both commands fail, but not yet with explorer-specific errors.
 
-**Step 2: Implement explicit validation and machine-readable outputs**
+**Step 2: Implement validation and documentation**
 
-Add these behaviors:
+Implement these behaviors:
 
-- `dump-model` validates that every sidecar edge points to a known gate and every sample id exists.
-- `build` exits non-zero with clear stderr for sidecar drift, unknown samples, unreadable sample files, or impossible render states.
+- `dump-model` and `build` exit non-zero with explicit stderr when:
+  - a sidecar node or edge reference is unknown
+  - a sample id is unknown
+  - a sample file is unreadable
+  - a template path is unreadable
 - `explorer-model.json` includes:
   - `generated_at`
   - `repo_root`
-  - `gates`
+  - `nodes`
+  - `edges`
   - `bindings`
   - `sample_inputs`
-  - `diagnostics`
-  - `provenance_palette`
-- `app.js` renders fatal build diagnostics if the model contains validation failures instead of crashing silently.
-- `dump-model` supports `--sample <id>` so verification can pin one scenario when needed.
+  - `palette`
+  - `build_diagnostics`
+- update `README.md` with a short run/serve section for the explorer
+- create `docs/trycycle-explorer.md` covering:
+  - source-of-truth order
+  - sidecar ownership and update triggers
+  - sample file format
+  - build artifacts
+  - the disposable verification commands from Tasks 5 through 8
 
-**Step 3: Verify failure reporting and catastrophic-regression performance**
+**Step 3: Verify failures, performance, and docs**
 
 Run:
 
 ```bash
 tmpdir="$(mktemp -d /tmp/trycycle-explorer-boundary-XXXXXX)"
 cat >"$tmpdir/bad-sidecar.toml" <<'EOF'
-[[outcomes]]
-from = "non-existent-gate"
-id = "bad-edge"
-label = "Broken"
-to = "also-missing"
+[prompt_variants.planner.bad]
+template = "subagents/prompt-planning-initial.md"
+binding_order = ["WORKTREE_PATH"]
+activate_on_edge_ids = ["not-a-real-edge"]
 EOF
-! python3 -m trycycle_explorer dump-model --repo . --sidecar "$tmpdir/bad-sidecar.toml" --output "$tmpdir/model.json" 2>"$tmpdir/error.txt"
-rg -n "non-existent-gate|also-missing|sidecar" "$tmpdir/error.txt"
-/usr/bin/time -f '%e' python3 -m trycycle_explorer build --repo . --output "$tmpdir/site" >/dev/null
+! python3 -m orchestrator.trycycle_explorer dump-model --repo . --sidecar "$tmpdir/bad-sidecar.toml" --output "$tmpdir/model.json" 2>"$tmpdir/error.txt"
+rg -n "not-a-real-edge|planner" "$tmpdir/error.txt"
+/usr/bin/time -f '%e' python3 -m orchestrator.trycycle_explorer build --repo . --output "$tmpdir/site" >/dev/null
+rg -n "trycycle explorer|\\.trycycle-explorer\\.toml|python3 -m orchestrator\\.trycycle_explorer" README.md docs/trycycle-explorer.md
 rm -rf "$tmpdir"
 ```
 
 Expected:
 
-- The bad-sidecar command exits non-zero and stderr names the bad gates explicitly.
-- The timing command finishes comfortably under 10 seconds on this machine. Anything slower signals a broken extraction/render loop.
+- the bad-sidecar command fails and stderr names the bad edge id explicitly
+- the build completes comfortably under 10 seconds
+- the docs contain the actual commands and sidecar path shipped by the implementation
 
 **Step 4: Commit**
 
 ```bash
-git add trycycle_explorer/extract.py trycycle_explorer/simulate.py trycycle_explorer/site.py trycycle_explorer/cli.py
-git commit -m "feat: harden explorer validation and artifacts"
+git add orchestrator/trycycle_explorer/extract.py orchestrator/trycycle_explorer/site.py orchestrator/trycycle_explorer/cli.py README.md docs/trycycle-explorer.md
+git commit -m "docs: add trycycle explorer validation and usage guide"
 ```
 
-### Task 6: Document usage and maintainer update paths
+### Task 9: Run final end-to-end verification and record the evidence
 
 **Files:**
-- Modify: `README.md`
-- Create: `docs/trycycle-explorer.md`
+- Modify: none unless verification reveals a real bug
 
-**Why this task exists:** The app is only useful if maintainers know how it stays synced with the repo and users know how to run it. The sidecar is intentionally small but manual; it needs explicit ownership and update instructions.
+**Why this task exists:** This repo forbids committed tests for this feature, so the final bar must come from production-surface verification plus screenshot inspection.
 
-**Step 1: Write a failing documentation probe**
-
-Run:
-
-```bash
-rg -n "trycycle explorer|\\.trycycle-explorer\\.toml|python3 -m trycycle_explorer" README.md docs/trycycle-explorer.md
-```
-
-Expected: no matches, because the explorer documentation does not exist yet.
-
-**Step 2: Document build, serve, and sidecar maintenance**
-
-Update `README.md` with a short “Trycycle Explorer” section that covers:
-
-- build command: `python3 -m trycycle_explorer build --repo . --output /tmp/trycycle-explorer`
-- local serve command: `python3 -m http.server 4173 --directory /tmp/trycycle-explorer`
-- what the explorer is for: inspecting gates, outcomes, prompts, provenance, and rerender diffs
-
-Create `docs/trycycle-explorer.md` with:
-
-- the source-of-truth hierarchy:
-  - `SKILL.md`
-  - `subagents/*.md`
-  - `docs/trycycle-information-flow.dot`
-  - `.trycycle-explorer.toml`
-- when the sidecar must be updated
-- sample input file format
-- output artifact list
-- the disposable verification commands from Tasks 3 through 5
-
-**Step 3: Verify the docs match the product**
-
-Run:
-
-```bash
-python3 -m trycycle_explorer build --repo . --output /tmp/trycycle-explorer-doc-check
-rg -n "python3 -m trycycle_explorer build|\\.trycycle-explorer\\.toml|explorer-model\\.json" README.md docs/trycycle-explorer.md
-rm -rf /tmp/trycycle-explorer-doc-check
-```
-
-Expected: the build command succeeds and the docs contain the commands and artifacts the implementation now actually ships.
-
-**Step 4: Commit**
-
-```bash
-git add README.md docs/trycycle-explorer.md
-git commit -m "docs: add trycycle explorer usage and maintenance guide"
-```
-
-### Task 7: Final end-to-end verification in the worktree
-
-**Files:**
-- Modify: none
-
-**Why this task exists:** This repo forbids committed tests, so the final quality bar must come from production-surface verification in this worktree. Run the full build, scenario interactions, screenshots, and failure probes one last time after all commits land.
-
-**Step 1: Build the final static site**
+**Step 1: Build the final site and run the browser scenario**
 
 Run:
 
 ```bash
 final_dir="$(mktemp -d /tmp/trycycle-explorer-final-XXXXXX)"
-python3 -m trycycle_explorer build --repo . --output "$final_dir/site"
+mkdir -p "$final_dir/shots"
+python3 -m orchestrator.trycycle_explorer build --repo . --output "$final_dir/site"
+(cd "$final_dir/site" && python3 -m http.server 4173 >"$final_dir/http.log" 2>&1 & echo $! >"$final_dir/http.pid")
+cat >"$final_dir/check.mjs" <<'EOF'
+import { chromium } from 'playwright';
+
+async function assertNoOverflow(page, selector) {
+  const ok = await page.$eval(selector, (el) => el.scrollWidth <= el.clientWidth + 1);
+  if (!ok) throw new Error(`overflow in ${selector}`);
+}
+
+const browser = await chromium.launch({ headless: true });
+const desktop = await browser.newPage({ viewport: { width: 1440, height: 960 } });
+await desktop.goto('http://127.0.0.1:4173/', { waitUntil: 'networkidle' });
+await desktop.selectOption('[data-test="sample-select"]', 'post-review-fix');
+await desktop.click('[data-node-id="executor"]');
+await desktop.click('[data-edge-id="post_review_to_executor_fix_round"]');
+await desktop.waitForSelector('[data-test="prompt-source"]');
+await assertNoOverflow(desktop, '[data-test="flow-map"]');
+await assertNoOverflow(desktop, '[data-test="prompt-panel"]');
+await desktop.screenshot({ path: process.argv[2] + '/final-desktop.png', fullPage: true });
+await desktop.fill('[name="POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM"]', '');
+await desktop.click('[data-test="rerender"]');
+await desktop.screenshot({ path: process.argv[2] + '/final-diagnostic.png', fullPage: true });
+const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
+await mobile.goto('http://127.0.0.1:4173/', { waitUntil: 'networkidle' });
+await mobile.screenshot({ path: process.argv[2] + '/final-mobile.png', fullPage: true });
+await browser.close();
+EOF
+node "$final_dir/check.mjs" "$final_dir/shots"
+kill "$(cat "$final_dir/http.pid")"
 ```
 
-Expected: the final site build succeeds with no stderr.
+Expected: the scenario succeeds and produces `final-desktop.png`, `final-diagnostic.png`, and `final-mobile.png`.
 
-**Step 2: Run the final browser scenario and screenshot capture**
+**Step 2: Inspect the final screenshots**
 
-Repeat the Task 4 Playwright script against `"$final_dir/site"` and keep the four screenshots.
+Open the three final screenshots and verify:
 
-Expected: all assertions pass and the four screenshots exist.
+- the executor fix-round path is obvious and correctly rendered
+- markdown blocks, raw source, and diagnostics are all readable
+- the mobile layout still feels deliberate and attractive
+- nothing in the screenshots suggests stale data, incorrect path selection, or broken provenance labeling
 
-**Step 3: Run the final model and boundary probes**
+If any of those fail, fix the bug and rerun this task before finishing.
 
-Repeat the Task 2 model assertions and the Task 5 bad-sidecar failure probe.
+**Step 3: Re-run the core model and boundary probes**
 
-Expected: the model assertions pass and the bad-sidecar probe still fails loudly and specifically.
+Run:
 
-**Step 4: Record the verification summary for the implementation report**
+```bash
+python3 - <<'PY'
+from pathlib import Path
+from orchestrator.trycycle_explorer.extract import load_explorer_model
 
-Capture the exact commands and outcomes from Steps 1 through 3 so the implementation subagent can paste them into `## Verification results`.
+model = load_explorer_model(Path("."), Path(".trycycle-explorer.toml"))
+assert any(node.id == "planner" for node in model.nodes)
+assert any(node.id == "executor" for node in model.nodes)
+print("final model ok")
+PY
 
-**Step 5: Commit if needed**
+tmpdir="$(mktemp -d /tmp/trycycle-explorer-final-boundary-XXXXXX)"
+cat >"$tmpdir/bad-sidecar.toml" <<'EOF'
+[prompt_variants.executor.bad]
+template = "subagents/prompt-executing.md"
+binding_order = ["WORKTREE_PATH"]
+activate_on_edge_ids = ["missing-edge"]
+EOF
+! python3 -m orchestrator.trycycle_explorer dump-model --repo . --sidecar "$tmpdir/bad-sidecar.toml" --output "$tmpdir/model.json" 2>"$tmpdir/error.txt"
+rg -n "missing-edge" "$tmpdir/error.txt"
+rm -rf "$tmpdir"
+```
 
-If the verification steps required any last-minute non-behavioral fix, commit it with an accurate message. If verification passes cleanly with no code changes, do not create a no-op commit.
+Expected: the model probe prints `final model ok` and the bad-sidecar probe still fails loudly.
+
+**Step 4: Record verification evidence for the implementation report**
+
+Record in `## Verification results`:
+
+- the exact build command
+- the Playwright scenario command
+- the screenshot filenames reviewed
+- the model probe result
+- the bad-sidecar failure result
+- whether any verification bug fix was needed after screenshot inspection
+
+**Step 5: Commit only if verification required a code fix**
+
+If verification exposed a real bug and you fixed it, commit that fix with an accurate message. If verification passed without code changes, do not create a no-op commit.
