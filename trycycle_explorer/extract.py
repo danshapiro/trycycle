@@ -248,6 +248,11 @@ def extract_prompt_sources(repo_root: Path, section: SkillSection) -> list[Promp
 
     seen_paths: set[str] = set()
     for relative_path in PATH_RE.findall(section.markdown):
+        if not (
+            relative_path.startswith("subagents/")
+            or relative_path.startswith("subskills/")
+        ):
+            continue
         if relative_path in seen_paths:
             continue
         seen_paths.add(relative_path)

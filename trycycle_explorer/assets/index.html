@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Trycycle Explorer</title>
+    <link rel="stylesheet" href="./app.css" />
+    <script defer src="./vendor/markdown-lite.js"></script>
+    <script defer type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="hero">
+        <p class="eyebrow">Static prompt path explorer</p>
+        <h1 id="page-title">Trycycle Explorer</h1>
+        <p id="page-subtitle" class="subtitle">
+          Inspect gates, outcomes, and rendered prompt sources from the real repo.
+        </p>
+      </section>
+
+      <section class="layout-grid">
+        <aside class="panel flow-panel" data-test="flow-map">
+          <div class="panel-header">
+            <h2>Flow map</h2>
+            <p>Click a gate, then choose an outcome to trace the path.</p>
+          </div>
+          <div id="flow-groups" class="flow-groups"></div>
+        </aside>
+
+        <section class="panel input-panel" data-test="input-panel">
+          <div class="panel-header">
+            <h2>Inputs</h2>
+            <p>Choose a sample or edit the current bindings before rerendering.</p>
+          </div>
+          <div class="input-toolbar">
+            <label class="field">
+              <span>Sample</span>
+              <select data-test="sample-select" id="sample-select"></select>
+            </label>
+            <button type="button" class="action-button" data-test="rerender" id="rerender">
+              Rerender
+            </button>
+          </div>
+          <div id="binding-fields" class="binding-fields"></div>
+          <section class="legend-block">
+            <div class="panel-header compact">
+              <h3>Legend</h3>
+            </div>
+            <div id="legend" class="legend"></div>
+          </section>
+          <section class="diagnostics-block">
+            <div class="panel-header compact">
+              <h3>Diagnostics</h3>
+            </div>
+            <div id="diagnostics" class="diagnostics" data-test="diagnostics"></div>
+          </section>
+        </section>
+
+        <section class="panel prompt-panel" data-test="prompt-panel">
+          <div class="panel-header">
+            <h2 id="prompt-title">Prompt</h2>
+            <p id="prompt-subtitle">Select a gate to inspect the rendered prompt.</p>
+          </div>
+          <div id="prompt-source-tabs" class="prompt-source-tabs"></div>
+          <div class="prompt-meta">
+            <span id="selected-outcome" class="pill">No outcome selected</span>
+          </div>
+          <div class="prompt-columns">
+            <section class="prompt-column">
+              <h3>Markdown preview</h3>
+              <div id="prompt-preview" class="prompt-preview"></div>
+            </section>
+            <section class="prompt-column">
+              <h3>Raw markdown source</h3>
+              <pre id="prompt-source" class="prompt-source" data-test="prompt-source"></pre>
+            </section>
+          </div>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>

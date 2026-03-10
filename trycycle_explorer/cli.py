@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from .extract import ExplorerError, build_model
+from .site import build_site
 
 
 def emit_log(severity: str, event: str, **fields: object) -> None:
@@ -36,6 +37,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("build/trycycle-explorer"),
         help="Directory to write the built static site into.",
     )
+    build_parser.add_argument(
+        "--sidecar",
+        type=Path,
+        default=None,
+        help="Override the explorer sidecar config path.",
+    )
     build_parser.set_defaults(handler=handle_build)
 
     dump_model_parser = subparsers.add_parser(
@@ -65,11 +72,25 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def handle_build(args: argparse.Namespace) -> int:
-    print(
-        "trycycle explorer build is not implemented yet",
-        file=sys.stderr,
+    repo_root = args.repo.resolve()
+    output_dir = args.output.resolve()
+    sidecar_path = args.sidecar.resolve() if args.sidecar is not None else None
+    emit_log(
+        "INFO",
+        "build_start",
+        repo_root=str(repo_root),
+        output=str(output_dir),
+        sidecar=str(sidecar_path) if sidecar_path is not None else None,
     )
-    return 1
+    try:
+        build_site(repo_root, output_dir, sidecar_path=sidecar_path)
+    except ExplorerError as exc:
+        emit_log("ERROR", "build_failed", error=str(exc))
+        print(f"trycycle explorer error: {exc}", file=sys.stderr)
+        return 1
+
+    emit_log("INFO", "build_complete", output=str(output_dir))
+    return 0
 
 
 def handle_dump_model(args: argparse.Namespace) -> int:
