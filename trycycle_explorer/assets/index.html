@@ -65,6 +65,7 @@
           <div class="prompt-meta">
             <span id="selected-outcome" class="pill">No outcome selected</span>
           </div>
+          <div id="prompt-diagnostic-summary" class="prompt-diagnostic-summary"></div>
           <div class="prompt-columns">
             <section class="prompt-column">
               <h3>Markdown preview</h3>
@@ -75,6 +76,13 @@
               <pre id="prompt-source" class="prompt-source" data-test="prompt-source"></pre>
             </section>
           </div>
+          <section class="diff-block">
+            <div class="panel-header compact">
+              <h3>Before / after</h3>
+              <p id="diff-summary">Rerender after changing an input or outcome to see the delta.</p>
+            </div>
+            <div id="diff-panel" class="diff-panel" data-test="diff-panel"></div>
+          </section>
         </section>
       </section>
     </main>

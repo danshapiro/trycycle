@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from .extract import ExplorerError, build_model
+from .extract import ExplorerError, build_model, select_sample
 from .site import build_site
 
 
@@ -43,6 +43,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Override the explorer sidecar config path.",
     )
+    build_parser.add_argument(
+        "--sample",
+        default=None,
+        help="Limit the built site to a single sample input id.",
+    )
     build_parser.set_defaults(handler=handle_build)
 
     dump_model_parser = subparsers.add_parser(
@@ -67,6 +72,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Override the explorer sidecar config path.",
     )
+    dump_model_parser.add_argument(
+        "--sample",
+        default=None,
+        help="Limit the dumped model to a single sample input id.",
+    )
     dump_model_parser.set_defaults(handler=handle_dump_model)
     return parser
 
@@ -81,9 +91,15 @@ def handle_build(args: argparse.Namespace) -> int:
         repo_root=str(repo_root),
         output=str(output_dir),
         sidecar=str(sidecar_path) if sidecar_path is not None else None,
+        sample=args.sample,
     )
     try:
-        build_site(repo_root, output_dir, sidecar_path=sidecar_path)
+        build_site(
+            repo_root,
+            output_dir,
+            sidecar_path=sidecar_path,
+            sample_id=args.sample,
+        )
     except ExplorerError as exc:
         emit_log("ERROR", "build_failed", error=str(exc))
         print(f"trycycle explorer error: {exc}", file=sys.stderr)
@@ -103,9 +119,11 @@ def handle_dump_model(args: argparse.Namespace) -> int:
         repo_root=str(repo_root),
         output=str(output_path),
         sidecar=str(sidecar_path) if sidecar_path is not None else None,
+        sample=args.sample,
     )
     try:
         model = build_model(repo_root, sidecar_path=sidecar_path)
+        model = select_sample(model, args.sample)
     except ExplorerError as exc:
         emit_log("ERROR", "dump_model_failed", error=str(exc))
         print(f"trycycle explorer error: {exc}", file=sys.stderr)

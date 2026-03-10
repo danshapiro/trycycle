@@ -179,7 +179,8 @@ def render_text_node(
                 )
             )
         name = match.group(1)
-        if name in bindings:
+        binding_value = bindings.get(name)
+        if binding_value is not None and binding_value.strip():
             category = (
                 binding_fields[name].source_category
                 if name in binding_fields
@@ -187,7 +188,7 @@ def render_text_node(
             )
             segments.append(
                 RenderedSegment(
-                    text=bindings[name],
+                    text=binding_value,
                     category=category,
                     source_kind=prompt.source_kind,
                     binding_name=name,

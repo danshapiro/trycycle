@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -61,11 +61,14 @@ class SkillSection:
 
 def build_model(repo_root: Path, sidecar_path: Path | None = None) -> ExplorerModel:
     repo_root = repo_root.resolve()
-    sidecar_path = (sidecar_path or repo_root / ".trycycle-explorer.toml").resolve()
+    default_sidecar_path = (repo_root / ".trycycle-explorer.toml").resolve()
+    sidecar_path = (sidecar_path or default_sidecar_path).resolve()
 
     skill_path = repo_root / "SKILL.md"
     dot_path = repo_root / "docs/trycycle-information-flow.dot"
-    sidecar = load_sidecar(sidecar_path)
+    sidecar = load_sidecar(default_sidecar_path)
+    if sidecar_path != default_sidecar_path:
+        sidecar = merge_sidecars(sidecar, load_sidecar(sidecar_path))
     sections = parse_skill_sections(skill_path.read_text(encoding="utf-8"))
     documented_flow = parse_documented_flow(dot_path.read_text(encoding="utf-8"))
 
@@ -101,8 +104,9 @@ def build_model(repo_root: Path, sidecar_path: Path | None = None) -> ExplorerMo
     provenance_palette = load_palette(sidecar)
 
     gate_ids = {gate.id for gate in gates}
+    validate_sidecar_outcomes(sidecar, gate_ids)
     validate_outcomes(gates, gate_ids)
-    validate_samples(sample_inputs, gate_ids)
+    validate_samples(sample_inputs, {gate.id: gate for gate in gates})
 
     return ExplorerModel(
         generated_at=datetime.now(timezone.utc)
@@ -129,6 +133,16 @@ def load_sidecar(path: Path) -> dict[str, Any]:
         return tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, tomllib.TOMLDecodeError) as exc:
         raise ExplorerError(f"Could not read sidecar config: {path}") from exc
+
+
+def merge_sidecars(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(base.get(key), dict):
+            merged[key] = merge_sidecars(base[key], value)
+            continue
+        merged[key] = value
+    return merged
 
 
 def parse_skill_sections(skill_text: str) -> list[SkillSection]:
@@ -410,13 +424,48 @@ def validate_outcomes(gates: list[Gate], gate_ids: set[str]) -> None:
                 )
 
 
-def validate_samples(samples: list[SampleInput], gate_ids: set[str]) -> None:
+def validate_sidecar_outcomes(sidecar: dict[str, Any], gate_ids: set[str]) -> None:
+    for entry in sidecar.get("outcomes", []):
+        from_gate = str(entry.get("from"))
+        to_gate = str(entry.get("to"))
+        outcome_id = str(entry.get("id"))
+        if from_gate not in gate_ids:
+            raise ExplorerError(
+                f"sidecar outcome {from_gate}:{outcome_id} points from unknown gate"
+            )
+        if to_gate not in gate_ids:
+            raise ExplorerError(
+                f"sidecar outcome {from_gate}:{outcome_id} points to unknown gate "
+                f"{to_gate}"
+            )
+
+
+def validate_samples(samples: list[SampleInput], gates_by_id: dict[str, Gate]) -> None:
     seen_ids: set[str] = set()
     for sample in samples:
         if sample.id in seen_ids:
             raise ExplorerError(f"Duplicate sample input id: {sample.id}")
         seen_ids.add(sample.id)
-        if sample.selected_gate_id not in gate_ids:
+        gate = gates_by_id.get(sample.selected_gate_id)
+        if gate is None:
             raise ExplorerError(
                 f"sample input {sample.id} points to unknown gate {sample.selected_gate_id}"
             )
+        if sample.selected_prompt_source_id and not any(
+            prompt.id == sample.selected_prompt_source_id for prompt in gate.prompts
+        ):
+            raise ExplorerError(
+                "sample input "
+                f"{sample.id} points to unknown prompt source "
+                f"{sample.selected_prompt_source_id}"
+            )
+
+
+def select_sample(model: ExplorerModel, sample_id: str | None) -> ExplorerModel:
+    if sample_id is None:
+        return model
+
+    matches = [sample for sample in model.sample_inputs if sample.id == sample_id]
+    if not matches:
+        raise ExplorerError(f"Unknown sample id: {sample_id}")
+    return replace(model, sample_inputs=matches)

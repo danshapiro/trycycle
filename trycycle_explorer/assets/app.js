@@ -6,6 +6,7 @@ const state = {
   selectedGateId: null,
   selectedOutcomeId: null,
   selectedPromptSourceId: null,
+  previousSnapshot: null,
   currentSnapshot: null,
 };
 
@@ -94,6 +95,8 @@ function applySample(sampleId) {
   state.selectedGateId = sample.selected_gate_id;
   state.selectedOutcomeId = sample.selected_outcome_id;
   state.selectedPromptSourceId = sample.selected_prompt_source_id;
+  state.previousSnapshot = null;
+  state.currentSnapshot = null;
   document.getElementById("sample-select").value = sample.id;
   renderBindingFields();
   rerender();
@@ -142,6 +145,7 @@ function rerender() {
 
   const gate = getGate(state.selectedGateId);
   const promptSource = getPromptSource(gate, state.selectedPromptSourceId);
+  state.previousSnapshot = state.currentSnapshot;
   state.currentSnapshot = renderPromptSource(
     promptSource,
     state.bindings,
@@ -151,6 +155,8 @@ function rerender() {
   renderFlow();
   renderPromptPanel(gate, promptSource, state.currentSnapshot);
   renderDiagnostics(state.currentSnapshot.diagnostics);
+  renderPromptDiagnosticSummary(state.currentSnapshot.diagnostics);
+  renderDiffPanel(state.previousSnapshot, state.currentSnapshot);
 }
 
 function renderFlow() {
@@ -300,6 +306,58 @@ function renderDiagnostics(diagnostics) {
   }
 }
 
+function renderPromptDiagnosticSummary(diagnostics) {
+  const container = document.getElementById("prompt-diagnostic-summary");
+  container.innerHTML = "";
+  if (!diagnostics.length) {
+    return;
+  }
+
+  for (const diagnostic of diagnostics.slice(0, 3)) {
+    const item = document.createElement("article");
+    item.className = "prompt-diagnostic-item";
+    item.innerHTML = `
+      <strong>${escapeHtml(diagnostic.code)}</strong>
+      <p>${escapeHtml(diagnostic.message)}</p>
+    `;
+    container.append(item);
+  }
+}
+
+function renderDiffPanel(previousSnapshot, currentSnapshot) {
+  const panel = document.getElementById("diff-panel");
+  const summary = document.getElementById("diff-summary");
+  panel.innerHTML = "";
+
+  if (!previousSnapshot) {
+    summary.textContent =
+      "Rerender after changing an input or outcome to see the delta.";
+    const empty = document.createElement("p");
+    empty.className = "diff-empty";
+    empty.textContent = "No previous render yet.";
+    panel.append(empty);
+    return;
+  }
+
+  const diff = diffLines(
+    previousSnapshot.prompt_markdown,
+    currentSnapshot.prompt_markdown,
+  );
+  const added = diff.filter((entry) => entry.type === "added").length;
+  const removed = diff.filter((entry) => entry.type === "removed").length;
+  summary.textContent = `Added ${added} lines, removed ${removed} lines.`;
+
+  for (const entry of diff) {
+    const line = document.createElement("div");
+    line.className = `diff-line diff-${entry.type}`;
+    line.innerHTML = `
+      <span class="diff-marker">${diffMarker(entry.type)}</span>
+      <code>${escapeHtml(entry.text || " ")}</code>
+    `;
+    panel.append(line);
+  }
+}
+
 function renderPromptSource(promptSource, bindings, bindingFields, outcomeId) {
   const segments = [];
   const diagnostics = [];
@@ -366,9 +424,14 @@ function renderTextNode(
     }
 
     const name = match[1];
-    if (Object.hasOwn(bindings, name)) {
+    const bindingValue = bindings[name];
+    if (
+      Object.hasOwn(bindings, name) &&
+      typeof bindingValue === "string" &&
+      bindingValue.trim()
+    ) {
       segments.push({
-        text: bindings[name],
+        text: bindingValue,
         category: bindingFields[name]?.source_category ?? "user-input",
         source_kind: promptSource.source_kind,
         binding_name: name,
@@ -418,4 +481,63 @@ function escapeHtml(text) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function diffMarker(type) {
+  if (type === "added") {
+    return "+";
+  }
+  if (type === "removed") {
+    return "−";
+  }
+  return "·";
+}
+
+function diffLines(previousText, currentText) {
+  const before = String(previousText).split("\n");
+  const after = String(currentText).split("\n");
+  const rows = before.length + 1;
+  const cols = after.length + 1;
+  const table = Array.from({ length: rows }, () => Array(cols).fill(0));
+
+  for (let row = before.length - 1; row >= 0; row -= 1) {
+    for (let col = after.length - 1; col >= 0; col -= 1) {
+      if (before[row] === after[col]) {
+        table[row][col] = table[row + 1][col + 1] + 1;
+      } else {
+        table[row][col] = Math.max(table[row + 1][col], table[row][col + 1]);
+      }
+    }
+  }
+
+  const diff = [];
+  let row = 0;
+  let col = 0;
+  while (row < before.length && col < after.length) {
+    if (before[row] === after[col]) {
+      diff.push({ type: "context", text: before[row] });
+      row += 1;
+      col += 1;
+      continue;
+    }
+    if (table[row + 1][col] >= table[row][col + 1]) {
+      diff.push({ type: "removed", text: before[row] });
+      row += 1;
+      continue;
+    }
+    diff.push({ type: "added", text: after[col] });
+    col += 1;
+  }
+
+  while (row < before.length) {
+    diff.push({ type: "removed", text: before[row] });
+    row += 1;
+  }
+
+  while (col < after.length) {
+    diff.push({ type: "added", text: after[col] });
+    col += 1;
+  }
+
+  return diff;
 }

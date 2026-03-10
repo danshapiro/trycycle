@@ -74,7 +74,8 @@ h1 {
 
 .layout-grid {
   display: grid;
-  grid-template-columns: 1.1fr 1fr 1.3fr;
+  grid-template-columns: minmax(16rem, 21rem) minmax(16rem, 22rem) minmax(0, 1.45fr);
+  grid-template-areas: "flow input prompt";
   gap: 1.25rem;
   align-items: start;
 }
@@ -87,6 +88,18 @@ h1 {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 1.15rem;
+}
+
+.flow-panel {
+  grid-area: flow;
+}
+
+.input-panel {
+  grid-area: input;
+}
+
+.prompt-panel {
+  grid-area: prompt;
 }
 
 .panel-header {
@@ -283,6 +296,23 @@ h1 {
   margin-bottom: 1rem;
 }
 
+.prompt-diagnostic-summary {
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.prompt-diagnostic-item {
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  border: 1px solid rgba(180, 35, 24, 0.22);
+  background: rgba(244, 199, 195, 0.72);
+}
+
+.prompt-diagnostic-item p {
+  margin-bottom: 0;
+}
+
 .pill {
   display: inline-flex;
   align-items: center;
@@ -317,7 +347,7 @@ h1 {
 
 .prompt-columns {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
   gap: 1rem;
 }
 
@@ -394,9 +424,64 @@ h1 {
   color: var(--danger);
 }
 
+.diff-block {
+  margin-top: 1rem;
+}
+
+.diff-panel {
+  display: grid;
+  gap: 0.25rem;
+  max-height: 18rem;
+  overflow: auto;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.82);
+  padding: 0.8rem;
+}
+
+.diff-empty {
+  color: var(--ink-soft);
+}
+
+.diff-line {
+  display: grid;
+  grid-template-columns: 1.5rem 1fr;
+  gap: 0.75rem;
+  align-items: start;
+  border-radius: 10px;
+  padding: 0.35rem 0.45rem;
+}
+
+.diff-line code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--mono);
+}
+
+.diff-context {
+  background: rgba(247, 241, 223, 0.42);
+}
+
+.diff-added {
+  background: rgba(215, 238, 242, 0.82);
+}
+
+.diff-removed {
+  background: rgba(245, 217, 208, 0.82);
+}
+
+.diff-marker {
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
 @media (max-width: 1200px) {
   .layout-grid {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "flow"
+      "input"
+      "prompt";
   }
 
   .prompt-columns {
