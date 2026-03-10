@@ -61,7 +61,7 @@ class SkillSection:
 
 def build_model(repo_root: Path, sidecar_path: Path | None = None) -> ExplorerModel:
     repo_root = repo_root.resolve()
-    default_sidecar_path = (repo_root / ".trycycle-explorer.toml").resolve()
+    default_sidecar_path = (repo_root / "trycycle_explorer" / "explorer.toml").resolve()
     sidecar_path = (sidecar_path or default_sidecar_path).resolve()
 
     skill_path = repo_root / "SKILL.md"
