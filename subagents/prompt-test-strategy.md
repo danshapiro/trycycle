@@ -24,6 +24,7 @@ The transcript may include an earlier strategy draft plus user feedback on it. I
 A unified testing strategy recommendation — not a questionnaire, not a list of options to pick from. A single cohesive proposal with your reasoning. The user may accept it, edit it, or redirect entirely, but the workflow cannot continue until the user explicitly agrees.
 
 Do not write as though the strategy is already approved, agreed, or in progress.
+Do not propose manual QA, human validation, or "have a person check it" steps. When visual confidence needs an artifact, make a concrete call and prefer a browser snapshot or equivalent reproducible capture over leaving it undecided.
 
 ### Sources of truth
 
@@ -36,7 +37,7 @@ Identify every available source that informs what "correct" means for this task.
 - The user's description of what they want (always present — flag what's ambiguous or underspecified)
 - Conventions visible in the existing codebase (weakest — inferred expectations, useful for consistency)
 
-If the strongest available source is the user's description alone, say so. That signals the strategy should lean toward more interactive validation checkpoints during implementation.
+If the strongest available source is the user's description alone, say so. That signals the strategy should lean toward broader automated coverage and reproducible artifacts, not human validation steps.
 
 ### Harnesses
 
@@ -60,7 +61,7 @@ Based on the sources of truth and harnesses, describe what testing looks like fo
 - **Regression safety**: Does the existing test suite protect what already works, or do we need characterization tests?
 - **Failure modes**: What happens when things go wrong, and how much matters here?
 - **Performance**: Assess how likely this change is to affect performance and how hard it is to measure. For most changes, a simple timing assertion ("operation completes in under Xms") catches catastrophic regressions cheaply — X should be generous enough that any violation is a severe bug, not noise. For performance-critical work where improvement is the goal, real measurement in a realistic environment is unavoidable — state what that environment is, how to deploy to it, and how to measure safely. Scale the approach to what the risk warrants.
-- **Visual/perceptual correctness**: If the change affects what the user sees, recommend the cheapest observation method that provides meaningful confidence (structured output > text assertions > screenshot comparison > vision model > human review).
+- **Visual/perceptual correctness**: If the change affects what the user sees, recommend the cheapest reproducible observation method that provides meaningful confidence (structured output > text assertions > DOM/state assertions > browser snapshot or screenshot comparison > vision model). Do not recommend human validation. If a browser artifact is needed, explicitly say so instead of leaving it ambiguous.
 
 ### Fidelity
 

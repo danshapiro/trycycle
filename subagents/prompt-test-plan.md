@@ -27,6 +27,7 @@ Work in the worktree at `{WORKTREE_PATH}`.
 4. Read the codebase: examine every file, directory, and artifact relevant to the task. If there are reference implementations, specs, API docs, or other sources of truth identified in the strategy, read those thoroughly.
 5. Identify the full action space: every user-facing action, command, endpoint, interaction, or behavior that the task touches or could affect.
 6. Write tests against the planned interfaces and architecture that verify the product works from the user's perspective — not tests that verify the code agrees with itself.
+7. Do not include manual QA, human validation, or "ask a person whether this looks right" steps in the plan. Express user-visible checks as reproducible artifacts and assertions. When visual evidence is needed, prefer an explicit browser snapshot or screenshot comparison over an undecided/manual check.
 
 ## Test structure
 
@@ -37,7 +38,7 @@ For each test, specify:
 - **Harness**: Which harness from the agreed strategy this test uses.
 - **Preconditions**: What state the system starts in.
 - **Actions**: Exact operations to perform, stated as user actions or API calls.
-- **Expected outcome**: What the source of truth says should happen. Specific assertions against the observation surface defined in the strategy. Every assertion must trace to a named source of truth — if you can't say which source justifies an assertion, delete it.
+- **Expected outcome**: What the source of truth says should happen. Specific assertions against the observation surface defined in the strategy. For visual changes, name the exact artifact or capture to inspect (for example DOM snapshot, browser snapshot, screenshot diff) and the pass/fail rule. Every assertion must trace to a named source of truth — if you can't say which source justifies an assertion, delete it.
 - **Interactions**: What adjacent systems this test exercises incidentally. Flag these — interaction boundaries are where hidden bugs concentrate.
 
 ## Prioritization
@@ -73,7 +74,8 @@ Do not skip performance testing because it's hard. Do scale the approach to what
 - **Tautological tests.** If you find yourself reading the implementation to determine expected output, stop. Go back to the source of truth. A test derived from the code proves nothing about correctness. This is the most common failure mode — actively guard against it.
 - **Vague tests.** "Verify it works correctly" is not a test. "After pressing `>` on a `>` tile, `game.level` increases by 1 and `game.player.pos` is on a passable tile on the new level" is a test.
 - **Implementation-coupled tests.** Assert against behavior and interfaces, not internal state or private methods. The test plan must be compatible with TDD: tests are written first (red), implementation makes them pass (green). This means tests must be writable before the implementation exists.
-- **Tests without a source of truth.** If you cannot name which source of truth (reference implementation, spec, API docs, user description) justifies a test's expected outcome, the test is speculative. Delete it or flag it as needing user confirmation.
+- **Human-validation tests.** Do not write plan steps that require a person to inspect the UI or decide pass/fail. Convert them into artifact-based checks, preferring browser snapshots or screenshot diffs when structured assertions are insufficient.
+- **Tests without a source of truth.** If you cannot name which source of truth (reference implementation, spec, API docs, user description) justifies a test's expected outcome, the test is speculative. Delete it or document the assumption only if it materially affects cost or scope.
 
 ## Harness requirements
 
