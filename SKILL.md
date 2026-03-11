@@ -189,9 +189,9 @@ After implementation completes, run the Worktree hygiene gate checks and verify 
 
 ## 10) Post-implementation review loop (up to 8 rounds)
 
-After execution completes, deploy a new reviewer with no prior context.
+After execution completes, deploy a new reviewer with no prior context and give it the finalized implementation plan plus the finalized test plan.
 
-Render `<skill-directory>/subagents/prompt-post-impl-review.md` with the prompt builder using `--set WORKTREE_PATH={WORKTREE_PATH}`, save the rendered prompt to a temp file, and dispatch a review subagent with the exact rendered prompt file contents verbatim.
+Render `<skill-directory>/subagents/prompt-post-impl-review.md` with the prompt builder using `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, and `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, save the rendered prompt to a temp file, and dispatch a review subagent with the exact rendered prompt file contents verbatim.
 
 Use the review subagent's output as the fix-loop input. When another fix round is needed:
 1. Capture the reviewer stdout exactly as `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}`.
