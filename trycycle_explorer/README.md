@@ -48,8 +48,43 @@ The app is built around three main actions:
 What you should see:
 
 - The left panel shows the trycycle gates and the currently selected path.
+- The flow panel also includes `Intro` and `Outro` blocks. `Intro` is all copy from `SKILL.md` before step 1. `Outro` is any copy after the numbered flow; if there is none, the app says so explicitly.
 - The middle panel shows the current sample/custom bindings.
-- The right panel shows the selected prompt source, a markdown preview, the raw markdown, active diagnostics, and a before/after diff after rerenders.
+- The right panel shows the selected prompt source, builder-interface pills for the current prompt, a markdown preview, the raw markdown, active diagnostics, and a before/after diff after rerenders.
+- Every large text box has an `Expand` button. For input fields it opens a large editable modal that syncs back to the inline field. For rendered/read-only panels it opens a large read-only modal. Use `Close` or click outside the modal to dismiss it.
+
+The builder-interface pills come from the real prompt-dispatch lines in `SKILL.md`. They expose caller-visible constraints such as:
+
+- `Requires <task_input_json>` when the builder is told to enforce a non-empty tag.
+- `Ignore placeholders in <task_input_json>` when the builder is told to ignore placeholder-like text inside that tag during rendered-prompt scanning.
+
+## Before / After
+
+The `Before / after` panel compares two prompt renders:
+
+- `Before` is the previous rendered prompt markdown snapshot.
+- `After` is the current rendered prompt markdown snapshot.
+
+The snapshot is replaced every time you press `Rerender` or switch to a different gate or outcome. Changing the selected sample resets the comparison, because the app clears the previous snapshot when a new sample is loaded.
+
+What the panel shows:
+
+- The summary line counts how many lines were added and removed.
+- `+` means a line exists only in the current render.
+- `−` means a line existed in the previous render but not in the current one.
+- `·` means the line is unchanged context.
+
+What it is for:
+
+- See whether editing a binding actually changed the prompt you care about.
+- Spot accidental prompt regressions when a line disappears.
+- Confirm that changing a path or outcome switched the injected prompt content you expected.
+
+What it is not:
+
+- It is not a semantic diff or a quality score.
+- It does not compare rendered HTML.
+- It does not decide whether the new prompt is better; it only shows the line-by-line markdown delta.
 
 The raw markdown source is color-coded by provenance:
 
@@ -59,7 +94,13 @@ The raw markdown source is color-coded by provenance:
 - `sidecar-overlay`
 - `missing-binding`
 
-If you clear a required field, the explorer should show a visible `missing-binding` diagnostic and render a `<<MISSING:...>>` token in the raw prompt instead of silently dropping the content.
+If you clear a required field, the explorer should show a visible diagnostic instead of silently dropping the content:
+
+- `missing-binding` when a placeholder value is absent
+- `missing-required-tag` when the rendered prompt does not contain a required tag at all
+- `empty-required-tag` when the rendered prompt contains the tag but its body is blank after trimming whitespace
+
+Missing placeholder values still render as `<<MISSING:...>>` in the raw prompt so you can see exactly where the render broke.
 
 ## Samples And Custom Input
 

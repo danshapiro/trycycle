@@ -45,6 +45,14 @@ LABEL_RE = re.compile(r'label="(?P<label>(?:\\.|[^"])*)"')
 NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 PAREN_RE = re.compile(r"\s*\([^)]*\)")
 PLACEHOLDER_RE = re.compile(r"\{([A-Z][A-Z0-9_]*)\}")
+FRONT_MATTER_RE = re.compile(r"\A---\s*\n.*?\n---\s*\n?", re.DOTALL)
+POST_FLOW_HEADING_RE = re.compile(r"^(?:#|##)\s+(?!\d+\))", re.MULTILINE)
+REQUIRE_NONEMPTY_TAG_RE = re.compile(
+    r"--require-nonempty-tag\s+([a-z][a-z0-9_-]*)"
+)
+IGNORE_TAG_FOR_PLACEHOLDERS_RE = re.compile(
+    r"--ignore-tag-for-placeholders\s+([a-z][a-z0-9_-]*)"
+)
 
 
 class ExplorerError(RuntimeError):
@@ -59,6 +67,13 @@ class SkillSection:
     markdown: str
 
 
+@dataclass(frozen=True)
+class SkillDocument:
+    intro_markdown: str
+    sections: list[SkillSection]
+    outro_markdown: str
+
+
 def build_model(repo_root: Path, sidecar_path: Path | None = None) -> ExplorerModel:
     repo_root = repo_root.resolve()
     default_sidecar_path = (repo_root / "trycycle_explorer" / "explorer.toml").resolve()
@@ -69,7 +84,8 @@ def build_model(repo_root: Path, sidecar_path: Path | None = None) -> ExplorerMo
     sidecar = load_sidecar(default_sidecar_path)
     if sidecar_path != default_sidecar_path:
         sidecar = merge_sidecars(sidecar, load_sidecar(sidecar_path))
-    sections = parse_skill_sections(skill_path.read_text(encoding="utf-8"))
+    skill_document = parse_skill_document(skill_path.read_text(encoding="utf-8"))
+    sections = skill_document.sections
     documented_flow = parse_documented_flow(dot_path.read_text(encoding="utf-8"))
 
     groups = load_groups(sidecar)
@@ -118,6 +134,8 @@ def build_model(repo_root: Path, sidecar_path: Path | None = None) -> ExplorerMo
             title=str(sidecar["display"]["title"]),
             subtitle=str(sidecar["display"]["subtitle"]),
         ),
+        intro_markdown=skill_document.intro_markdown,
+        outro_markdown=skill_document.outro_markdown,
         groups=groups,
         bindings=binding_fields,
         provenance_palette=provenance_palette,
@@ -145,15 +163,35 @@ def merge_sidecars(base: dict[str, Any], override: dict[str, Any]) -> dict[str, 
     return merged
 
 
-def parse_skill_sections(skill_text: str) -> list[SkillSection]:
-    matches = list(SECTION_RE.finditer(skill_text))
+def parse_skill_document(skill_text: str) -> SkillDocument:
+    skill_body = strip_front_matter(skill_text).strip()
+    matches = list(SECTION_RE.finditer(skill_body))
     sections: list[SkillSection] = []
+    outro_markdown = ""
+
+    if not matches:
+        return SkillDocument(
+            intro_markdown=normalize_markdown_block(skill_body),
+            sections=[],
+            outro_markdown="",
+        )
+
+    intro_markdown = normalize_markdown_block(skill_body[: matches[0].start()])
 
     for index, match in enumerate(matches):
         start = match.end()
-        end = matches[index + 1].start() if index + 1 < len(matches) else len(skill_text)
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(skill_body)
         title = match.group("title").strip()
-        markdown = f"## {match.group('number')}) {title}\n\n{skill_text[start:end].strip()}\n"
+        body = skill_body[start:end]
+        if index == len(matches) - 1:
+            split_match = POST_FLOW_HEADING_RE.search(body)
+            if split_match:
+                outro_markdown = normalize_markdown_block(body[split_match.start() :])
+                body = body[: split_match.start()]
+        normalized_body = body.strip()
+        markdown = f"## {match.group('number')}) {title}\n"
+        if normalized_body:
+            markdown = f"{markdown}\n{normalized_body}\n"
         sections.append(
             SkillSection(
                 step_number=int(match.group("number")),
@@ -163,7 +201,22 @@ def parse_skill_sections(skill_text: str) -> list[SkillSection]:
             )
         )
 
-    return sections
+    return SkillDocument(
+        intro_markdown=intro_markdown,
+        sections=sections,
+        outro_markdown=outro_markdown,
+    )
+
+
+def strip_front_matter(skill_text: str) -> str:
+    return FRONT_MATTER_RE.sub("", skill_text, count=1)
+
+
+def normalize_markdown_block(markdown: str) -> str:
+    normalized = markdown.strip()
+    if not normalized:
+        return ""
+    return f"{normalized}\n"
 
 
 def slugify_title(title: str) -> str:
@@ -257,6 +310,8 @@ def extract_prompt_sources(repo_root: Path, section: SkillSection) -> list[Promp
             source_path="SKILL.md",
             source_kind="orchestrator-section",
             markdown=section.markdown,
+            required_nonempty_tags=[],
+            ignore_tags_for_placeholders=[],
         )
     ]
 
@@ -280,6 +335,9 @@ def extract_prompt_sources(repo_root: Path, section: SkillSection) -> list[Promp
             if relative_path.startswith("subagents/")
             else "subskill"
         )
+        required_nonempty_tags, ignore_tags_for_placeholders = (
+            extract_prompt_constraints(section.markdown, relative_path)
+        )
         prompts.append(
             build_prompt_source(
                 prompt_id=f"{section.gate_id}::{source_kind}::{path.stem.lower()}",
@@ -287,6 +345,8 @@ def extract_prompt_sources(repo_root: Path, section: SkillSection) -> list[Promp
                 source_path=relative_path,
                 source_kind=source_kind,
                 markdown=markdown,
+                required_nonempty_tags=required_nonempty_tags,
+                ignore_tags_for_placeholders=ignore_tags_for_placeholders,
             )
         )
 
@@ -307,6 +367,8 @@ def build_prompt_source(
     source_path: str,
     source_kind: str,
     markdown: str,
+    required_nonempty_tags: list[str],
+    ignore_tags_for_placeholders: list[str],
 ) -> PromptSource:
     nodes = parse_template_text(markdown)
     placeholder_names = sorted(extract_placeholder_names(nodes))
@@ -318,7 +380,27 @@ def build_prompt_source(
         source_markdown=markdown,
         template_ast=ast_to_data(nodes),
         placeholder_names=placeholder_names,
+        required_nonempty_tags=required_nonempty_tags,
+        ignore_tags_for_placeholders=ignore_tags_for_placeholders,
     )
+
+
+def extract_prompt_constraints(
+    section_markdown: str, relative_path: str
+) -> tuple[list[str], list[str]]:
+    required_nonempty_tags: set[str] = set()
+    ignore_tags_for_placeholders: set[str] = set()
+    prompt_reference = f"<skill-directory>/{relative_path}"
+
+    for line in section_markdown.splitlines():
+        if prompt_reference not in line:
+            continue
+        required_nonempty_tags.update(REQUIRE_NONEMPTY_TAG_RE.findall(line))
+        ignore_tags_for_placeholders.update(
+            IGNORE_TAG_FOR_PLACEHOLDERS_RE.findall(line)
+        )
+
+    return sorted(required_nonempty_tags), sorted(ignore_tags_for_placeholders)
 
 
 def extract_placeholder_names(nodes: list[TextNode | IfNode]) -> set[str]:

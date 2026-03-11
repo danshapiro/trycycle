@@ -67,6 +67,8 @@ class PromptSource:
     source_markdown: str
     template_ast: list[dict[str, object]] | None
     placeholder_names: list[str]
+    required_nonempty_tags: list[str]
+    ignore_tags_for_placeholders: list[str]
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -159,6 +161,8 @@ class ExplorerModel:
     generated_at: str
     repo_root: str
     display: DisplayConfig
+    intro_markdown: str
+    outro_markdown: str
     groups: list[Group]
     bindings: dict[str, BindingField]
     provenance_palette: dict[str, PaletteEntry]
@@ -172,6 +176,8 @@ class ExplorerModel:
             "generated_at": self.generated_at,
             "repo_root": self.repo_root,
             "display": self.display.to_dict(),
+            "intro_markdown": self.intro_markdown,
+            "outro_markdown": self.outro_markdown,
             "groups": [group.to_dict() for group in self.groups],
             "bindings": {
                 name: binding.to_dict() for name, binding in sorted(self.bindings.items())

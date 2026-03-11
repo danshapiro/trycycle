@@ -35,6 +35,10 @@ body {
   padding: 2rem;
 }
 
+body.modal-open {
+  overflow: hidden;
+}
+
 .page-shell {
   max-width: 1600px;
   margin: 0 auto;
@@ -92,6 +96,9 @@ h1 {
 
 .flow-panel {
   grid-area: flow;
+  display: grid;
+  gap: 1rem;
+  align-content: start;
 }
 
 .input-panel {
@@ -115,9 +122,75 @@ h1 {
   margin-bottom: 0.6rem;
 }
 
+.section-heading,
+.field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.section-heading {
+  margin-bottom: 0.65rem;
+}
+
+.section-heading h3,
+.field-label {
+  margin-bottom: 0;
+}
+
 .flow-groups {
   display: grid;
   gap: 0.9rem;
+}
+
+.copy-block {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.copy-body {
+  max-height: 18rem;
+  overflow: auto;
+  padding: 1rem 1.05rem;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.86);
+  line-height: 1.55;
+}
+
+.copy-body p:last-child,
+.copy-body ul:last-child,
+.copy-body ol:last-child {
+  margin-bottom: 0;
+}
+
+.copy-body pre,
+.copy-body code {
+  font-family: var(--mono);
+}
+
+.copy-body pre {
+  overflow: auto;
+  padding: 0.8rem;
+  border-radius: 14px;
+  background: #1e1a15;
+  color: #fff5df;
+}
+
+.copy-body code {
+  padding: 0.08rem 0.3rem;
+  border-radius: 6px;
+  background: rgba(15, 118, 110, 0.08);
+}
+
+.copy-empty {
+  margin-bottom: 0;
+  color: var(--ink-soft);
 }
 
 .flow-group {
@@ -222,6 +295,10 @@ h1 {
   font-weight: 600;
 }
 
+.field-label {
+  font-weight: 600;
+}
+
 .field input,
 .field textarea,
 .field select,
@@ -254,6 +331,29 @@ h1 {
   background: var(--ink);
   color: #fff9ef;
   white-space: nowrap;
+}
+
+.expand-button,
+.modal-close {
+  appearance: none;
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.expand-button {
+  padding: 0.5rem 0.85rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.2), rgba(15, 118, 110, 0.08));
+  color: var(--accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.expand-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .binding-fields,
@@ -293,7 +393,26 @@ h1 {
 }
 
 .prompt-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
   margin-bottom: 1rem;
+}
+
+.prompt-interface {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.pill-interface {
+  background: rgba(32, 25, 16, 0.08);
+  color: var(--ink);
+}
+
+.pill-interface code {
+  font-family: var(--mono);
 }
 
 .prompt-diagnostic-summary {
@@ -311,6 +430,18 @@ h1 {
 
 .prompt-diagnostic-item p {
   margin-bottom: 0;
+}
+
+.diagnostic-item[data-severity="error"],
+.prompt-diagnostic-item[data-severity="error"] {
+  border-color: rgba(180, 35, 24, 0.26);
+  background: rgba(244, 199, 195, 0.78);
+}
+
+.diagnostic-item[data-severity="warning"],
+.prompt-diagnostic-item[data-severity="warning"] {
+  border-color: rgba(180, 83, 9, 0.2);
+  background: rgba(252, 233, 184, 0.72);
 }
 
 .pill {
@@ -428,6 +559,11 @@ h1 {
   margin-top: 1rem;
 }
 
+.diff-block > #diff-summary {
+  margin: 0 0 0.65rem;
+  color: var(--ink-soft);
+}
+
 .diff-panel {
   display: grid;
   gap: 0.25rem;
@@ -475,6 +611,112 @@ h1 {
   color: var(--ink-soft);
 }
 
+.modal-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}
+
+.modal-shell[hidden] {
+  display: none;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(24, 18, 13, 0.48);
+  backdrop-filter: blur(8px);
+}
+
+.modal-card {
+  position: relative;
+  width: min(1120px, 100%);
+  max-height: calc(100vh - 3rem);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  border-radius: 28px;
+  overflow: hidden;
+  border: 1px solid rgba(76, 57, 32, 0.2);
+  background: rgba(255, 251, 244, 0.98);
+  box-shadow: 0 35px 110px rgba(24, 18, 13, 0.28);
+}
+
+.modal-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255, 251, 244, 0.98), rgba(246, 239, 223, 0.92));
+}
+
+.modal-header-copy {
+  min-width: 0;
+}
+
+.modal-eyebrow {
+  margin: 0 0 0.3rem;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.modal-description {
+  margin: 0.35rem 0 0;
+  color: var(--ink-soft);
+}
+
+.modal-close {
+  padding: 0.62rem 0.95rem;
+  border-radius: 999px;
+  background: rgba(32, 25, 16, 0.94);
+  color: #fff9ef;
+}
+
+.modal-body {
+  overflow: auto;
+  padding: 1.25rem;
+  background:
+    radial-gradient(circle at top left, rgba(15, 118, 110, 0.08), transparent 22rem),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(246, 239, 223, 0.86));
+}
+
+.modal-textarea {
+  width: 100%;
+  min-height: min(70vh, 34rem);
+  border: 1px solid rgba(76, 57, 32, 0.2);
+  border-radius: 18px;
+  padding: 1rem 1.05rem;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--ink);
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 0.94rem;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.modal-markdown,
+.modal-copy,
+.modal-source,
+.modal-diff {
+  min-height: min(70vh, 30rem);
+  max-height: none;
+}
+
+.modal-diff,
+.modal-source,
+.modal-markdown,
+.modal-copy {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
 @media (max-width: 1200px) {
   .layout-grid {
     grid-template-columns: 1fr;
@@ -494,6 +736,19 @@ h1 {
     padding: 1rem;
   }
 
+  .modal-shell {
+    padding: 0.75rem;
+  }
+
+  .modal-card {
+    max-height: calc(100vh - 1.5rem);
+    border-radius: 22px;
+  }
+
+  .modal-header {
+    flex-direction: column;
+  }
+
   .input-toolbar {
     flex-direction: column;
     align-items: stretch;
@@ -508,5 +763,9 @@ h1 {
   .prompt-source {
     max-height: none;
     min-height: 18rem;
+  }
+
+  .copy-body {
+    max-height: none;
   }
 }

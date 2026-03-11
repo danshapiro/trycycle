@@ -90,15 +90,27 @@ def validate_nonempty_tag(prompt_text: str, tag: str) -> None:
         raise ValidationError(f"rendered prompt has empty <{tag}> block")
 
 
+def validate_rendered_prompt(
+    prompt_text: str,
+    required_nonempty_tags: list[str] | None = None,
+    ignore_tags_for_placeholders: list[str] | None = None,
+) -> None:
+    placeholder_scan_text = strip_tag_bodies(
+        prompt_text, ignore_tags_for_placeholders or []
+    )
+    validate_no_placeholders(placeholder_scan_text)
+    for tag in required_nonempty_tags or []:
+        validate_nonempty_tag(prompt_text, tag)
+
+
 def main() -> int:
     args = parse_args()
     prompt_text = read_prompt(args.prompt_file)
-    placeholder_scan_text = strip_tag_bodies(
-        prompt_text, args.ignore_tag_for_placeholders
+    validate_rendered_prompt(
+        prompt_text,
+        required_nonempty_tags=args.require_nonempty_tag,
+        ignore_tags_for_placeholders=args.ignore_tag_for_placeholders,
     )
-    validate_no_placeholders(placeholder_scan_text)
-    for tag in args.require_nonempty_tag:
-        validate_nonempty_tag(prompt_text, tag)
     return 0
 
 

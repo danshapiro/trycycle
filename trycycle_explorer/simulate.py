@@ -9,6 +9,7 @@ from .model import BindingField, Diagnostic, ExplorerModel, Gate, PromptSource
 
 
 PLACEHOLDER_RE = re.compile(r"\{([A-Z][A-Z0-9_]*)\}")
+TAG_RE_TEMPLATE = r"<{tag}>(?P<body>.*?)</{tag}>"
 MISSING_PREFIX = "<<MISSING:"
 MISSING_SUFFIX = ">>"
 
@@ -115,6 +116,7 @@ def render_prompt(
         diagnostics,
     )
     markdown = "".join(segment.text for segment in segments)
+    diagnostics.extend(validate_required_tags(prompt, markdown))
     return markdown, segments, diagnostics
 
 
@@ -222,6 +224,35 @@ def render_text_node(
                 source_kind=prompt.source_kind,
             )
         )
+
+
+def validate_required_tags(
+    prompt: PromptSource, markdown: str
+) -> list[Diagnostic]:
+    diagnostics: list[Diagnostic] = []
+    for tag in prompt.required_nonempty_tags:
+        pattern = re.compile(TAG_RE_TEMPLATE.format(tag=re.escape(tag)), re.DOTALL)
+        match = pattern.search(markdown)
+        if not match:
+            diagnostics.append(
+                Diagnostic(
+                    severity="error",
+                    code="missing-required-tag",
+                    message=f"Rendered prompt is missing required <{tag}> block.",
+                    prompt_source_id=prompt.id,
+                )
+            )
+            continue
+        if not match.group("body").strip():
+            diagnostics.append(
+                Diagnostic(
+                    severity="error",
+                    code="empty-required-tag",
+                    message=f"Rendered prompt has empty <{tag}> block.",
+                    prompt_source_id=prompt.id,
+                )
+            )
+    return diagnostics
 
 
 def escape_html(text: str) -> str:

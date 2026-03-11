@@ -24,7 +24,9 @@
             <h2>Flow map</h2>
             <p>Click a gate, then choose an outcome to trace the path.</p>
           </div>
+          <section id="flow-intro" class="copy-block" data-test="flow-intro"></section>
           <div id="flow-groups" class="flow-groups"></div>
+          <section id="flow-outro" class="copy-block" data-test="flow-outro"></section>
         </aside>
 
         <section class="panel input-panel" data-test="input-panel">
@@ -64,27 +66,70 @@
           <div id="prompt-source-tabs" class="prompt-source-tabs"></div>
           <div class="prompt-meta">
             <span id="selected-outcome" class="pill">No outcome selected</span>
+            <div id="prompt-interface" class="prompt-interface"></div>
           </div>
           <div id="prompt-diagnostic-summary" class="prompt-diagnostic-summary"></div>
           <div class="prompt-columns">
             <section class="prompt-column">
-              <h3>Markdown preview</h3>
+              <div class="section-heading">
+                <h3>Markdown preview</h3>
+                <button
+                  type="button"
+                  class="expand-button"
+                  id="expand-prompt-preview"
+                >
+                  Expand
+                </button>
+              </div>
               <div id="prompt-preview" class="prompt-preview"></div>
             </section>
             <section class="prompt-column">
-              <h3>Raw markdown source</h3>
+              <div class="section-heading">
+                <h3>Raw markdown source</h3>
+                <button
+                  type="button"
+                  class="expand-button"
+                  id="expand-prompt-source"
+                >
+                  Expand
+                </button>
+              </div>
               <pre id="prompt-source" class="prompt-source" data-test="prompt-source"></pre>
             </section>
           </div>
           <section class="diff-block">
-            <div class="panel-header compact">
+            <div class="panel-header compact section-heading">
               <h3>Before / after</h3>
-              <p id="diff-summary">Rerender after changing an input or outcome to see the delta.</p>
+              <button type="button" class="expand-button" id="expand-diff-panel">
+                Expand
+              </button>
             </div>
+            <p id="diff-summary">Rerender after changing an input or outcome to see the delta.</p>
             <div id="diff-panel" class="diff-panel" data-test="diff-panel"></div>
           </section>
         </section>
       </section>
     </main>
+    <div id="modal-shell" class="modal-shell" hidden>
+      <div class="modal-backdrop" data-modal-close="backdrop"></div>
+      <section
+        class="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+      >
+        <div class="modal-header">
+          <div class="modal-header-copy">
+            <p id="modal-eyebrow" class="modal-eyebrow" hidden></p>
+            <h2 id="modal-title">Expanded view</h2>
+            <p id="modal-description" class="modal-description" hidden></p>
+          </div>
+          <button type="button" class="modal-close" id="modal-close">
+            Close
+          </button>
+        </div>
+        <div id="modal-body" class="modal-body"></div>
+      </section>
+    </div>
   </body>
 </html>

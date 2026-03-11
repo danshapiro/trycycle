@@ -7,11 +7,15 @@ import sys
 from pathlib import Path
 
 from template_ast import TemplateError, parse_template_text, render_nodes
+from validate_rendered import ValidationError, validate_rendered_prompt
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Render a trycycle prompt template with placeholders and conditional blocks."
+        description=(
+            "Render a trycycle prompt template with placeholders and conditional "
+            "blocks, then validate the rendered output before writing stdout."
+        )
     )
     parser.add_argument(
         "--template",
@@ -32,6 +36,26 @@ def parse_args() -> argparse.Namespace:
         default=[],
         metavar="NAME=PATH",
         help="Bind a placeholder value from a UTF-8 file.",
+    )
+    parser.add_argument(
+        "--require-nonempty-tag",
+        action="append",
+        default=[],
+        metavar="TAG",
+        help=(
+            "Require that the rendered prompt contains a non-empty <TAG>...</TAG> "
+            "block after trimming whitespace."
+        ),
+    )
+    parser.add_argument(
+        "--ignore-tag-for-placeholders",
+        action="append",
+        default=[],
+        metavar="TAG",
+        help=(
+            "Ignore placeholder-like text inside <TAG>...</TAG> when checking "
+            "for unsubstituted placeholders."
+        ),
     )
     return parser.parse_args()
 
@@ -73,6 +97,17 @@ def load_bindings(args: argparse.Namespace) -> dict[str, str]:
     return bindings
 
 
+def validate_rendered_output(prompt_text: str, args: argparse.Namespace) -> None:
+    try:
+        validate_rendered_prompt(
+            prompt_text,
+            required_nonempty_tags=args.require_nonempty_tag,
+            ignore_tags_for_placeholders=args.ignore_tag_for_placeholders,
+        )
+    except ValidationError as exc:
+        raise TemplateError(str(exc)) from exc
+
+
 def main() -> int:
     args = parse_args()
     try:
@@ -82,7 +117,9 @@ def main() -> int:
 
     bindings = load_bindings(args)
     nodes = parse_template_text(template_text)
-    sys.stdout.write(render_nodes(nodes, bindings))
+    rendered_prompt = render_nodes(nodes, bindings)
+    validate_rendered_output(rendered_prompt, args)
+    sys.stdout.write(rendered_prompt)
     return 0
 
 

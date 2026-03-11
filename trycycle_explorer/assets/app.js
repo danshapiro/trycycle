@@ -1,4 +1,6 @@
 const PLACEHOLDER_RE = /\{([A-Z][A-Z0-9_]*)\}/g;
+const TAG_NAME_RE = /^[a-z][a-z0-9_-]*$/;
+
 const state = {
   model: null,
   bindings: {},
@@ -21,16 +23,20 @@ async function bootstrap() {
   document.getElementById("page-subtitle").textContent =
     state.model.display.subtitle;
 
+  wireInputs();
   renderLegend();
   renderSamples();
-  wireInputs();
+  renderFlow();
 
   const initialSample = state.model.sample_inputs[0];
   if (initialSample) {
     applySample(initialSample.id);
-  } else {
-    rerender();
+    return;
   }
+
+  state.selectedGateId = state.model.gates[0]?.id ?? null;
+  renderBindingFields();
+  rerender();
 }
 
 function wireInputs() {
@@ -46,6 +52,36 @@ function wireInputs() {
   document
     .getElementById("prompt-source-tabs")
     .addEventListener("click", handlePromptTabClick);
+  document
+    .getElementById("expand-prompt-preview")
+    .addEventListener("click", openPromptPreviewModal);
+  document
+    .getElementById("expand-prompt-source")
+    .addEventListener("click", openPromptSourceModal);
+  document
+    .getElementById("expand-diff-panel")
+    .addEventListener("click", openDiffModal);
+  wireModal();
+}
+
+function wireModal() {
+  document
+    .getElementById("modal-shell")
+    .addEventListener("click", handleModalShellClick);
+  document.getElementById("modal-close").addEventListener("click", closeModal);
+  document.addEventListener("keydown", handleDocumentKeydown);
+}
+
+function handleModalShellClick(event) {
+  if (event.target.dataset.modalClose === "backdrop") {
+    closeModal();
+  }
+}
+
+function handleDocumentKeydown(event) {
+  if (event.key === "Escape" && isModalOpen()) {
+    closeModal();
+  }
 }
 
 function handleFlowClick(event) {
@@ -90,6 +126,7 @@ function applySample(sampleId) {
   if (!sample) {
     return;
   }
+  closeModal();
   state.selectedSampleId = sample.id;
   state.bindings = structuredClone(sample.bindings);
   state.selectedGateId = sample.selected_gate_id;
@@ -107,17 +144,30 @@ function renderBindingFields() {
   fields.innerHTML = "";
 
   for (const [name, config] of Object.entries(state.model.bindings)) {
-    const field = document.createElement("label");
+    const field = document.createElement("div");
     field.className = "field";
 
-    const label = document.createElement("span");
+    const controlId = makeBindingControlId(name);
+    const header = document.createElement("div");
+    header.className = "field-header";
+
+    const label = document.createElement("label");
+    label.className = "field-label";
+    label.htmlFor = controlId;
     label.textContent = config.label;
-    field.append(label);
+    header.append(label);
+    header.append(
+      createExpandButton(`Expand ${config.label}`, () =>
+        openBindingModal(name, config),
+      ),
+    );
+    field.append(header);
 
     const control =
       config.widget === "textarea"
         ? document.createElement("textarea")
         : document.createElement("input");
+    control.id = controlId;
     control.name = name;
     control.value = state.bindings[name] ?? "";
     if (control.tagName === "INPUT") {
@@ -139,6 +189,9 @@ function renderBindingFields() {
 }
 
 function rerender() {
+  closeModal();
+  renderFlow();
+
   if (!state.model || !state.selectedGateId) {
     return;
   }
@@ -152,7 +205,6 @@ function rerender() {
     state.model.bindings,
     state.selectedOutcomeId,
   );
-  renderFlow();
   renderPromptPanel(gate, promptSource, state.currentSnapshot);
   renderDiagnostics(state.currentSnapshot.diagnostics);
   renderPromptDiagnosticSummary(state.currentSnapshot.diagnostics);
@@ -160,10 +212,16 @@ function rerender() {
 }
 
 function renderFlow() {
+  renderCopyBlock("flow-intro", {
+    title: "Intro",
+    markdown: state.model?.intro_markdown ?? "",
+    emptyMessage: "No copy appears before step 1 in the current SKILL.md.",
+  });
+
   const container = document.getElementById("flow-groups");
   container.innerHTML = "";
 
-  for (const group of state.model.groups) {
+  for (const group of state.model?.groups ?? []) {
     const section = document.createElement("section");
     section.className = "flow-group";
 
@@ -174,6 +232,10 @@ function renderFlow() {
 
     for (const gateId of group.gates) {
       const gate = getGate(gateId);
+      if (!gate) {
+        continue;
+      }
+
       const card = document.createElement("article");
       card.className = "gate-card";
       if (gate.id === state.selectedGateId) {
@@ -195,6 +257,7 @@ function renderFlow() {
         const outcomeList = document.createElement("div");
         outcomeList.className = "outcome-list";
         for (const outcome of gate.outcomes) {
+          const destinationGate = getGate(outcome.to_gate_id);
           const outcomeButton = document.createElement("button");
           outcomeButton.type = "button";
           outcomeButton.className = "outcome-button";
@@ -205,7 +268,7 @@ function renderFlow() {
           outcomeButton.innerHTML = `
             <span>${escapeHtml(outcome.label)}</span>
             <span class="outcome-arrow">→ ${escapeHtml(
-              getGate(outcome.to_gate_id).title,
+              destinationGate?.title ?? outcome.to_gate_id,
             )}</span>
           `;
           outcomeList.append(outcomeButton);
@@ -218,6 +281,56 @@ function renderFlow() {
 
     container.append(section);
   }
+
+  renderCopyBlock("flow-outro", {
+    title: "Outro",
+    markdown: state.model?.outro_markdown ?? "",
+    emptyMessage:
+      "No trailing copy appears after the last numbered step in the current SKILL.md.",
+  });
+}
+
+function renderCopyBlock(containerId, { title, markdown, emptyMessage }) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = "";
+
+  const heading = document.createElement("div");
+  heading.className = "section-heading";
+
+  const titleNode = document.createElement("h3");
+  titleNode.textContent = title;
+  heading.append(titleNode);
+
+  if (markdown.trim()) {
+    heading.append(
+      createExpandButton(`Expand ${title}`, () =>
+        openMarkdownModal({
+          eyebrow: "Flow copy",
+          title,
+          description:
+            title === "Intro"
+              ? "Everything in SKILL.md before step 1."
+              : "Everything in SKILL.md after the numbered flow.",
+          markdown,
+          className: "copy-body modal-copy",
+        }),
+      ),
+    );
+  }
+
+  container.append(heading);
+
+  const body = document.createElement("div");
+  body.className = "copy-body";
+  if (markdown.trim()) {
+    body.innerHTML = renderMarkdown(markdown);
+  } else {
+    const empty = document.createElement("p");
+    empty.className = "copy-empty";
+    empty.textContent = emptyMessage;
+    body.append(empty);
+  }
+  container.append(body);
 }
 
 function renderPromptPanel(gate, promptSource, snapshot) {
@@ -232,23 +345,18 @@ function renderPromptPanel(gate, promptSource, snapshot) {
     : "Outcome: not selected";
 
   renderPromptTabs(gate);
+  renderPromptInterface(promptSource);
 
   const preview = document.getElementById("prompt-preview");
-  preview.innerHTML = window.MarkdownLite
-    ? window.MarkdownLite.render(snapshot.prompt_markdown)
-    : `<pre>${escapeHtml(snapshot.prompt_markdown)}</pre>`;
+  preview.innerHTML = renderMarkdown(snapshot.prompt_markdown);
 
   const source = document.getElementById("prompt-source");
-  source.innerHTML = "";
-  for (const segment of snapshot.segments) {
-    const span = document.createElement("span");
-    span.className = `segment segment-${segment.category}`;
-    if (segment.binding_name) {
-      span.dataset.bindingName = segment.binding_name;
-    }
-    span.textContent = segment.text;
-    source.append(span);
-  }
+  renderPromptSourceSegments(source, snapshot.segments);
+
+  document.getElementById("expand-prompt-preview").disabled =
+    !snapshot.prompt_markdown.trim();
+  document.getElementById("expand-prompt-source").disabled =
+    !snapshot.segments.length;
 }
 
 function renderPromptTabs(gate) {
@@ -297,7 +405,8 @@ function renderDiagnostics(diagnostics) {
   for (const diagnostic of diagnostics) {
     const item = document.createElement("article");
     item.className = "diagnostic-item";
-    item.dataset.severity = diagnostic.code;
+    item.dataset.severity = diagnostic.severity;
+    item.dataset.code = diagnostic.code;
     item.innerHTML = `
       <strong>${escapeHtml(diagnostic.code)}</strong>
       <p>${escapeHtml(diagnostic.message)}</p>
@@ -316,6 +425,8 @@ function renderPromptDiagnosticSummary(diagnostics) {
   for (const diagnostic of diagnostics.slice(0, 3)) {
     const item = document.createElement("article");
     item.className = "prompt-diagnostic-item";
+    item.dataset.severity = diagnostic.severity;
+    item.dataset.code = diagnostic.code;
     item.innerHTML = `
       <strong>${escapeHtml(diagnostic.code)}</strong>
       <p>${escapeHtml(diagnostic.message)}</p>
@@ -329,6 +440,13 @@ function renderDiffPanel(previousSnapshot, currentSnapshot) {
   const summary = document.getElementById("diff-summary");
   panel.innerHTML = "";
 
+  if (!currentSnapshot) {
+    summary.textContent =
+      "Choose a gate to inspect how the current render changes over time.";
+    document.getElementById("expand-diff-panel").disabled = true;
+    return;
+  }
+
   if (!previousSnapshot) {
     summary.textContent =
       "Rerender after changing an input or outcome to see the delta.";
@@ -336,6 +454,7 @@ function renderDiffPanel(previousSnapshot, currentSnapshot) {
     empty.className = "diff-empty";
     empty.textContent = "No previous render yet.";
     panel.append(empty);
+    document.getElementById("expand-diff-panel").disabled = false;
     return;
   }
 
@@ -346,16 +465,8 @@ function renderDiffPanel(previousSnapshot, currentSnapshot) {
   const added = diff.filter((entry) => entry.type === "added").length;
   const removed = diff.filter((entry) => entry.type === "removed").length;
   summary.textContent = `Added ${added} lines, removed ${removed} lines.`;
-
-  for (const entry of diff) {
-    const line = document.createElement("div");
-    line.className = `diff-line diff-${entry.type}`;
-    line.innerHTML = `
-      <span class="diff-marker">${diffMarker(entry.type)}</span>
-      <code>${escapeHtml(entry.text || " ")}</code>
-    `;
-    panel.append(line);
-  }
+  renderDiffEntries(panel, diff);
+  document.getElementById("expand-diff-panel").disabled = false;
 }
 
 function renderPromptSource(promptSource, bindings, bindingFields, outcomeId) {
@@ -366,6 +477,7 @@ function renderPromptSource(promptSource, bindings, bindingFields, outcomeId) {
   ];
   renderNodes(nodes, bindings, bindingFields, promptSource, segments, diagnostics);
   const promptMarkdown = segments.map((segment) => segment.text).join("");
+  diagnostics.push(...validateRequiredTags(promptSource, promptMarkdown));
   return {
     outcome_id: outcomeId,
     prompt_markdown: promptMarkdown,
@@ -463,16 +575,267 @@ function renderTextNode(
   }
 }
 
+function renderPromptInterface(promptSource) {
+  const container = document.getElementById("prompt-interface");
+  container.innerHTML = "";
+
+  for (const tag of promptSource.required_nonempty_tags ?? []) {
+    container.append(
+      createPromptPill(`Requires <${tag}>`, `Builder requires a non-empty <${tag}> block.`),
+    );
+  }
+
+  for (const tag of promptSource.ignore_tags_for_placeholders ?? []) {
+    container.append(
+      createPromptPill(
+        `Ignore placeholders in <${tag}>`,
+        `Builder ignores placeholder-like text inside <${tag}> when scanning the rendered prompt.`,
+      ),
+    );
+  }
+}
+
+function createPromptPill(label, title) {
+  const pill = document.createElement("span");
+  pill.className = "pill pill-interface";
+  pill.title = title;
+  pill.textContent = label;
+  return pill;
+}
+
+function validateRequiredTags(promptSource, promptMarkdown) {
+  const diagnostics = [];
+  for (const tag of promptSource.required_nonempty_tags ?? []) {
+    if (!TAG_NAME_RE.test(tag)) {
+      continue;
+    }
+    const pattern = new RegExp(`<${escapeRegex(tag)}>([\\s\\S]*?)</${escapeRegex(tag)}>`);
+    const match = pattern.exec(promptMarkdown);
+    if (!match) {
+      diagnostics.push({
+        severity: "error",
+        code: "missing-required-tag",
+        message: `Rendered prompt is missing required <${tag}> block.`,
+        prompt_source_id: promptSource.id,
+      });
+      continue;
+    }
+    if (!match[1].trim()) {
+      diagnostics.push({
+        severity: "error",
+        code: "empty-required-tag",
+        message: `Rendered prompt has empty <${tag}> block.`,
+        prompt_source_id: promptSource.id,
+      });
+    }
+  }
+  return diagnostics;
+}
+
+function openBindingModal(bindingName, config) {
+  openModal({
+    eyebrow: "Input binding",
+    title: config.label,
+    description:
+      config.help || "Edit the full value in a large textarea. Changes sync immediately.",
+    renderBody(modalBody) {
+      const textarea = document.createElement("textarea");
+      textarea.className = "modal-textarea";
+      textarea.dataset.modalPrimaryFocus = "true";
+      textarea.value = state.bindings[bindingName] ?? "";
+      textarea.addEventListener("input", () => {
+        state.bindings[bindingName] = textarea.value;
+        const control = document.getElementById(makeBindingControlId(bindingName));
+        if (control) {
+          control.value = textarea.value;
+        }
+      });
+      modalBody.append(textarea);
+      textarea.focus();
+      textarea.selectionStart = textarea.value.length;
+      textarea.selectionEnd = textarea.value.length;
+    },
+  });
+}
+
+function openPromptPreviewModal() {
+  if (!state.currentSnapshot || !state.selectedGateId) {
+    return;
+  }
+  const gate = getGate(state.selectedGateId);
+  openMarkdownModal({
+    eyebrow: "Rendered prompt",
+    title: `${gate.title} preview`,
+    description: "Markdown rendered from the currently selected prompt source.",
+    markdown: state.currentSnapshot.prompt_markdown,
+    className: "prompt-preview modal-markdown",
+  });
+}
+
+function openPromptSourceModal() {
+  if (!state.currentSnapshot || !state.selectedGateId) {
+    return;
+  }
+  const gate = getGate(state.selectedGateId);
+  const promptSource = getPromptSource(gate, state.selectedPromptSourceId);
+  openModal({
+    eyebrow: "Raw markdown",
+    title: `${gate.title} source`,
+    description: `${promptSource.label} · ${promptSource.source_path}`,
+    renderBody(modalBody) {
+      const source = document.createElement("pre");
+      source.className = "prompt-source modal-source";
+      renderPromptSourceSegments(source, state.currentSnapshot.segments);
+      modalBody.append(source);
+    },
+  });
+}
+
+function openDiffModal() {
+  if (!state.currentSnapshot || !state.selectedGateId) {
+    return;
+  }
+  const gate = getGate(state.selectedGateId);
+  openModal({
+    eyebrow: "Before / after",
+    title: `${gate.title} diff`,
+    description: document.getElementById("diff-summary").textContent,
+    renderBody(modalBody) {
+      const panel = document.createElement("div");
+      panel.className = "diff-panel modal-diff";
+      if (!state.previousSnapshot) {
+        const empty = document.createElement("p");
+        empty.className = "diff-empty";
+        empty.textContent = "No previous render yet.";
+        panel.append(empty);
+      } else {
+        const diff = diffLines(
+          state.previousSnapshot.prompt_markdown,
+          state.currentSnapshot.prompt_markdown,
+        );
+        renderDiffEntries(panel, diff);
+      }
+      modalBody.append(panel);
+    },
+  });
+}
+
+function openMarkdownModal({ eyebrow, title, description, markdown, className }) {
+  openModal({
+    eyebrow,
+    title,
+    description,
+    renderBody(modalBody) {
+      const container = document.createElement("div");
+      container.className = className;
+      container.innerHTML = renderMarkdown(markdown);
+      modalBody.append(container);
+    },
+  });
+}
+
+function openModal({ eyebrow, title, description, renderBody }) {
+  closeModal();
+
+  const shell = document.getElementById("modal-shell");
+  const eyebrowNode = document.getElementById("modal-eyebrow");
+  const titleNode = document.getElementById("modal-title");
+  const descriptionNode = document.getElementById("modal-description");
+  const modalBody = document.getElementById("modal-body");
+
+  titleNode.textContent = title;
+  eyebrowNode.textContent = eyebrow || "";
+  eyebrowNode.hidden = !eyebrow;
+  descriptionNode.textContent = description || "";
+  descriptionNode.hidden = !description;
+  modalBody.innerHTML = "";
+  renderBody(modalBody);
+
+  shell.hidden = false;
+  document.body.classList.add("modal-open");
+  const focusTarget =
+    modalBody.querySelector("[data-modal-primary-focus]") ??
+    document.getElementById("modal-close");
+  focusTarget.focus();
+}
+
+function closeModal() {
+  const shell = document.getElementById("modal-shell");
+  if (!shell || shell.hidden) {
+    return;
+  }
+  shell.hidden = true;
+  document.getElementById("modal-body").innerHTML = "";
+  document.body.classList.remove("modal-open");
+}
+
+function isModalOpen() {
+  const shell = document.getElementById("modal-shell");
+  return Boolean(shell && !shell.hidden);
+}
+
+function renderPromptSourceSegments(container, segments) {
+  container.innerHTML = "";
+  for (const segment of segments) {
+    const span = document.createElement("span");
+    span.className = `segment segment-${segment.category}`;
+    if (segment.binding_name) {
+      span.dataset.bindingName = segment.binding_name;
+    }
+    span.textContent = segment.text;
+    container.append(span);
+  }
+}
+
+function renderDiffEntries(container, diffEntries) {
+  container.innerHTML = "";
+  for (const entry of diffEntries) {
+    const line = document.createElement("div");
+    line.className = `diff-line diff-${entry.type}`;
+    line.innerHTML = `
+      <span class="diff-marker">${diffMarker(entry.type)}</span>
+      <code>${escapeHtml(entry.text || " ")}</code>
+    `;
+    container.append(line);
+  }
+}
+
+function renderMarkdown(markdown) {
+  if (window.MarkdownLite) {
+    return window.MarkdownLite.render(markdown);
+  }
+  return `<pre>${escapeHtml(markdown)}</pre>`;
+}
+
+function createExpandButton(ariaLabel, onClick) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "expand-button";
+  button.textContent = "Expand";
+  button.setAttribute("aria-label", ariaLabel);
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onClick();
+  });
+  return button;
+}
+
+function makeBindingControlId(name) {
+  return `binding-${String(name).toLowerCase().replace(/[^a-z0-9_-]+/g, "-")}`;
+}
+
+function escapeRegex(text) {
+  return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function getGate(gateId) {
-  return state.model.gates.find((gate) => gate.id === gateId);
+  return state.model?.gates.find((gate) => gate.id === gateId);
 }
 
 function getPromptSource(gate, promptSourceId) {
   const targetId = promptSourceId || gate.default_prompt_source_id;
-  return (
-    gate.prompts.find((prompt) => prompt.id === targetId) ??
-    gate.prompts[0]
-  );
+  return gate.prompts.find((prompt) => prompt.id === targetId) ?? gate.prompts[0];
 }
 
 function escapeHtml(text) {
