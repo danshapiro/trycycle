@@ -18,13 +18,20 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Map trycycle skill names to superpowers source skill directory names
-declare -A SKILL_MAP=(
-  [trycycle-worktrees]="using-git-worktrees"
-  [trycycle-planning]="writing-plans"
-  [trycycle-executing]="executing-plans"
-  [trycycle-finishing]="finishing-a-development-branch"
-)
+# Map trycycle skill names to superpowers source skill directory names.
+# Use a case statement so the script still works on macOS's default Bash 3.2.
+source_skill_name_for() {
+  case "$1" in
+    trycycle-worktrees) echo "using-git-worktrees" ;;
+    trycycle-planning) echo "writing-plans" ;;
+    trycycle-executing) echo "executing-plans" ;;
+    trycycle-finishing) echo "finishing-a-development-branch" ;;
+    *)
+      echo "ERROR: unknown trycycle skill name: $1" >&2
+      return 1
+      ;;
+  esac
+}
 
 # Extract base-commit from an existing adapted skill's header.
 # Returns empty string if no header found (first import).
@@ -303,7 +310,8 @@ main() {
   local any_aborted=false
 
   for trycycle_name in trycycle-worktrees trycycle-planning trycycle-executing trycycle-finishing; do
-    local source_name="${SKILL_MAP[$trycycle_name]}"
+    local source_name
+    source_name="$(source_skill_name_for "$trycycle_name")"
     echo ""
     echo "--- Importing $source_name -> $trycycle_name ---"
 

@@ -14,7 +14,7 @@ All other trycycle-executing behaviors remain in effect (run verifications, foll
 
 The test plan is at `{TEST_PLAN_PATH}`.
 
-Work in the worktree at `{WORKTREE_PATH}`.
+Work in the implementation workspace at `{WORKTREE_PATH}`.
 
 {{#if POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}}
 <post_implementation_review_findings_verbatim>

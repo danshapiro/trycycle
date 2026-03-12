@@ -10,7 +10,7 @@ description: "Internal trycycle subskill — do not invoke directly."
 
 ## Overview
 
-Guide completion of development work by presenting clear options and handling chosen workflow.
+Guide completion of development work by presenting clear options and handling the chosen workflow in either a dedicated worktree or an already-isolated workspace.
 
 **Core principle:** Verify tests → Present options → Execute choice → Clean up.
 
@@ -85,7 +85,7 @@ git merge <feature-branch>
 git branch -d <feature-branch>
 ```
 
-Then: Cleanup worktree (Step 5)
+Then: Cleanup workspace if needed (Step 5)
 
 #### Option 2: Push and Create PR
 
@@ -107,13 +107,13 @@ EOF
 )"
 ```
 
-Then: Cleanup worktree (Step 5)
+Then: Cleanup workspace if needed (Step 5)
 
 #### Option 3: Keep As-Is
 
-Report: "Keeping branch <name>. Worktree preserved at <path>."
+Report: "Keeping branch <name>. Workspace preserved at <path>."
 
-**Don't cleanup worktree.**
+**Don't cleanup the workspace.**
 
 #### Option 4: Discard
 
@@ -122,7 +122,7 @@ Report: "Keeping branch <name>. Worktree preserved at <path>."
 This will permanently delete:
 - Branch <name>
 - All commits: <commit-list>
-- Worktree at <path>
+- Workspace at <path>
 
 Type 'discard' to confirm.
 ```
@@ -135,13 +135,13 @@ git checkout <base-branch>
 git branch -D <feature-branch>
 ```
 
-Then: Cleanup worktree (Step 5)
+Then: Cleanup workspace if needed (Step 5)
 
-### Step 5: Cleanup Worktree
+### Step 5: Cleanup Workspace If Needed
 
 **For Options 1, 2, 4:**
 
-Check if in worktree:
+Check whether this branch is backed by a removable git worktree:
 ```bash
 git worktree list | grep $(git branch --show-current)
 ```
@@ -151,11 +151,13 @@ If yes:
 git worktree remove <worktree-path>
 ```
 
-**For Option 3:** Keep worktree.
+If not, do not attempt to remove the current checkout; it is the primary workspace.
+
+**For Option 3:** Keep the workspace.
 
 ## Quick Reference
 
-| Option | Merge | Push | Keep Worktree | Cleanup Branch |
+| Option | Merge | Push | Keep Workspace | Cleanup Branch |
 |--------|-------|------|---------------|----------------|
 | 1. Merge locally | ✓ | - | - | ✓ |
 | 2. Create PR | - | ✓ | ✓ | - |
@@ -184,4 +186,4 @@ git worktree remove <worktree-path>
 - Verify tests before offering options
 - Present exactly 4 options
 - Get typed confirmation for Option 4
-- Clean up worktree for Options 1 & 4 only
+- Remove the git worktree only when one was actually created for this branch

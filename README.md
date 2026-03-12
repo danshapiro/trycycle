@@ -31,7 +31,9 @@ Once installed, you can use Trycycle from any Claude Code or Codex CLI session. 
 Use trycycle to add a dark mode toggle to the settings page.
 ```
 
-Trycycle will ask you any questions it needs answered before starting, then handle the rest. It creates a git worktree, writes a plan, strengthens that plan until a fresh editor approves it unchanged, builds a test plan, builds the code, and reviews the code -- all without further input from you unless something comes up that needs your judgment.
+Trycycle will ask you any questions it needs answered before starting, then handle the rest. By default it creates a git worktree, writes a plan, strengthens that plan until a fresh editor approves it unchanged, builds a test plan, builds the code, and reviews the code -- all without further input from you unless something comes up that needs your judgment.
+
+If you want Trycycle to reuse the current checkout instead, include the literal flag `--no-worktree` in your request. This is useful in tools like Conductor that already create an isolated workspace and branch for you.
 
 You can use Trycycle for anything from small features to large refactors. It works best when you have a clear goal in mind and a codebase that Trycycle can read and test.
 

@@ -12,7 +12,7 @@ You have transcript JSON from the current trycycle session at dispatch time, and
 
 The implementation plan is at `{IMPLEMENTATION_PLAN_PATH}`.
 
-Work in the worktree at `{WORKTREE_PATH}`.
+Work in the implementation workspace at `{WORKTREE_PATH}`.
 
 ## Your process
 
@@ -98,7 +98,7 @@ The document should contain:
 2. **Test plan** — numbered list of tests in priority order, each with the full structure above
 3. **Coverage summary** — which areas of the action space are covered, which are explicitly excluded per the agreed strategy, and what risks the exclusions carry
 
-Commit the test plan to the worktree, then return a markdown report:
+Commit the test plan to the implementation workspace, then return a markdown report:
 
 - If the file begins with `## Strategy changes requiring user approval`, include that section verbatim as the first section of your response.
 - Then include `## Test plan path` with the absolute path to the file.
