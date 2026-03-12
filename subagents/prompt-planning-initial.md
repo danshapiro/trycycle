@@ -19,8 +19,8 @@ Task:
 - Be bold. Consider what is idiomatic for any existing technologies or code, and what is architecturally clean and robust over what is expedient.
 - Ensure your decisions are thoughtful and justified, and that the justification for decisions is included in the plan.
 - The plan will be executed all at once with a single cutover; do not plan interim steps unless it is necessary and the user has approved.
-- Work in the worktree at `{WORKTREE_PATH}`.
-- Commit the current plan to the worktree.
+- Work in the implementation workspace at `{WORKTREE_PATH}`.
+- Commit the current plan to the implementation workspace.
 - Otherwise, return a markdown report with these sections in this order:
   - `## Plan verdict` — `CREATED`
   - `## Plan path` — the absolute path to the current plan file

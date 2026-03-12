@@ -77,4 +77,4 @@ Recommend one level and explain why it's the right tradeoff.
 
 Return the strategy as a single markdown document ready to present to the user. No preamble, no "here's my analysis" wrapper — just the proposal itself, as if the user is reading it directly.
 
-End with a short `## Approval` section that explicitly says the user must accept this strategy or provide edits before implementation or worktree setup begins.
+End with a short `## Approval` section that explicitly says the user must accept this strategy or provide edits before implementation or workspace setup begins.

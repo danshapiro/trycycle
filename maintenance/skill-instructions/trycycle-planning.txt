@@ -8,7 +8,7 @@ This skill is invoked in trycycle Step 6 ("Plan with trycycle-planning"). A dedi
 
 **What to strip:**
 
-1. **Remove brainstorming preconditions.** The line "This should be run in a dedicated worktree (created by brainstorming skill)" should change to something like "This should be run in a dedicated worktree" (drop the brainstorming reference). The orchestrator creates the worktree in Step 4.
+1. **Remove brainstorming preconditions.** The line "This should be run in a dedicated worktree (created by brainstorming skill)" should change to something like "This should be run in an isolated implementation workspace" (drop the brainstorming reference). The orchestrator prepares that workspace in Step 4, either as a dedicated worktree or as an existing isolated checkout when `--no-worktree` is used.
 
 2. **Remove the plan header line about executing-plans.** The template header says `> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.` — change this to reference `trycycle-executing`.
 
@@ -16,7 +16,7 @@ This skill is invoked in trycycle Step 6 ("Plan with trycycle-planning"). A dedi
 
 **Resulting structure should be roughly:**
 - Overview (plan writing guidance)
-- Context note (run in dedicated worktree)
+- Context note (run in isolated implementation workspace)
 - Save plans to `docs/plans/YYYY-MM-DD-<feature-name>.md`
 - Bite-sized task granularity rules
 - Plan document header template

@@ -26,8 +26,8 @@ Task:
 - Declare the plan already excellent unchanged only if it is aligned to the user's request, architecturally sound, consistent with `trycycle-planning`, idiomatic to the technologies and the general approach of the repo if any, and ready for direct execution.
 - Ensure your decisions are thoughtful and justified, and that the justification for decisions is included in the plan.
 - If a user decision is genuinely required because there is no safe path forward without it, return a detailed report beginning with `USER DECISION REQUIRED:` that names the decision, explains why it is required, justifies it carefully, and gives your recommended choice.
-- Work in the worktree at `{WORKTREE_PATH}`.
-- If you revise the plan, commit the revised plan to the worktree. If you declare it already excellent unchanged, do not modify files.
+- Work in the implementation workspace at `{WORKTREE_PATH}`.
+- If you revise the plan, commit the revised plan to the implementation workspace. If you declare it already excellent unchanged, do not modify files.
 - Return a markdown report with these sections in this order:
   - `## Plan verdict` — `MADE-EXCELLENT` if you changed the plan, or `ALREADY-EXCELLENT` if you left it unchanged
   - `## Plan path` — the absolute path to the current plan file

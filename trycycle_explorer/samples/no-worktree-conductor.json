@@ -1,0 +1,39 @@
+{
+  "id": "no-worktree-conductor",
+  "label": "No-worktree Conductor workspace",
+  "description": "A request that asks Trycycle to reuse an already-isolated Conductor workspace instead of creating a nested git worktree.",
+  "selected_gate_id": "prepare-workspace",
+  "selected_outcome_id": "worktree-ready",
+  "bindings": {
+    "INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION": [
+      {
+        "role": "user",
+        "text": "Use trycycle --no-worktree to add a keyboard shortcut overlay to the desktop app."
+      },
+      {
+        "role": "assistant",
+        "text": "Getting started."
+      }
+    ],
+    "USER_REQUEST_TRANSCRIPT": [
+      {
+        "role": "user",
+        "text": "Use trycycle --no-worktree to add a keyboard shortcut overlay to the desktop app."
+      }
+    ],
+    "FULL_CONVERSATION_VERBATIM": [
+      {
+        "role": "user",
+        "text": "Use trycycle --no-worktree to add a keyboard shortcut overlay to the desktop app."
+      },
+      {
+        "role": "assistant",
+        "text": "Getting started."
+      }
+    ],
+    "POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM": "",
+    "WORKTREE_PATH": "/Users/example/Library/Application Support/Conductor/workspaces/shortcut-overlay",
+    "IMPLEMENTATION_PLAN_PATH": "/Users/example/Library/Application Support/Conductor/workspaces/shortcut-overlay/docs/plans/2026-03-12-shortcut-overlay.md",
+    "TEST_PLAN_PATH": "/Users/example/Library/Application Support/Conductor/workspaces/shortcut-overlay/docs/plans/2026-03-12-shortcut-overlay-test-plan.md"
+  }
+}
