@@ -2,8 +2,8 @@
   "id": "simple-feature",
   "label": "Simple feature request",
   "description": "A straightforward request that has already answered the first blocking questions and approved the strategy.",
-  "selected_gate_id": "testing-strategy",
-  "selected_outcome_id": "approved",
+  "selected_gate_id": "version-check",
+  "selected_outcome_id": null,
   "bindings": {
     "INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION": [
       {

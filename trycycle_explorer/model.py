@@ -173,7 +173,6 @@ class ExplorerModel:
 
     def to_dict(self) -> dict[str, object]:
         return {
-            "generated_at": self.generated_at,
             "repo_root": self.repo_root,
             "display": self.display.to_dict(),
             "intro_markdown": self.intro_markdown,

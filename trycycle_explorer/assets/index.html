@@ -18,94 +18,104 @@
         </p>
       </section>
 
-      <section class="layout-grid">
-        <aside class="panel flow-panel" data-test="flow-map">
-          <div class="panel-header">
-            <h2>Flow map</h2>
-            <p>Click a gate, then choose an outcome to trace the path.</p>
-          </div>
-          <section id="flow-intro" class="copy-block" data-test="flow-intro"></section>
-          <div id="flow-groups" class="flow-groups"></div>
-          <section id="flow-outro" class="copy-block" data-test="flow-outro"></section>
-        </aside>
-
+      <section class="dashboard-shell">
         <section class="panel input-panel" data-test="input-panel">
           <div class="panel-header">
             <h2>Inputs</h2>
             <p>Choose a sample or edit the current bindings before rerendering.</p>
           </div>
-          <div class="input-toolbar">
-            <label class="field">
-              <span>Sample</span>
-              <select data-test="sample-select" id="sample-select"></select>
-            </label>
-            <button type="button" class="action-button" data-test="rerender" id="rerender">
-              Rerender
-            </button>
+          <div class="input-band-grid">
+            <div class="input-band-primary">
+              <div class="input-toolbar">
+                <label class="field">
+                  <span>Sample</span>
+                  <select data-test="sample-select" id="sample-select"></select>
+                </label>
+                <button type="button" class="action-button" data-test="rerender" id="rerender">
+                  Rerender
+                </button>
+              </div>
+              <div id="binding-fields" class="binding-fields"></div>
+            </div>
+            <div class="input-band-sidecars">
+              <section class="legend-block">
+                <div class="panel-header compact">
+                  <h3>Legend</h3>
+                </div>
+                <div id="legend" class="legend"></div>
+              </section>
+              <section class="diagnostics-block">
+                <div class="panel-header compact">
+                  <h3>Diagnostics</h3>
+                </div>
+                <div id="diagnostics" class="diagnostics" data-test="diagnostics"></div>
+              </section>
+            </div>
           </div>
-          <div id="binding-fields" class="binding-fields"></div>
-          <section class="legend-block">
-            <div class="panel-header compact">
-              <h3>Legend</h3>
-            </div>
-            <div id="legend" class="legend"></div>
-          </section>
-          <section class="diagnostics-block">
-            <div class="panel-header compact">
-              <h3>Diagnostics</h3>
-            </div>
-            <div id="diagnostics" class="diagnostics" data-test="diagnostics"></div>
-          </section>
         </section>
 
-        <section class="panel prompt-panel" data-test="prompt-panel">
-          <div class="panel-header">
-            <h2 id="prompt-title">Prompt</h2>
-            <p id="prompt-subtitle">Select a gate to inspect the rendered prompt.</p>
-          </div>
-          <div id="prompt-source-tabs" class="prompt-source-tabs"></div>
-          <div class="prompt-meta">
-            <span id="selected-outcome" class="pill">No outcome selected</span>
-            <div id="prompt-interface" class="prompt-interface"></div>
-          </div>
-          <div id="prompt-diagnostic-summary" class="prompt-diagnostic-summary"></div>
-          <div class="prompt-columns">
-            <section class="prompt-column">
-              <div class="section-heading">
-                <h3>Markdown preview</h3>
-                <button
-                  type="button"
-                  class="expand-button"
-                  id="expand-prompt-preview"
-                >
-                  Expand
-                </button>
-              </div>
-              <div id="prompt-preview" class="prompt-preview"></div>
-            </section>
-            <section class="prompt-column">
-              <div class="section-heading">
-                <h3>Raw markdown source</h3>
-                <button
-                  type="button"
-                  class="expand-button"
-                  id="expand-prompt-source"
-                >
-                  Expand
-                </button>
-              </div>
-              <pre id="prompt-source" class="prompt-source" data-test="prompt-source"></pre>
-            </section>
-          </div>
-          <section class="diff-block">
-            <div class="panel-header compact section-heading">
-              <h3>Before / after</h3>
-              <button type="button" class="expand-button" id="expand-diff-panel">
-                Expand
-              </button>
+        <section class="workspace-grid">
+          <aside class="panel flow-panel" data-test="flow-map">
+            <div class="panel-header">
+              <h2>Flow map</h2>
+              <p>Click a gate, then choose an outcome to trace the path.</p>
             </div>
-            <p id="diff-summary">Rerender after changing an input or outcome to see the delta.</p>
-            <div id="diff-panel" class="diff-panel" data-test="diff-panel"></div>
+            <div class="flow-panel-scroll">
+              <section id="flow-intro" class="copy-block" data-test="flow-intro"></section>
+              <div id="flow-groups" class="flow-groups"></div>
+              <section id="flow-outro" class="copy-block" data-test="flow-outro"></section>
+            </div>
+          </aside>
+
+          <section class="panel prompt-panel" data-test="prompt-panel">
+            <div class="panel-header">
+              <h2 id="prompt-title">Prompt</h2>
+              <p id="prompt-subtitle">Select a gate to inspect the rendered prompt.</p>
+            </div>
+            <div id="prompt-source-tabs" class="prompt-source-tabs"></div>
+            <div class="prompt-meta">
+              <span id="selected-outcome" class="pill">No outcome selected</span>
+              <div id="prompt-interface" class="prompt-interface"></div>
+            </div>
+            <div id="prompt-diagnostic-summary" class="prompt-diagnostic-summary"></div>
+            <div class="prompt-columns">
+              <section class="prompt-column">
+                <div class="section-heading">
+                  <h3>Markdown preview</h3>
+                  <button
+                    type="button"
+                    class="expand-button"
+                    id="expand-prompt-preview"
+                  >
+                    Expand
+                  </button>
+                </div>
+                <div id="prompt-preview" class="prompt-preview"></div>
+              </section>
+              <section class="prompt-column">
+                <div class="section-heading">
+                  <h3>Raw markdown source</h3>
+                  <button
+                    type="button"
+                    class="expand-button"
+                    id="expand-prompt-source"
+                  >
+                    Expand
+                  </button>
+                </div>
+                <pre id="prompt-source" class="prompt-source" data-test="prompt-source"></pre>
+              </section>
+            </div>
+            <section class="diff-block">
+              <div class="panel-header compact section-heading">
+                <h3>Before / after</h3>
+                <button type="button" class="expand-button" id="expand-diff-panel">
+                  Expand
+                </button>
+              </div>
+              <p id="diff-summary">Rerender after changing an input or outcome to see the delta.</p>
+              <div id="diff-panel" class="diff-panel" data-test="diff-panel"></div>
+            </section>
           </section>
         </section>
       </section>
