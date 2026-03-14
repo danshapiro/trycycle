@@ -2,18 +2,64 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import shutil
+import time
 
-from common import TranscriptError, TranscriptTurn, iter_jsonl_records, wait_for_matches
+from common import (
+    TranscriptError,
+    TranscriptTurn,
+    choose_most_recent_match,
+    iter_jsonl_records,
+    python_search,
+    rg_search,
+)
 
 
 DEFAULT_ROOT = Path.home() / ".codex" / "sessions"
+CODEX_HOME_ENV = "CODEX_HOME"
 THREAD_ID_ENV = "CODEX_THREAD_ID"
 
 
+def _candidate_roots(search_root: Path | None) -> list[Path]:
+    if search_root is not None:
+        return [search_root]
+
+    candidates: list[Path] = []
+
+    codex_home = os.environ.get(CODEX_HOME_ENV)
+    if codex_home:
+        candidates.append(Path(codex_home) / "sessions")
+
+    candidates.append(DEFAULT_ROOT)
+
+    # Desktop sessions launched from Windows can write native Codex rollouts to
+    # the Windows user's CODEX_HOME, while agent commands run inside WSL and see
+    # a different HOME. Search the mounted Windows homes too so canary lookup
+    # can find the live desktop transcript.
+    candidates.extend(sorted(Path("/mnt").glob("*/Users/*/.codex/sessions")))
+
+    deduped: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        normalized = candidate.expanduser()
+        if normalized in seen:
+            continue
+        deduped.append(normalized)
+        seen.add(normalized)
+    return deduped
+
+
+def _existing_roots(search_root: Path | None) -> list[Path]:
+    roots = [root for root in _candidate_roots(search_root) if root.exists()]
+    if roots:
+        return roots
+
+    searched = ", ".join(str(root) for root in _candidate_roots(search_root))
+    raise TranscriptError(f"Codex CLI transcript roots do not exist: {searched}")
+
+
 def find_current_transcript(search_root: Path | None = None) -> Path | None:
-    root = search_root or DEFAULT_ROOT
-    if not root.exists():
-        raise TranscriptError(f"Codex CLI transcript root does not exist: {root}")
+    roots = _existing_roots(search_root)
 
     thread_id = os.environ.get(THREAD_ID_ENV)
     if not thread_id:
@@ -21,14 +67,13 @@ def find_current_transcript(search_root: Path | None = None) -> Path | None:
 
     # Codex exposes the active thread id, so we can read the live session file
     # directly instead of racing transcript flushes for a printed canary.
-    matches = sorted(root.rglob(f"*{thread_id}.jsonl"))
+    matches: list[Path] = []
+    for root in roots:
+        matches.extend(sorted(root.rglob(f"*{thread_id}.jsonl")))
+
     if not matches:
         return None
-    if len(matches) > 1:
-        raise TranscriptError(
-            f"Expected one Codex CLI transcript for {THREAD_ID_ENV}={thread_id}, found {len(matches)}."
-        )
-    return matches[0]
+    return choose_most_recent_match(matches)
 
 
 def find_matching_transcripts(
@@ -38,15 +83,28 @@ def find_matching_transcripts(
     poll_ms: int,
     search_root: Path | None = None,
 ) -> list[Path]:
-    root = search_root or DEFAULT_ROOT
-    if not root.exists():
-        raise TranscriptError(f"Codex CLI transcript root does not exist: {root}")
+    roots = _existing_roots(search_root)
+    deadline = time.monotonic() + (timeout_ms / 1000)
+    use_rg = shutil.which("rg") is not None
 
-    return wait_for_matches(
-        root=root,
-        canary=canary,
-        timeout_ms=timeout_ms,
-        poll_ms=poll_ms,
+    while True:
+        matches: list[Path] = []
+        for root in roots:
+            if use_rg:
+                matches.extend(rg_search(root, canary=canary))
+            else:
+                matches.extend(python_search(root, canary=canary))
+
+        if matches:
+            return matches
+
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(poll_ms / 1000)
+
+    searched = ", ".join(str(root) for root in roots)
+    raise TranscriptError(
+        f"No transcript file under [{searched}] contained canary {canary!r} within {timeout_ms}ms."
     )
 
 

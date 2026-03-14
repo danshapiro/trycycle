@@ -99,6 +99,12 @@ The agreed testing strategy is used in step 7.
 
 ## 4) Create worktree
 
+Before creating the worktree, fetch and fast-forward the base branch so the worktree starts from the latest code. Other agents may have merged changes while the user was reviewing earlier steps.
+
+```bash
+git fetch origin main && git merge --ff-only origin/main
+```
+
 Read and follow `<skill-directory>/subskills/trycycle-worktrees/SKILL.md` to create an isolated worktree for the implementation with an appropriately named branch, for example `add-connection-status-icon`.
 
 Immediately after creating the worktree, run:
@@ -178,6 +184,15 @@ When the subagent returns:
 ## 9) Execute with trycycle-executing (subagent-owned)
 
 Code implementation must be done by a new, dedicated subagent.
+
+Before dispatching the implementation subagent, rebase onto the latest base branch to incorporate any changes merged by other agents during planning:
+
+```bash
+git -C {WORKTREE_PATH} fetch origin main
+git -C {WORKTREE_PATH} rebase origin/main
+```
+
+If the rebase has conflicts, stop and present them to the user.
 
 Spawn a fresh implementation subagent and give it the final excellent plan.
 
