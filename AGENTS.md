@@ -29,6 +29,7 @@ Follow the instructions in README.md. Use the version you install, and ignore th
 
 ### Process
 
+- **All work in a worktree** - create it before changing files and offer to land on local main & clean it up when finished
 - **Safe merges to main** — Never merge directly on main. Merge main into the feature branch first, resolve conflicts there, then `git merge --ff-only` on main. This prevents broken state on the working branch.
 - **Don't add tests to this specific repo**, regardless of general policies.
 
