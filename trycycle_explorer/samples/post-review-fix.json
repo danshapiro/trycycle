@@ -28,7 +28,7 @@
       },
       {
         "role": "user",
-        "text": "Inspect screenshots at each step for legibility, attractiveness, and correctness."
+        "text": "Use browser snapshots and screenshot diffs at each step to verify legibility, attractiveness, and correctness."
       },
       {
         "role": "user",

@@ -20,7 +20,7 @@
       },
       {
         "role": "assistant",
-        "text": "Revised testing strategy: medium fidelity with screenshot checkpoints and no manual QA."
+        "text": "Revised testing strategy: prioritize browser-driven integration coverage of user-visible behavior, with reproducible UI artifacts and no manual QA."
       },
       {
         "role": "user",
@@ -52,7 +52,7 @@
       },
       {
         "role": "user",
-        "text": "Medium plus you inspect screenshots at each step for legibility, attractiveness, and correctness."
+        "text": "Prioritize browser-driven integration tests and captured UI artifacts at each step for legibility, attractiveness, and correctness."
       },
       {
         "role": "user",

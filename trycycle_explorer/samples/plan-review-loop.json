@@ -12,7 +12,7 @@
       },
       {
         "role": "assistant",
-        "text": "The strategy proposes a Python-first static site builder plus Playwright screenshot verification."
+        "text": "The strategy proposes a Python-first static site builder plus Playwright-based integration coverage of the rendered UI."
       },
       {
         "role": "user",
@@ -36,7 +36,7 @@
       },
       {
         "role": "assistant",
-        "text": "Testing strategy recommends medium coverage with screenshots at each UI step."
+        "text": "Testing strategy recommends high-confidence integration coverage of user-visible behavior at each UI step."
       },
       {
         "role": "user",

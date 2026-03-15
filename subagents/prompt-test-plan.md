@@ -26,7 +26,7 @@ Work in the worktree at `{WORKTREE_PATH}`.
    If the strategy still holds, note that briefly and proceed. If adjustments are needed that don't change the cost or scope the user agreed to, make them and document what changed and why. If adjustments would increase cost, require access to paid/external resources, or materially change scope, put them in a `## Strategy changes requiring user approval` section as the first section of the file — that section will be presented to the user before proceeding.
 4. Read the codebase: examine every file, directory, and artifact relevant to the task. If there are reference implementations, specs, API docs, or other sources of truth identified in the strategy, read those thoroughly.
 5. Identify the full action space: every user-facing action, command, endpoint, interaction, or behavior that the task touches or could affect.
-6. Write tests against the planned interfaces and architecture that verify the product works from the user's perspective — not tests that verify the code agrees with itself.
+6. Write tests against the planned interfaces and architecture that verify the product works from the user's perspective — not tests that verify the code agrees with itself. Prefer running the real system through the real user-facing surface with real collaborating components over mocks, stubs, or direct calls into internals.
 7. Do not include manual QA, human validation, or "ask a person whether this looks right" steps in the plan. Express user-visible checks as reproducible artifacts and assertions. When visual evidence is needed, prefer an explicit browser snapshot or screenshot comparison over an undecided/manual check.
 
 ## Test structure
@@ -38,26 +38,26 @@ For each test, specify:
 - **Harness**: Which harness from the agreed strategy this test uses.
 - **Preconditions**: What state the system starts in.
 - **Actions**: Exact operations to perform, stated as user actions or API calls.
-- **Expected outcome**: What the source of truth says should happen. Specific assertions against the observation surface defined in the strategy. For visual changes, name the exact artifact or capture to inspect (for example DOM snapshot, browser snapshot, screenshot diff) and the pass/fail rule. Every assertion must trace to a named source of truth — if you can't say which source justifies an assertion, delete it.
+- **Expected outcome**: What the source of truth says should happen. Assert first against the user-visible observation surface defined in the strategy: rendered UI, CLI output, HTTP response, output file, browser snapshot, screenshot diff, or similar. Use supporting internal assertions only when they sharpen diagnosis, not as the main proof. Every assertion must trace to a named source of truth — if you can't say which source justifies an assertion, delete it.
 - **Interactions**: What adjacent systems this test exercises incidentally. Flag these — interaction boundaries are where hidden bugs concentrate.
 
 ## Prioritization
 
 Order tests by how much quality they drive for the user's goals:
 
-1. **Scenario tests first.** Multi-step sequences that exercise the product the way a user would. Every user-facing action appears in at least one scenario in a realistic context. These are the tests most likely to catch real bugs and least likely to be tautological. A test plan with few or no scenario tests is a bad test plan.
+1. **Integration tests first.** Prefer the highest-fidelity harness that exercises the real product surface the user actually experiences: browser UI, CLI, HTTP endpoints, rendered files, or other user-visible outputs. These tests should use real code paths and real collaborating components wherever practical. A plan that leans on mocks when the real behavior can be exercised is a weak plan.
 
-2. **Integration tests.** Exercise boundaries between components that the change touches. For every system the change affects, test its interaction with each adjacent system. If the change affects inventory and inventory interacts with combat, save/load, and display, that's three integration tests minimum.
+2. **Scenario tests.** Multi-step sequences that exercise the product the way a user would, preferably on top of those same real integration harnesses. Every user-facing action appears in at least one realistic scenario. These are often the clearest evidence that the product works for the user.
 
 3. **Differential tests** (when the strategy includes a reference). Feed identical inputs to both reference and implementation, compare outputs. The strongest mechanical verification available — use it whenever the strategy says a reference is runnable.
 
-4. **Invariant tests.** Properties that must hold across all states: "player is always on a passable tile", "account balance is never negative", "response always includes required headers." Run as postcondition checks after scenario and integration tests.
+4. **Invariant tests.** Properties that must hold across all states: "player is always on a passable tile", "account balance is never negative", "response always includes required headers." Run as postcondition checks after integration and scenario tests.
 
 5. **Boundary and edge-case tests.** Limits, error conditions, unusual inputs, rare state transitions. Derive from sources of truth, not from reading the implementation.
 
 6. **Regression tests.** If the task is a bug fix: the reproduction case. If the task modifies existing behavior: characterization tests protecting unchanged behavior.
 
-7. **Unit tests last.** Only for pure algorithms, data transformations, or complex logic that's clearer to test in isolation. A plan dominated by unit tests is a plan that will miss the bugs that matter. If more than a third of your tests are unit tests, rebalance.
+7. **Unit tests last.** Only for pure algorithms, data transformations, or complex logic that's clearer to test in isolation. Unit tests are support material; they cannot be the primary evidence that user behavior is correct. A plan dominated by unit tests is a plan that will miss the bugs that matter. If more than a third of your tests are unit tests, rebalance.
 
 ## Performance
 
@@ -74,6 +74,7 @@ Do not skip performance testing because it's hard. Do scale the approach to what
 - **Tautological tests.** If you find yourself reading the implementation to determine expected output, stop. Go back to the source of truth. A test derived from the code proves nothing about correctness. This is the most common failure mode — actively guard against it.
 - **Vague tests.** "Verify it works correctly" is not a test. "After pressing `>` on a `>` tile, `game.level` increases by 1 and `game.player.pos` is on a passable tile on the new level" is a test.
 - **Implementation-coupled tests.** Assert against behavior and interfaces, not internal state or private methods. The test plan must be compatible with TDD: tests are written first (red), implementation makes them pass (green). This means tests must be writable before the implementation exists.
+- **Mock-behavior tests.** Do not treat mocked collaborators as proof that the system works. If the product can be exercised against the real UI, real outputs, or real adjacent components in the test environment, do that instead.
 - **Human-validation tests.** Do not write plan steps that require a person to inspect the UI or decide pass/fail. Convert them into artifact-based checks, preferring browser snapshots or screenshot diffs when structured assertions are insufficient.
 - **Tests without a source of truth.** If you cannot name which source of truth (reference implementation, spec, API docs, user description) justifies a test's expected outcome, the test is speculative. Delete it or document the assumption only if it materially affects cost or scope.
 
