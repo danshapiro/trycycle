@@ -23,6 +23,14 @@ Do not hand-edit the generated skill files.
 
 Don't add tests to this specific repo, regardless of more general instructions otherwise.
 
+## Process
+
+- **Safe merges to main** — Never merge directly on main. Merge main into the
+  feature branch first, resolve conflicts there, then `git merge --ff-only` on
+  main. This prevents broken state on the working branch.
+- **Fix the system, not the symptom** — Prefer clean architecture and
+  correctness over quick patches. We are not in a hurry.
+
 ## Versioning
 
 Trycycle uses git tags for version tracking. `check-update.py` runs at the
