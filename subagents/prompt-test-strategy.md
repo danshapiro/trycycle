@@ -10,7 +10,7 @@ You are the testing strategy subagent. Your job is to analyze the task and the c
 
 The context block is transcript JSON from the current trycycle session at dispatch time.
 
-The transcript may include an earlier strategy draft plus user feedback on it. If it does, treat the latest user feedback as authoritative and return a revised strategy proposal that addresses it.
+The transcript may include an earlier testing-strategy proposal plus user feedback on it. If it does, treat the latest user feedback as authoritative and return a revised strategy proposal that addresses it.
 
 ## Your process
 

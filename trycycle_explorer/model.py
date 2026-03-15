@@ -64,6 +64,7 @@ class PromptSource:
     label: str
     source_path: str
     source_kind: str
+    render_mode: str
     source_markdown: str
     template_ast: list[dict[str, object]] | None
     placeholder_names: list[str]

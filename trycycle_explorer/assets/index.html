@@ -78,34 +78,47 @@
               <div id="prompt-interface" class="prompt-interface"></div>
             </div>
             <div id="prompt-diagnostic-summary" class="prompt-diagnostic-summary"></div>
-            <div class="prompt-columns">
-              <section class="prompt-column">
-                <div class="section-heading">
-                  <h3>Markdown preview</h3>
+            <section class="prompt-view-shell">
+              <div class="section-heading prompt-view-toolbar">
+                <h3>Prompt view</h3>
+                <div class="prompt-view-actions">
+                  <div id="prompt-view-tabs" class="prompt-view-tabs" role="tablist">
+                    <button
+                      type="button"
+                      class="prompt-view-button selected"
+                      data-prompt-view="preview"
+                      aria-pressed="true"
+                    >
+                      Preview
+                    </button>
+                    <button
+                      type="button"
+                      class="prompt-view-button"
+                      data-prompt-view="source"
+                      aria-pressed="false"
+                    >
+                      Markdown source
+                    </button>
+                  </div>
                   <button
                     type="button"
                     class="expand-button"
-                    id="expand-prompt-preview"
+                    id="expand-prompt-view"
                   >
                     Expand
                   </button>
                 </div>
-                <div id="prompt-preview" class="prompt-preview"></div>
-              </section>
-              <section class="prompt-column">
-                <div class="section-heading">
-                  <h3>Raw markdown source</h3>
-                  <button
-                    type="button"
-                    class="expand-button"
-                    id="expand-prompt-source"
-                  >
-                    Expand
-                  </button>
-                </div>
-                <pre id="prompt-source" class="prompt-source" data-test="prompt-source"></pre>
-              </section>
-            </div>
+              </div>
+              <div class="prompt-view-stage">
+                <div id="prompt-preview" class="prompt-preview" data-test="prompt-preview"></div>
+                <pre
+                  id="prompt-source"
+                  class="prompt-source"
+                  data-test="prompt-source"
+                  hidden
+                ></pre>
+              </div>
+            </section>
             <section class="diff-block">
               <div class="panel-header compact section-heading">
                 <h3>Before / after</h3>

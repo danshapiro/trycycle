@@ -8,6 +8,7 @@ const state = {
   selectedGateId: null,
   selectedOutcomeId: null,
   selectedPromptSourceId: null,
+  selectedPromptView: "preview",
   previousSnapshot: null,
   currentSnapshot: null,
 };
@@ -53,11 +54,11 @@ function wireInputs() {
     .getElementById("prompt-source-tabs")
     .addEventListener("click", handlePromptTabClick);
   document
-    .getElementById("expand-prompt-preview")
-    .addEventListener("click", openPromptPreviewModal);
+    .getElementById("prompt-view-tabs")
+    .addEventListener("click", handlePromptViewClick);
   document
-    .getElementById("expand-prompt-source")
-    .addEventListener("click", openPromptSourceModal);
+    .getElementById("expand-prompt-view")
+    .addEventListener("click", openPromptViewModal);
   document
     .getElementById("expand-diff-panel")
     .addEventListener("click", openDiffModal);
@@ -108,6 +109,15 @@ function handlePromptTabClick(event) {
   }
   state.selectedPromptSourceId = tabButton.dataset.promptSourceId;
   rerender();
+}
+
+function handlePromptViewClick(event) {
+  const viewButton = event.target.closest("[data-prompt-view]");
+  if (!viewButton) {
+    return;
+  }
+  state.selectedPromptView = viewButton.dataset.promptView;
+  renderActivePromptView();
 }
 
 function renderSamples() {
@@ -346,17 +356,7 @@ function renderPromptPanel(gate, promptSource, snapshot) {
 
   renderPromptTabs(gate);
   renderPromptInterface(promptSource);
-
-  const preview = document.getElementById("prompt-preview");
-  preview.innerHTML = renderMarkdown(snapshot.prompt_markdown);
-
-  const source = document.getElementById("prompt-source");
-  renderPromptSourceSegments(source, snapshot.segments);
-
-  document.getElementById("expand-prompt-preview").disabled =
-    !snapshot.prompt_markdown.trim();
-  document.getElementById("expand-prompt-source").disabled =
-    !snapshot.segments.length;
+  renderActivePromptView();
 }
 
 function renderPromptTabs(gate) {
@@ -470,6 +470,21 @@ function renderDiffPanel(previousSnapshot, currentSnapshot) {
 }
 
 function renderPromptSource(promptSource, bindings, bindingFields, outcomeId) {
+  if (promptSource.render_mode !== "template") {
+    return {
+      outcome_id: outcomeId,
+      prompt_markdown: promptSource.source_markdown,
+      segments: [
+        {
+          text: promptSource.source_markdown,
+          category: "template-text",
+          source_kind: promptSource.source_kind,
+        },
+      ],
+      diagnostics: [],
+    };
+  }
+
   const segments = [];
   const diagnostics = [];
   const nodes = promptSource.template_ast ?? [
@@ -663,7 +678,7 @@ function openPromptPreviewModal() {
     return;
   }
   const gate = getGate(state.selectedGateId);
-  openMarkdownModal({
+  openRenderedMarkdownModal({
     eyebrow: "Rendered prompt",
     title: `${gate.title} preview`,
     description: "Markdown rendered from the currently selected prompt source.",
@@ -679,7 +694,7 @@ function openPromptSourceModal() {
   const gate = getGate(state.selectedGateId);
   const promptSource = getPromptSource(gate, state.selectedPromptSourceId);
   openModal({
-    eyebrow: "Raw markdown",
+    eyebrow: "Markdown source",
     title: `${gate.title} source`,
     description: `${promptSource.label} · ${promptSource.source_path}`,
     renderBody(modalBody) {
@@ -689,6 +704,14 @@ function openPromptSourceModal() {
       modalBody.append(source);
     },
   });
+}
+
+function openPromptViewModal() {
+  if (state.selectedPromptView === "source") {
+    openPromptSourceModal();
+    return;
+  }
+  openPromptPreviewModal();
 }
 
 function openDiffModal() {
@@ -729,6 +752,20 @@ function openMarkdownModal({ eyebrow, title, description, markdown, className })
       const container = document.createElement("div");
       container.className = className;
       container.innerHTML = renderMarkdown(markdown);
+      modalBody.append(container);
+    },
+  });
+}
+
+function openRenderedMarkdownModal({ eyebrow, title, description, markdown, className }) {
+  openModal({
+    eyebrow,
+    title,
+    description,
+    renderBody(modalBody) {
+      const container = document.createElement("div");
+      container.className = className;
+      container.innerHTML = renderPromptPreview(markdown);
       modalBody.append(container);
     },
   });
@@ -805,6 +842,115 @@ function renderMarkdown(markdown) {
     return window.MarkdownLite.render(markdown);
   }
   return `<pre>${escapeHtml(markdown)}</pre>`;
+}
+
+function renderPromptPreview(markdown) {
+  const lines = String(markdown).replace(/\r\n/g, "\n").split("\n");
+  const html = [];
+  let chunk = [];
+
+  function flushChunk() {
+    const block = chunk.join("\n");
+    if (block.trim()) {
+      html.push(renderMarkdown(block));
+    }
+    chunk = [];
+  }
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const openMatch = lines[index].trim().match(/^<([a-z][a-z0-9_-]*)>$/);
+    if (!openMatch) {
+      chunk.push(lines[index]);
+      continue;
+    }
+
+    const tag = openMatch[1];
+    const closeLine = `</${tag}>`;
+    let closeIndex = index + 1;
+    while (closeIndex < lines.length && lines[closeIndex].trim() !== closeLine) {
+      closeIndex += 1;
+    }
+
+    if (closeIndex >= lines.length) {
+      chunk.push(lines[index]);
+      continue;
+    }
+
+    flushChunk();
+    html.push(
+      renderTaggedBlock(tag, lines.slice(index + 1, closeIndex).join("\n")),
+    );
+    index = closeIndex;
+  }
+
+  flushChunk();
+  return html.join("\n");
+}
+
+function renderTaggedBlock(tag, body) {
+  const trimmed = body.trim();
+  if (!trimmed) {
+    return `
+      <section class="prompt-tag-block">
+        <div class="prompt-tag-label">&lt;${escapeHtml(tag)}&gt;</div>
+        <div class="prompt-tag-empty">Empty</div>
+        <div class="prompt-tag-label">&lt;/${escapeHtml(tag)}&gt;</div>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="prompt-tag-block">
+      <div class="prompt-tag-label">&lt;${escapeHtml(tag)}&gt;</div>
+      <pre><code>${escapeHtml(formatPromptBlockBody(trimmed))}</code></pre>
+      <div class="prompt-tag-label">&lt;/${escapeHtml(tag)}&gt;</div>
+    </section>
+  `;
+}
+
+function formatPromptBlockBody(body) {
+  const trimmed = String(body).trim();
+  if (!/^[\[{]/.test(trimmed)) {
+    return body;
+  }
+
+  try {
+    return JSON.stringify(JSON.parse(trimmed), null, 2);
+  } catch {
+    return body;
+  }
+}
+
+function renderActivePromptView() {
+  const previewButton = document.querySelector('[data-prompt-view="preview"]');
+  const sourceButton = document.querySelector('[data-prompt-view="source"]');
+  const preview = document.getElementById("prompt-preview");
+  const source = document.getElementById("prompt-source");
+  const expandButton = document.getElementById("expand-prompt-view");
+  const isSource = state.selectedPromptView === "source";
+
+  previewButton?.classList.toggle("selected", !isSource);
+  previewButton?.setAttribute("aria-pressed", String(!isSource));
+  sourceButton?.classList.toggle("selected", isSource);
+  sourceButton?.setAttribute("aria-pressed", String(isSource));
+
+  if (!state.currentSnapshot) {
+    preview.innerHTML = "";
+    source.innerHTML = "";
+    preview.hidden = false;
+    source.hidden = true;
+    expandButton.disabled = true;
+    return;
+  }
+
+  preview.innerHTML = renderPromptPreview(state.currentSnapshot.prompt_markdown);
+  renderPromptSourceSegments(source, state.currentSnapshot.segments);
+
+  preview.hidden = isSource;
+  source.hidden = !isSource;
+  expandButton.disabled = isSource
+    ? !state.currentSnapshot.segments.length
+    : !state.currentSnapshot.prompt_markdown.trim();
 }
 
 function createExpandButton(ariaLabel, onClick) {

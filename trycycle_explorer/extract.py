@@ -309,6 +309,7 @@ def extract_prompt_sources(repo_root: Path, section: SkillSection) -> list[Promp
             label="Orchestrator gate",
             source_path="SKILL.md",
             source_kind="orchestrator-section",
+            render_mode="literal",
             markdown=section.markdown,
             required_nonempty_tags=[],
             ignore_tags_for_placeholders=[],
@@ -344,6 +345,9 @@ def extract_prompt_sources(repo_root: Path, section: SkillSection) -> list[Promp
                 label=derive_prompt_label(relative_path, source_kind),
                 source_path=relative_path,
                 source_kind=source_kind,
+                render_mode=(
+                    "template" if source_kind == "subagent-template" else "literal"
+                ),
                 markdown=markdown,
                 required_nonempty_tags=required_nonempty_tags,
                 ignore_tags_for_placeholders=ignore_tags_for_placeholders,
@@ -366,6 +370,7 @@ def build_prompt_source(
     label: str,
     source_path: str,
     source_kind: str,
+    render_mode: str,
     markdown: str,
     required_nonempty_tags: list[str],
     ignore_tags_for_placeholders: list[str],
@@ -377,6 +382,7 @@ def build_prompt_source(
         label=label,
         source_path=source_path,
         source_kind=source_kind,
+        render_mode=render_mode,
         source_markdown=markdown,
         template_ast=ast_to_data(nodes),
         placeholder_names=placeholder_names,

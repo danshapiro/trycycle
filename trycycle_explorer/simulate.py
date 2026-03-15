@@ -96,7 +96,7 @@ def render_prompt(
     bindings: dict[str, str],
     binding_fields: dict[str, BindingField],
 ) -> tuple[str, list[RenderedSegment], list[Diagnostic]]:
-    if prompt.template_ast is None:
+    if prompt.render_mode != "template" or prompt.template_ast is None:
         segment = RenderedSegment(
             text=prompt.source_markdown,
             category="template-text",
