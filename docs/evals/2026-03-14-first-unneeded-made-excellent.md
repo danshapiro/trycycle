@@ -69,3 +69,9 @@ Failure condition:
 
 - I am intentionally not using `306a35b4 -> bcaebb54` as the primary eval because that first review is still arguable.
 - If we want a stricter eval later, we can add a second case for `306a35b4`, but `bcaebb54 -> 826a0077` is the cleaner first target.
+- An earlier trace of the same loop used an equivalent pre-rewrite hash lineage:
+  - initial plan `6afc6e7a`
+  - first meaningful review `6418e4c0`
+  - first clearly unnecessary review `e9c96c9f`
+  - later churn `53e856d5`, `54ddb78e`, `8eba9430`
+- In that earlier lineage, the same conclusion holds: `6418e4c0 -> e9c96c9f` is the first clearly bad `MADE_EXCELLENT`, and it is the same eval case as `bcaebb54 -> 826a0077`.
