@@ -1,56 +1,105 @@
 # Eval Notes
 
-This folder holds plan-review eval candidates taken from real trycycle runs.
+This folder holds eval candidates recovered from real trycycle runs.
 
-## Current evals
+## Default Run Protocol
+
+- Use the real plan-review step whenever possible.
+- Start from the exact input plan commit named in the note.
+- Use a fresh repo checkout or worktree and a fresh reviewing agent for each trial.
+- For single-review evals, run exactly one review turn and score immediately.
+- For multi-review evals, feed the revised plan directly into the next review turn with no human edits in between.
+- Score semantic outcome, not wording. A prettier plan that misses the real issue fails.
+- Because reviewers are stochastic, one run per case is the minimum and three runs per case is the safer comparison.
+
+## Planning Review Suite
 
 ### DirectorDeck Provider Errors
 
-DirectorDeck provider-error Sentry clarity.
-
 Note: [2026-03-14-first-unneeded-made-excellent.md](./2026-03-14-first-unneeded-made-excellent.md)
 
-This is the cleanest "already excellent" case in the set. The input plan was already ready for execution, and the review still returned `MADE-EXCELLENT` by changing task granularity, wording, and bookkeeping without fixing a real gap.
+Mode: single review turn.
 
-Use this when the target behavior is:
-
-- verdict `ALREADY-EXCELLENT`
-- no file edits
-- no new commit
+Pass only if:
+- verdict is `ALREADY-EXCELLENT`
+- there are no file edits
+- there is no new commit
 
 ### Session Search Tier
 
-Freshell session-directory search tier regression.
-
 Note: [2026-03-15-session-search-tier-false-made-excellent.md](./2026-03-15-session-search-tier-false-made-excellent.md)
 
-This is a different failure mode. The input plan was still wrong, so a real edit was needed, but the review spent its change on header and template cleanup while leaving the actual semantic bug in place.
+Mode: single review turn.
 
-Use this when the target behavior is:
+Pass only if:
+- the review materially fixes the tier semantics
+- the change is not just header, template, or task-format churn
 
-- the review must make a real fix
-- cosmetic edits alone do not justify `MADE-EXCELLENT`
+Immediate fail conditions:
+- `ALREADY-EXCELLENT`
+- `MADE-EXCELLENT` with only cosmetic edits
+- `userMessages` or `fullText` semantics remain wrong
 
 ### Session Recency Contract
 
-Freshell semantic session recency contract.
-
 Note: [2026-03-15-session-recency-contract-false-made-excellent.md](./2026-03-15-session-recency-contract-false-made-excellent.md)
 
-This is the strongest remaining threshold case. The core contract was already stable and the plan looked execution-ready, but the review still returned `MADE-EXCELLENT` for repartitioning and test-inventory changes. It is less clean than the DirectorDeck case because one added regression test was legitimate, but the review still reads as overwork rather than discovery of a new contract seam.
+Mode: single review turn.
+
+Pass only if:
+- verdict is `ALREADY-EXCELLENT`
+- there are no file edits
+- there is no new commit
+
+### Issue 174 Bootstrap Env Root
+
+Historical reference: [2026-03-15-issue-174-turn-4-convergence.md](./2026-03-15-issue-174-turn-4-convergence.md)
+
+Scored eval: [2026-03-15-issue-174-initial-plan-turn-2-convergence.md](./2026-03-15-issue-174-initial-plan-turn-2-convergence.md)
+
+Mode: review loop only, starting from the existing initial plan.
+
+Pass only if:
+- review 1 fixes every real issue in the initial plan
+- review 1 reaches the same substantive endpoint as the historical “finally correct” plan
+- review 2 returns `ALREADY-EXCELLENT`
+- review 2 makes no file edits and creates no new commit
+
+Fail if:
+- review 1 is still on the wrong architecture
+- review 2 still finds substantive work
+- the run still needs review 3 or later to get to the right plan
+
+The historical note is not the target behavior. It documents the old failure pattern:
+- review 1 improved the plan but still missed issues
+- review 2 still missed issues
+- review 3 finally got the plan right
+- review 4 confirmed it
+
+## Workflow Integrity
+
+### Finish Save Error Acceptance Gate Drift
+
+Note: [2026-03-15-finish-save-error-acceptance-gate-drift.md](./2026-03-15-finish-save-error-acceptance-gate-drift.md)
+
+This is a workflow-integrity case, not a plan-review case. The user explicitly required the existing browser-use journey to run red before the fix and green after the fix. Trycycle preserved that requirement in the plan and test plan, but the run still finished without recorded evidence that the browser-use gate ran, and the final verification command could mask failure.
 
 Use this when the target behavior is:
 
-- verdict `ALREADY-EXCELLENT`
-- no file edits
-- no new commit
+- accepted verification gates survive from strategy through finish
+- the final report includes evidence that required acceptance checks actually ran
+- verification commands preserve real exit status
 
-## How to read the set
-
-The three notes cover different review failures:
+## What Each Case Catches
 
 - DirectorDeck: the plan was already good enough and should have been left alone.
 - Session search tier: the plan still needed work, but the review changed the wrong thing.
-- Session recency contract: the plan had likely crossed the execution-ready threshold, but the review kept tightening task structure anyway.
+- Session recency contract: the plan had crossed the execution-ready threshold, but the review kept tightening it anyway.
+- Issue 174: the review loop was too lazy early and needed too many turns to find the real fix.
+- Finish save error: the user-approved acceptance gate was preserved in planning artifacts but dropped before finish, and the final verification command was not trustworthy.
+
+## Experiment Log
+
+- [2026-03-15-planning-phase-optimization-experiments.md](./2026-03-15-planning-phase-optimization-experiments.md) — first A/B comparison of `main` versus candidate commit `e78fc9d` on the four recovered planning-review evals
 
 If a future run is ambiguous, compare it against these categories before adding another eval note.

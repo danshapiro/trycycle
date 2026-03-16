@@ -15,9 +15,10 @@ The transcript may include an earlier testing-strategy proposal plus user feedba
 ## Your process
 
 1. Read the transcript to understand what the user wants to accomplish.
-2. Read the codebase: examine the project structure, existing tests, build configuration, and every file relevant to the task.
-3. Search for external sources of truth: reference implementations, API docs, specs, or other artifacts that define what "correct" means.
-4. Produce a single cohesive strategy proposal covering all sections below.
+2. Read the codebase: examine the project structure, existing tests, other automated checks, build configuration, and every file relevant to the task.
+3. Inventory the relevant automated checks that already exist. Determine their current status when possible: pass, fail, or unknown. Pay special attention to any automated check, journey, or reproduction artifact named in the transcript or problem statement.
+4. Search for external sources of truth: reference implementations, API docs, specs, or other artifacts that define what "correct" means.
+5. Produce a single cohesive strategy proposal covering all sections below.
 
 ## What to produce
 
@@ -40,9 +41,25 @@ Identify every available source that informs what "correct" means for this task.
 
 If the strongest available source is the user's description alone, say so. That signals the strategy should lean toward broader automated coverage and reproducible artifacts, not human validation steps.
 
+### Existing automated evidence
+
+Identify every relevant automated check that already exists for this task: unit, integration, scenario, E2E, smoke, replay, browser-driven, monitoring-backed reproduction, or other reproducible verification.
+
+For each one, state:
+
+- whether it already exists and is runnable in this environment
+- whether it currently passes, fails, or is unknown
+- what user-visible behavior it validates
+- how much confidence it provides relative to its cost and fidelity
+- whether the strategy should reuse it as-is, extend it, or supplement it with new tests
+
+Prefer high-value existing automated checks when they already verify the right user-visible behavior. Recommend writing new tests wherever the existing suite leaves meaningful gaps in fidelity, diagnosis, speed, or coverage.
+
+If the transcript, bug report, or other task context already identifies automated checks that are red and need to go green, call them out explicitly and include them in the recommended strategy.
+
 ### Harnesses
 
-Identify what test infrastructure exists and what might need to be built. There are usually several at different levels:
+Identify what test infrastructure exists and what might need to be built or strengthened. There are usually several at different levels:
 
 - **Direct API harness**: Can tests call into the code as a library? This is useful for narrow logic checks and fast feedback, but it does not by itself prove the user-observable behavior is correct. State clearly what it can validate and what it cannot.
 - **Programmatic state harness**: Can the system expose structured state for assertions? For a game: player position, inventory, level layout. For a web app: DOM state or API responses. For a service: database contents. This is valuable for precise assertions and debugging, but it should support user-visible tests rather than replace them. State the cost to build.
@@ -50,7 +67,7 @@ Identify what test infrastructure exists and what might need to be built. There 
 - **Output capture harness**: What user-visible outputs can tests observe? Screen buffer as text, rendered HTML, browser snapshots, screenshots, logs, network traffic, output files. Prioritize observation surfaces that match what the user actually sees or consumes. State what interpretation is needed.
 - **Reference comparison harness**: If a reference exists, can we run both with identical inputs and diff outputs? State whether the reference is runnable and what tooling is needed to compare.
 
-For each harness, state whether it exists already, what it would cost to build, and what class of tests it enables. Recommend which to invest in based on what coverage they unlock relative to their cost, with the highest weight on real interaction plus user-visible output capture. Avoid mock-heavy strategies unless a real dependency truly cannot be exercised.
+For each harness, state whether it exists already, what it would cost to build or strengthen, and what class of tests it enables. Recommend which to invest in based on what coverage they unlock relative to their cost, with the highest weight on real interaction plus user-visible output capture. Avoid mock-heavy strategies unless a real dependency truly cannot be exercised.
 
 ### Verification approach
 
@@ -59,6 +76,7 @@ Based on the sources of truth and harnesses, describe what testing looks like fo
 - **User-behavior confidence**: What evidence would make us confident that a real user would observe correct behavior? Focus on the real product surface first: UI, CLI, HTTP responses, rendered files, or other user-visible outputs.
 - **Behavioral coverage**: What can the user do with this system, and how much of that action space should tests exercise through those real surfaces?
 - **Integration coverage**: What systems interact with the changed code, and which of those interactions should be tested through the real system rather than mocks or internal seams?
+- **Red-to-green targets**: Which existing automated checks are already part of the problem statement or prior evidence, and how should they be used as explicit acceptance criteria?
 - **Edge cases and boundaries**: Where are the limits, and which matter for this task?
 - **Regression safety**: Does the existing test suite protect what already works, or do we need characterization tests?
 - **Failure modes**: What happens when things go wrong, and how much matters here?
@@ -69,8 +87,9 @@ Based on the sources of truth and harnesses, describe what testing looks like fo
 
 State clearly how the later test plan should spend its effort:
 
-- Put the most weight on integration tests that exercise real user-visible behavior through the actual UI, CLI, HTTP surface, or other outputs the user consumes.
-- Use multi-step scenario tests to cover realistic user journeys on top of those real integration harnesses.
+- Start with the highest-value existing automated checks that exercise real user-visible behavior through the actual UI, CLI, HTTP surface, or other outputs the user consumes.
+- If the problem statement or prior evidence already identifies automated checks that are red and need to go green, include them explicitly in the plan.
+- Reuse or extend existing multi-step scenario tests when they already cover realistic user journeys, and add new scenario or integration tests wherever important user behavior is still weakly covered or uncovered.
 - Use reference comparisons, regression tests, and boundary tests to deepen confidence where they buy meaningful signal.
 - Use unit tests sparingly, only where isolated logic is genuinely clearer to validate that way. Unit coverage cannot be the main argument for correctness.
 - Call out any important user behavior that will remain weakly tested, and explain the residual risk plainly.
