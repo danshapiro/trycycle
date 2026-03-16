@@ -7,6 +7,7 @@ This folder holds eval candidates recovered from real trycycle runs.
 - Use the real plan-review step whenever possible.
 - Start from the exact input plan commit named in the note.
 - Use a fresh repo checkout or worktree and a fresh reviewing agent for each trial.
+- **After checkout, normalize stale paths** in the plan before the reviewer sees it. Plans created during previous eval runs contain hardcoded absolute paths to the temp dir of that run. Without normalization, the reviewer "fixes" stale paths and returns a false-positive `REVISED`. Run: `maintenance/normalize-eval-plan.sh <plan-file> <clone-path>`
 - For single-review evals, run exactly one review turn and score immediately.
 - For multi-review evals, feed the revised plan directly into the next review turn with no human edits in between.
 - Score semantic outcome, not wording. A prettier plan that misses the real issue fails.
