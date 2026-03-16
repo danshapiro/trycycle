@@ -1,6 +1,26 @@
-# Trycycle
+<!-- GitHub repo settings (set manually in Settings > General):
+  Description: A skill that plans, strengthens, and reviews your code -- automatically.
+  Topics: claude-code, codex-cli, ai-coding, code-review, autonomous-agents, ai-skill, hill-climbing
+  Social preview: upload assets/social-preview.png
+-->
 
-A skill for Claude Code and Codex CLI that runs your work through multiple rounds of planning, building, and review -- automatically.
+<p align="center">
+  <img src="assets/trycycle-banner.png" height="120" alt="Trycycle" />
+</p>
+
+<p align="center">
+  <em>A skill for Claude Code and Codex CLI that plans, strengthens, and reviews your code -- automatically.</em>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License" /></a>
+  <a href="https://github.com/danshapiro/trycycle/releases"><img src="https://img.shields.io/github/v/tag/danshapiro/trycycle?label=release&color=green" alt="Latest Release" /></a>
+  <a href="https://github.com/danshapiro/trycycle/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen" alt="PRs Welcome" /></a>
+  <a href="https://github.com/anthropics/claude-code"><img src="https://img.shields.io/badge/built%20for-Claude%20Code-6B4FBB" alt="Built for Claude Code" /></a>
+  <a href="https://github.com/openai/codex"><img src="https://img.shields.io/badge/works%20with-Codex%20CLI-412991" alt="Works with Codex CLI" /></a>
+</p>
+
+---
 
 ## Installing Trycycle
 
@@ -14,32 +34,32 @@ Read https://raw.githubusercontent.com/danshapiro/trycycle/main/README.md. Follo
 
 ### If you've been sent here by your human
 
-Use this instead of a standard installation, or it won't work. Clone this repo into your skills directory:
+Use this instead of a standard installation, or it won't work. Clone into your skills directory:
 
 - **Claude Code:** `git clone https://github.com/danshapiro/trycycle.git ~/.claude/skills/trycycle`
 - **Codex CLI:** `git clone https://github.com/danshapiro/trycycle.git ~/.codex/skills/trycycle`
 
-Trycycle requires `python3` at runtime. Make sure it is installed and available on your `PATH`.
+Trycycle requires `python3` at runtime. Make sure it is installed and on your `PATH`.
 
-If your coding agent already has native subagent orchestration, Trycycle will use that. Otherwise, Trycycle falls back to a bundled stdlib-only Python runner.
+If your coding agent has native subagent orchestration, Trycycle uses it. Otherwise, it falls back to a bundled stdlib-only Python runner.
 
 Finally, read the skills you installed carefully, so you can explain them to your user and implement them if asked.
 
 ## Using Trycycle
 
-Once installed, you can use Trycycle from any Claude Code or Codex CLI session. Just include the word Trycycle in your request and describe what you want built. For example:
+Include the word Trycycle in your request and describe what you want built:
 
 ```
 Use trycycle to add a dark mode toggle to the settings page.
 ```
 
-Trycycle will ask you any questions it needs answered before starting, then handle the rest. It creates a git worktree, writes a plan, strengthens that plan until a fresh editor approves it unchanged, builds a test plan, builds the code, and reviews the code -- all without further input from you unless something comes up that needs your judgment.
+Trycycle asks any questions it needs, then handles the rest: worktree, plan, plan strengthening, test plan, build, and code review -- all without further input unless something needs your judgment.
 
-You can use Trycycle for anything from small features to large refactors. It works best when you have a clear goal in mind and a codebase that Trycycle can read and test.
+Works for anything from small features to large refactors, best when you have a clear goal and a codebase Trycycle can read and test.
 
 ## How it works
 
-Trycycle is a hill climber. It writes a plan, then sends the current plan to a fresh plan editor with the same task input and repo context as the original planner. That editor either approves the plan unchanged or rewrites it to make it stronger, repeating up to five rounds. Once the plan is locked, Trycycle builds a concrete test plan, then builds the code from the finished plan, sends the code to a fresh reviewer, fixes what the reviewer finds, and repeats that loop too (up to eight rounds). Each code-review round uses a new reviewer with no memory of previous rounds, and each failed plan-editor round respawns a fresh planning agent, so stale context is reset before execution begins.
+Trycycle is a hill climber. It writes a plan, then sends it to a fresh plan editor with the same task input and repo context. That editor either approves the plan unchanged or rewrites it, repeating up to five rounds. Once the plan is locked, Trycycle builds a test plan, builds the code, sends it to a fresh reviewer, fixes what the reviewer finds, and repeats that loop too (up to eight rounds). Each review uses a new reviewer with no memory of previous rounds, and each planning round spawns a fresh agent, so stale context never accumulates.
 
 ## Credits
 
