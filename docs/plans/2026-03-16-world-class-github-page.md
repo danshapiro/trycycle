@@ -74,7 +74,7 @@ The README will include an HTML comment at the top documenting the recommended r
 | Create | `assets/social-preview.png` | 1280x640 social preview derived from banner |
 | Create | `scripts/generate-social-preview.py` | One-shot script to generate social preview from banner |
 | Modify | `README.md` | Complete rewrite with banner, badges, tightened prose |
-| Modify | `.gitignore` | Ensure `assets/` is not ignored |
+| Verify | `.gitignore` | Confirm `assets/` and `scripts/` are not ignored (modify only if needed) |
 
 ---
 
@@ -339,6 +339,23 @@ Expected: Clean working tree (everything committed in prior tasks).
 ```bash
 gh api /markdown -f text="$(cat README.md)" -f mode=gfm -f context=danshapiro/trycycle > /tmp/trycycle-readme-rendered.html
 ```
+
+- [ ] **Step 1b: Fix relative image paths for local rendering**
+
+The GitHub API renders `src="assets/trycycle-banner.png"` as a relative path. When opened from `/tmp/`, Playwright cannot resolve it. Rewrite local asset references to absolute `file://` paths so the banner actually appears in the screenshot:
+
+```bash
+WORKTREE_ABS=$(cd . && pwd)
+sed -i "s|src=\"assets/|src=\"file://${WORKTREE_ABS}/assets/|g" /tmp/trycycle-readme-rendered.html
+```
+
+Verify the rewrite worked:
+
+```bash
+grep -o 'src="file://[^"]*"' /tmp/trycycle-readme-rendered.html
+```
+
+Expected: `src="file:///home/user/code/trycycle/.worktrees/world-class-github-page/assets/trycycle-banner.png"`
 
 - [ ] **Step 2: Wrap rendered HTML with GitHub-flavored CSS and capture screenshot**
 
