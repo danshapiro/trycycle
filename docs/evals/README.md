@@ -1,6 +1,6 @@
 # Eval Notes
 
-This folder holds plan-review eval candidates taken from real trycycle runs.
+This folder holds eval candidates taken from real trycycle runs.
 
 ## Current evals
 
@@ -45,12 +45,30 @@ Use this when the target behavior is:
 - no file edits
 - no new commit
 
+### Finish Save Error Acceptance Gate Drift
+
+DirectorDeck finish-button save failure.
+
+Note: [2026-03-15-finish-save-error-acceptance-gate-drift.md](./2026-03-15-finish-save-error-acceptance-gate-drift.md)
+
+This is a workflow-integrity case, not a plan-review case. The user explicitly required the existing browser-use journey to run red before the fix and green after the fix. Trycycle preserved that requirement in the plan and test plan, but the run still finished without recorded evidence that the browser-use gate ran, and the final verification command could mask failure.
+
+Use this when the target behavior is:
+
+- accepted verification gates survive from strategy through finish
+- the final report includes evidence that required acceptance checks actually ran
+- verification commands preserve real exit status
+
 ## How to read the set
 
-The three notes cover different review failures:
+The first three notes cover plan-review failures:
 
 - DirectorDeck: the plan was already good enough and should have been left alone.
 - Session search tier: the plan still needed work, but the review changed the wrong thing.
 - Session recency contract: the plan had likely crossed the execution-ready threshold, but the review kept tightening task structure anyway.
+
+The fourth note covers a workflow-integrity failure:
+
+- Finish save error: the user-approved acceptance gate was preserved in planning artifacts but dropped before finish, and the final verification command was not trustworthy.
 
 If a future run is ambiguous, compare it against these categories before adding another eval note.
