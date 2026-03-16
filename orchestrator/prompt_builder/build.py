@@ -57,6 +57,11 @@ def parse_args() -> argparse.Namespace:
             "for unsubstituted placeholders."
         ),
     )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="Write the rendered prompt to this UTF-8 file instead of stdout.",
+    )
     return parser.parse_args()
 
 
@@ -108,6 +113,14 @@ def validate_rendered_output(prompt_text: str, args: argparse.Namespace) -> None
         raise TemplateError(str(exc)) from exc
 
 
+def write_output(text: str, output_path: Path | None) -> None:
+    if output_path is None:
+        sys.stdout.write(text)
+        return
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(text, encoding="utf-8")
+
+
 def main() -> int:
     args = parse_args()
     try:
@@ -119,7 +132,7 @@ def main() -> int:
     nodes = parse_template_text(template_text)
     rendered_prompt = render_nodes(nodes, bindings)
     validate_rendered_output(rendered_prompt, args)
-    sys.stdout.write(rendered_prompt)
+    write_output(rendered_prompt, args.output)
     return 0
 
 

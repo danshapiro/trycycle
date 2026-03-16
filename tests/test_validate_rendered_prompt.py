@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 
-REPO_ROOT = Path("/home/user/code/trycycle")
+REPO_ROOT = Path(__file__).resolve().parents[1]
 VALIDATOR = REPO_ROOT / "orchestrator" / "prompt_builder" / "validate_rendered.py"
 
 

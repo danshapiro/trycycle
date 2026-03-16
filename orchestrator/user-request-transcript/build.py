@@ -46,6 +46,12 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Override the transcript search root. Intended for validation and debugging.",
     )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Write the rendered transcript to this UTF-8 file instead of stdout.",
+    )
     args = parser.parse_args()
     if args.timeout_ms < 0:
         parser.error("--timeout-ms must be >= 0")
@@ -83,7 +89,12 @@ def main() -> None:
     except TranscriptError as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(1) from exc
-    sys.stdout.write(transcript)
+    if args.output is None:
+        sys.stdout.write(transcript)
+        return
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(transcript, encoding="utf-8")
+
 
 
 if __name__ == "__main__":

@@ -9,51 +9,36 @@ Use this skill only when the user requests `trycycle` to implement something. Yo
 
 The user's instructions are paramount. If anything in this skill conflicts with the user's instructions, follow the user.
 
-## Dispatching subagents with prompt templates
+## Phase wrapper helper
 
-Several steps below reference prompt template files in `<skill-directory>/subagents/`. Do not reconstruct those prompts yourself. Render the final prompt with `python3 <skill-directory>/orchestrator/prompt_builder/build.py`, then send that rendered prompt verbatim to the target subagent.
+Several steps below reference prompt template files in `<skill-directory>/subagents/`. Do not reconstruct those prompts yourself. Prepare phase prompts with `python3 <skill-directory>/orchestrator/run_phase.py`.
 
-## Subagent transport
+When a step below tells you to prepare or dispatch a phase:
 
-When a step below tells you to dispatch or resume a subagent:
+- In native mode, use `python3 <skill-directory>/orchestrator/run_phase.py prepare ...`, then send the exact contents of the returned `prompt_path` verbatim to the target subagent.
+- In fallback-runner mode, use `python3 <skill-directory>/orchestrator/run_phase.py run ...`. It prepares transcript and prompt artifacts, then dispatches through the bundled runner.
+- Treat the wrapper's JSON stdout and `result.json` as authoritative for prompt and artifact paths.
+- In fallback-runner mode, treat the nested `dispatch` payload plus its `result.json` as authoritative for subagent status and reply artifacts. Use the text at `dispatch.reply_path` as the exact subagent reply.
+- If fallback dispatch returns `dispatch.status: "user_decision_required"`, present `dispatch.reply_path` verbatim to the user.
+- If fallback dispatch returns `dispatch.status: "escalate_to_user"`, stop and surface the nested `dispatch.message` plus artifact paths.
+- Pass short scalar placeholder values such as `{WORKTREE_PATH}`, `{IMPLEMENTATION_PLAN_PATH}`, and `{TEST_PLAN_PATH}` with `--set NAME=VALUE`.
+- Pass multiline values such as reviewer outputs with `--set-file NAME=PATH`.
+- When a multiline placeholder comes from command or subagent stdout, save it to a temp file immediately before wrapper invocation so you can bind it with `--set-file`.
+- Bind transcript placeholders such as `{USER_REQUEST_TRANSCRIPT}`, `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}`, and `{FULL_CONVERSATION_VERBATIM}` with `--transcript-placeholder NAME`.
+- Use `--require-nonempty-tag TAG` when a prompt requires a tagged block to contain real content after trimming whitespace.
+- Use `--ignore-tag-for-placeholders TAG` when placeholder-like text may legitimately appear inside that tag.
+- If your environment has no native subagent support and the wrapper's fallback run does not function, escalate to the user.
 
-- If your environment can natively dispatch, wait on, and resume subagents, use that native facility. In native mode, do not use the fallback runner.
-- Otherwise, use `python3 <skill-directory>/orchestrator/subagent_runner.py run` for fresh subagent sessions and `python3 <skill-directory>/orchestrator/subagent_runner.py resume` for persistent ones. The runner probes Codex CLI and Claude Code, records prompt/stdout/stderr/reply/result artifacts, and returns a normalized JSON result.
-- Treat the runner's JSON stdout and `result.json` as authoritative for status and artifact paths. Use the text at `reply_path` as the exact subagent reply.
-- If the runner returns `status: "user_decision_required"`, present the `reply_path` contents to the user verbatim.
-- If the runner returns `status: "escalate_to_user"`, stop and surface the runner's `message` plus artifact paths.
-- If your environment has no native subagent support and the runner does not function, escalate to the user.
-
-## Prompt builder helper
-
-When a step below tells you to render a prompt template:
-- Run `python3 <skill-directory>/orchestrator/prompt_builder/build.py --template <template-path> ...`
-- Pass short scalar values such as `{WORKTREE_PATH}`, `{IMPLEMENTATION_PLAN_PATH}`, and `{TEST_PLAN_PATH}` with `--set NAME=VALUE`
-- Pass multiline values such as transcripts and reviewer outputs with `--set-file NAME=PATH`
-- When a multiline placeholder comes from command or subagent stdout, save it to a temp file immediately before rendering so you can bind it with `--set-file`
-- Use `--require-nonempty-tag TAG` when a prompt requires a tagged block to contain real content after trimming whitespace
-- Use `--ignore-tag-for-placeholders TAG` when placeholder-like text may legitimately appear inside that tag
-- Use the builder's stdout exactly as the prompt you send to the subagent
-- If the builder exits non-zero, do not save or dispatch the prompt
-- Never manually reconstruct, paraphrase, or partially copy a rendered prompt after the builder runs
-
-The prompt builder supports conditional blocks inside templates. A block guarded by `{{#if NAME}} ... {{/if}}` is included only when `NAME` is bound to a non-empty value.
+The prompt builder still supports conditional blocks inside templates. A block guarded by `{{#if NAME}} ... {{/if}}` is included only when `NAME` is bound to a non-empty value.
 
 ## Transcript placeholder helper
 
-When a step below references `{USER_REQUEST_TRANSCRIPT}`, `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}`, or `{FULL_CONVERSATION_VERBATIM}`:
-1. For Claude Code, always use the canary flow:
-   - Run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` and capture stdout exactly as `{CANARY}`.
-   - Run `python3 <skill-directory>/orchestrator/user-request-transcript/build.py --cli claude-code --canary "{CANARY}"`.
-   - Use its stdout exactly as the placeholder value.
-2. For Codex CLI, first try direct session lookup with `python3 <skill-directory>/orchestrator/user-request-transcript/build.py --cli codex-cli`.
-3. If that succeeds, use its stdout exactly as the placeholder value.
-4. Otherwise, run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` and capture stdout exactly as `{CANARY}`.
-5. Re-run `build.py` with `--cli codex-cli --canary "{CANARY}"`.
-6. Use that stdout exactly as the placeholder value.
+When a phase wrapper call needs `{USER_REQUEST_TRANSCRIPT}`, `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}`, or `{FULL_CONVERSATION_VERBATIM}`:
+1. For Codex CLI, let the wrapper use direct session lookup by default.
+2. If the wrapper reports that a canary is required, run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` as a separate top-level command, capture stdout exactly as `{CANARY}`, then rerun the wrapper with `--canary "{CANARY}"`.
+3. For Claude Code, always run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` as a separate top-level command first, capture stdout exactly as `{CANARY}`, then invoke the wrapper with `--transcript-cli claude-code --canary "{CANARY}"`.
 
-Build transcript placeholder values immediately before each rendered prompt that uses them. If the conversation changes, rebuild the placeholder value before the next render.
-When a rendered prompt needs a transcript placeholder, save that stdout to a temp file and bind it with `--set-file`.
+The canary must be emitted by a separate top-level command so it reaches the live session transcript before lookup. Build transcript placeholder values immediately before each phase wrapper call that uses them.
 
 When a step below references `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}`, use the corresponding review subagent's stdout exactly as the placeholder value.
 
@@ -103,9 +88,9 @@ If the task specification already includes detailed instructions for testing, yo
 
 Otherwise, dispatch a subagent to analyze the task and the codebase and propose a testing strategy.
 
-Immediately before rendering, rebuild `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}`, save it to a temp file, render `<skill-directory>/subagents/prompt-test-strategy.md` with the prompt builder using `--set-file INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION=<temp-file>` and `--require-nonempty-tag context`, save the rendered prompt to a temp file, and dispatch a subagent with the exact rendered prompt file contents verbatim.
+Immediately before dispatch, prepare the `test-strategy` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-test-strategy.md`, `--transcript-placeholder INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION`, and `--require-nonempty-tag context`.
 
-When the subagent returns a proposed strategy, present it to the user verbatim and ask for explicit approval or edits. Do not proceed unless the user explicitly accepts it or provides changes. Silence, implied approval, or the subagent's own recommendation does not count as agreement. The strategy and any later test plan must not rely on manual QA or human validation; prefer reproducible artifacts such as browser snapshots when visual evidence is needed. Put the strongest weight on high-value automated checks that verify real user-visible behavior through the actual UI, CLI, HTTP surface, or other outputs the user consumes, rather than tests that only show the implementation is internally self-consistent. Prefer reusing or extending those checks when they already exist, and add new tests wherever the existing suite leaves meaningful gaps in coverage, fidelity, or diagnosis. If the problem statement or prior investigation already identifies automated checks that are red and must go green, the strategy and any later test plan must include them explicitly. If the user requests changes or redirects the approach, rebuild `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}` immediately before the next render, save it to a temp file again, re-render `<skill-directory>/subagents/prompt-test-strategy.md` with `--set-file INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION=<temp-file>` and `--require-nonempty-tag context`, save the rendered prompt to a temp file, re-dispatch the testing-strategy subagent with the exact rendered prompt file contents verbatim, and present the revised strategy verbatim. Repeat until the user explicitly approves a strategy.
+When the subagent returns a proposed strategy, present it to the user verbatim and ask for explicit approval or edits. Do not proceed unless the user explicitly accepts it or provides changes. Silence, implied approval, or the subagent's own recommendation does not count as agreement. The strategy and any later test plan must not rely on manual QA or human validation; prefer reproducible artifacts such as browser snapshots when visual evidence is needed. Put the strongest weight on high-value automated checks that verify real user-visible behavior through the actual UI, CLI, HTTP surface, or other outputs the user consumes, rather than tests that only show the implementation is internally self-consistent. Prefer reusing or extending those checks when they already exist, and add new tests wherever the existing suite leaves meaningful gaps in coverage, fidelity, or diagnosis. If the problem statement or prior investigation already identifies automated checks that are red and must go green, the strategy and any later test plan must include them explicitly. If the user requests changes or redirects the approach, rerun the same `test-strategy` phase wrapper command immediately before redispatching and present the revised strategy verbatim. Repeat until the user explicitly approves a strategy.
 
 The agreed testing strategy is used in step 7.
 
@@ -147,7 +132,7 @@ Only subagents read or write plan files.
 
 Spawn a fresh planning subagent for each planning round.
 
-Immediately before rendering, rebuild `{USER_REQUEST_TRANSCRIPT}`, save it to a temp file, render `<skill-directory>/subagents/prompt-planning-initial.md` with the prompt builder using `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file USER_REQUEST_TRANSCRIPT=<temp-file>`, and `--require-nonempty-tag task_input_json`, save the rendered prompt to a temp file, and dispatch the planning subagent with the exact rendered prompt file contents verbatim.
+Immediately before dispatch, prepare the `planning-initial` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-initial.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, and `--require-nonempty-tag task_input_json`.
 
 Wait for the planning subagent to return either:
 - a planning report containing `## Plan verdict`, `## Plan path`, `## Commit`, and `## Changed files`
@@ -163,7 +148,7 @@ Deploy a fresh planning subagent to critique the current plan against the user's
 
 The plan editor is stateless: each round is a fresh first-look pass with only the template, the same task input used for initial planning, and the current plan.
 
-Immediately before each edit render, rebuild `{USER_REQUEST_TRANSCRIPT}`, save it to a temp file, render `<skill-directory>/subagents/prompt-planning-edit.md` with the prompt builder using `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set-file USER_REQUEST_TRANSCRIPT=<temp-file>`, and `--require-nonempty-tag task_input_json`, save the rendered prompt to a temp file, then dispatch a fresh planning subagent with the exact rendered prompt file contents verbatim.
+Immediately before each edit dispatch, prepare the `planning-edit` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-edit.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, and `--require-nonempty-tag task_input_json`, then dispatch a fresh planning subagent with the returned `prompt_path`.
 
 After each edit round:
 1. Wait for the planning subagent to return either an updated planning report containing `## Plan verdict`, `## Plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
@@ -183,13 +168,13 @@ If the plan still is not judged ready after the 5th editor round:
 
 Now that the implementation plan has passed the plan-editor loop and is finalized, dispatch a subagent to reconcile the testing strategy against the plan and produce the concrete test plan, starting from high-value existing automated checks where they exist and adding new tests where coverage is missing.
 
-Immediately before rendering, rebuild `{FULL_CONVERSATION_VERBATIM}`, save it to a temp file, render `<skill-directory>/subagents/prompt-test-plan.md` with the prompt builder using `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file FULL_CONVERSATION_VERBATIM=<temp-file>`, and `--require-nonempty-tag conversation`, save the rendered prompt to a temp file, and dispatch a subagent with the exact rendered prompt file contents verbatim.
+Immediately before dispatch, prepare the `test-plan` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-test-plan.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--transcript-placeholder FULL_CONVERSATION_VERBATIM`, and `--require-nonempty-tag conversation`.
 
 When the subagent returns:
 
 1. Update `{TEST_PLAN_PATH}` from `## Test plan path` in the latest test-plan report.
 2. If the test-plan report includes `## Strategy changes requiring user approval`, present that section to the user verbatim.
-3. If the user requests changes or redirects the approach, rebuild `{FULL_CONVERSATION_VERBATIM}` immediately before the next render, save it to a temp file again, re-render `<skill-directory>/subagents/prompt-test-plan.md` with `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file FULL_CONVERSATION_VERBATIM=<temp-file>`, and `--require-nonempty-tag conversation`, save the rendered prompt to a temp file, re-dispatch the test-plan subagent with the exact rendered prompt file contents verbatim, update `{TEST_PLAN_PATH}` from the latest test-plan report, and repeat until the user explicitly approves or the report no longer includes that section.
+3. If the user requests changes or redirects the approach, rerun the same `test-plan` phase wrapper command immediately before redispatching, update `{TEST_PLAN_PATH}` from the latest test-plan report, and repeat until the user explicitly approves or the report no longer includes that section.
 4. Do not proceed until the current test-plan report either has no `## Strategy changes requiring user approval` section or the user has explicitly approved it.
 5. Run the Worktree hygiene gate checks, verify the latest commit hash plus changed-file list match the test-plan subagent's report, and verify the test plan file exists at `{TEST_PLAN_PATH}`.
 
@@ -208,7 +193,7 @@ If the rebase has conflicts, stop and present them to the user.
 
 Spawn a fresh implementation subagent and give it the final excellent plan.
 
-Render `<skill-directory>/subagents/prompt-executing.md` with the prompt builder using `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, and `--set WORKTREE_PATH={WORKTREE_PATH}`, save the rendered prompt to a temp file, then dispatch the implementation subagent with the exact rendered prompt file contents verbatim.
+Immediately before dispatch, prepare the `executing` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, and `--set WORKTREE_PATH={WORKTREE_PATH}`, then dispatch the implementation subagent with the returned `prompt_path`.
 
 Do not proceed to post-implementation review until the implementation subagent has returned an implementation report.
 
@@ -218,13 +203,13 @@ After implementation completes, run the Worktree hygiene gate checks and verify 
 
 After execution completes, deploy a new reviewer with no prior context and give it the finalized implementation plan plus the finalized test plan.
 
-Render `<skill-directory>/subagents/prompt-post-impl-review.md` with the prompt builder using `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, and `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, save the rendered prompt to a temp file, and dispatch a review subagent with the exact rendered prompt file contents verbatim.
+Immediately before dispatch, prepare the `post-implementation-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-post-impl-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, and `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, then dispatch a review subagent with the returned `prompt_path`.
 
 Use the review subagent's output as the fix-loop input. When another fix round is needed:
 1. Capture the reviewer stdout exactly as `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}`.
 2. Save `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}` to a temp file immediately.
-3. Render `<skill-directory>/subagents/prompt-executing.md` with the prompt builder using `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, and `--set-file POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM=<review-findings-temp-file>`, then save the rendered prompt to a temp file.
-4. In native mode, resume the same implementation subagent and send the exact rendered prompt file contents verbatim. In fallback-runner mode, resume the implementation session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using the saved `session_id`.
+3. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, and `--set-file POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM=<review-findings-temp-file>`.
+4. In native mode, resume the same implementation subagent and send the exact returned `prompt_path` contents verbatim. In fallback-runner mode, resume the implementation session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using the saved `session_id` and the wrapper-prepared `prompt_path`.
 
 After each implementation-subagent fix round, run the Worktree hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next fresh review round.
 
