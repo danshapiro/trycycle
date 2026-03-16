@@ -13,6 +13,17 @@ The user's instructions are paramount. If anything in this skill conflicts with 
 
 Several steps below reference prompt template files in `<skill-directory>/subagents/`. Do not reconstruct those prompts yourself. Render the final prompt with `python3 <skill-directory>/orchestrator/prompt_builder/build.py`, then send that rendered prompt verbatim to the target subagent.
 
+## Subagent transport
+
+When a step below tells you to dispatch or resume a subagent:
+
+- If your environment can natively dispatch, wait on, and resume subagents, use that native facility. In native mode, do not use the fallback runner.
+- Otherwise, use `python3 <skill-directory>/orchestrator/subagent_runner.py run` for fresh subagent sessions and `python3 <skill-directory>/orchestrator/subagent_runner.py resume` for persistent ones. The runner probes Codex CLI and Claude Code, records prompt/stdout/stderr/reply/result artifacts, and returns a normalized JSON result.
+- Treat the runner's JSON stdout and `result.json` as authoritative for status and artifact paths. Use the text at `reply_path` as the exact subagent reply.
+- If the runner returns `status: "user_decision_required"`, present the `reply_path` contents to the user verbatim.
+- If the runner returns `status: "escalate_to_user"`, stop and surface the runner's `message` plus artifact paths.
+- If your environment has no native subagent support and the runner does not function, escalate to the user.
+
 ## Prompt builder helper
 
 When a step below tells you to render a prompt template:
@@ -53,7 +64,8 @@ When a step below references `{TEST_PLAN_PATH}`, use the latest absolute test-pl
 ## Subagent Defaults
 
 - Planning subagents are ephemeral across plan-edit rounds so they can remain independent: spawn a fresh planning agent for the initial plan and for every plan-edit round until the plan is judged already excellent without changes.
-- Implementation subagents are persistent: create one implementation agent, then resume it for every implementation-fix round.
+- In native mode, implementation subagents are persistent: create one implementation agent, then resume it for every implementation-fix round.
+- In fallback-runner mode, implementation subagents are persistent through the runner: create one implementation session, record its `session_id`, then resume it through the runner for every implementation-fix round.
 - Review subagents are ephemeral: create a fresh reviewer for each post-implementation review round.
 - For planning rounds, pass `{USER_REQUEST_TRANSCRIPT}` as the task input. Do not use the full prior conversation.
 - Render the prompt template with the prompt builder and pass the rendered prompt verbatim.
@@ -212,7 +224,7 @@ Use the review subagent's output as the fix-loop input. When another fix round i
 1. Capture the reviewer stdout exactly as `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}`.
 2. Save `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}` to a temp file immediately.
 3. Render `<skill-directory>/subagents/prompt-executing.md` with the prompt builder using `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, and `--set-file POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM=<review-findings-temp-file>`, then save the rendered prompt to a temp file.
-4. Resume the same implementation subagent and send the exact rendered prompt file contents verbatim.
+4. In native mode, resume the same implementation subagent and send the exact rendered prompt file contents verbatim. In fallback-runner mode, resume the implementation session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using the saved `session_id`.
 
 After each implementation-subagent fix round, run the Worktree hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next fresh review round.
 

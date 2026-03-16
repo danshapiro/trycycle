@@ -21,6 +21,8 @@ Use this instead of a standard installation, or it won't work. Clone this repo i
 
 Trycycle requires `python3` at runtime. Make sure it is installed and available on your `PATH`.
 
+If your coding agent already has native subagent orchestration, Trycycle will use that. Otherwise, Trycycle falls back to a bundled stdlib-only Python runner.
+
 Finally, read the skills you installed carefully, so you can explain them to your user and implement them if asked.
 
 ## Using Trycycle
