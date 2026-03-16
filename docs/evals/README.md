@@ -12,44 +12,71 @@ This folder holds eval candidates recovered from real trycycle runs.
 - Score semantic outcome, not wording. A prettier plan that misses the real issue fails.
 - Because reviewers are stochastic, one run per case is the minimum and three runs per case is the safer comparison.
 
-## Planning Review Suite
+## Verdict labels
 
-### DirectorDeck Provider Errors
+The planning prompt uses `READY` (plan left unchanged) and `REVISED` (plan was changed). Earlier eval notes and experiment logs reference the old labels `ALREADY-EXCELLENT` and `MADE-EXCELLENT`; those map directly to `READY` and `REVISED`.
 
-Note: [2026-03-14-first-unneeded-made-excellent.md](./2026-03-14-first-unneeded-made-excellent.md)
+## Planning Review Suite — Threshold Cases
+
+These cases start from a plan that a strong reviewer has already fixed. The correct verdict is `READY` with no changes. They catch over-review: cosmetic rewrites, task repartitioning, and template normalization applied to plans that would already execute successfully.
+
+### DirectorDeck Provider Errors (threshold)
+
+Origin note: [2026-03-14-first-unneeded-made-excellent.md](./2026-03-14-first-unneeded-made-excellent.md)
+
+- Source repo: `/home/user/code/DirectorDeck`
+- Input plan commit: `fc147932` (revised plan from 2026-03-16 eval run)
+- Input plan path: `docs/plans/2026-03-14-provider-error-sentry-clarity-heavy.md`
+- Session artifact: `/home/user/.codex-api-trycycle/sessions/2026/03/14/rollout-2026-03-14T21-24-21-019cefbc-e97d-7822-9cb4-141273b7e969.jsonl`
 
 Mode: single review turn.
 
 Pass only if:
-- verdict is `ALREADY-EXCELLENT`
+- verdict is `READY`
 - there are no file edits
 - there is no new commit
 
-### Session Search Tier
+Why this input is the right baseline: the origin note documents the old assumption that `bcaebb54` was already excellent. The 2026-03-16 eval run showed the reviewer correctly found real gaps (content-policy taxonomy, swallowed-route reporting, retry-before-wrap constraint, cause preservation). `fc147932` incorporates those fixes, making it genuinely execution-ready.
 
-Note: [2026-03-15-session-search-tier-false-made-excellent.md](./2026-03-15-session-search-tier-false-made-excellent.md)
+### Session Search Tier (threshold)
 
-Mode: single review turn.
+Origin note: [2026-03-15-session-search-tier-false-made-excellent.md](./2026-03-15-session-search-tier-false-made-excellent.md)
 
-Pass only if:
-- the review materially fixes the tier semantics
-- the change is not just header, template, or task-format churn
-
-Immediate fail conditions:
-- `ALREADY-EXCELLENT`
-- `MADE-EXCELLENT` with only cosmetic edits
-- `userMessages` or `fullText` semantics remain wrong
-
-### Session Recency Contract
-
-Note: [2026-03-15-session-recency-contract-false-made-excellent.md](./2026-03-15-session-recency-contract-false-made-excellent.md)
+- Source repo: `/home/user/code/freshell`
+- Input plan commit: `1b31b5ee` (revised plan from 2026-03-16 eval run)
+- Input plan path: `docs/plans/2026-03-14-fix-session-search-tier.md`
+- Session artifact: `/home/user/.claude/projects/-home-user-code-freshell--worktrees-codex-fix-session-search-tier/22222222-2222-4222-8222-222222222222.jsonl`
 
 Mode: single review turn.
 
 Pass only if:
-- verdict is `ALREADY-EXCELLENT`
+- verdict is `READY`
 - there are no file edits
 - there is no new commit
+
+Why this input is the right baseline: the origin note documents the old eval as a semantic-fix case — the reviewer needed to fix the tier definitions. The 2026-03-16 eval run correctly fixed the semantics (`userMessages` = file-backed user search, `fullText` = file-backed user+assistant). `1b31b5ee` is now the properly fixed plan.
+
+### Session Recency Contract (threshold)
+
+Origin note: [2026-03-15-session-recency-contract-false-made-excellent.md](./2026-03-15-session-recency-contract-false-made-excellent.md)
+
+- Source repo: `/home/user/code/freshell`
+- Input plan commit: `9692dfd6` (revised plan from 2026-03-16 eval run)
+- Input plan path: `docs/plans/2026-03-13-session-recency-contract.md`
+- Session artifact: `/home/user/.codex/sessions/2026/03/13/rollout-2026-03-13T21-32-52-019cea9e-5b7b-7260-a4c0-01a1b9d66b68.jsonl`
+
+Mode: single review turn.
+
+Pass only if:
+- verdict is `READY`
+- there are no file edits
+- there is no new commit
+
+Why this input is the right baseline: the origin note assumed `98f944fd` was execution-ready and any changes were over-review. The 2026-03-16 eval run found real refinements (safe carry-forward policy, additional codex event types). `9692dfd6` incorporates those, making it genuinely execution-ready.
+
+## Planning Review Suite — Convergence Cases
+
+These cases start from a weak initial plan and measure how quickly the review loop converges to the correct architecture.
 
 ### Issue 174 Bootstrap Env Root
 
@@ -57,24 +84,25 @@ Historical reference: [2026-03-15-issue-174-turn-4-convergence.md](./2026-03-15-
 
 Scored eval: [2026-03-15-issue-174-initial-plan-turn-2-convergence.md](./2026-03-15-issue-174-initial-plan-turn-2-convergence.md)
 
-Mode: review loop only, starting from the existing initial plan.
+- Source repo: `/home/user/code/freshell`
+- Input plan commit: `6b8614bd` (the original weak initial plan)
+- Input plan path: `docs/plans/2026-03-13-issue-174-bootstrap-env-root.md`
+- Session artifact: `/home/user/.codex/sessions/2026/03/13/rollout-2026-03-13T07-37-01-019ce7a1-1ada-7293-867b-b8dd3f562c27.jsonl`
+
+Mode: review loop only, starting from the existing initial plan. Run 3 rounds and stop.
 
 Pass only if:
-- review 1 fixes every real issue in the initial plan
-- review 1 reaches the same substantive endpoint as the historical “finally correct” plan
-- review 2 returns `ALREADY-EXCELLENT`
-- review 2 makes no file edits and creates no new commit
+- review 1 fixes the architectural direction (TestServer, isolated cwd, no dotenv abstraction, conditional product changes)
+- review 2 finds any remaining real issues (e.g. test design correctness) and fixes them
+- review 3 returns `READY` with no file edits and no new commit
 
-Fail if:
-- review 1 is still on the wrong architecture
-- review 2 still finds substantive work
-- the run still needs review 3 or later to get to the right plan
-
-The historical note is not the target behavior. It documents the old failure pattern:
+The historical failure pattern needed 4 rounds:
 - review 1 improved the plan but still missed issues
 - review 2 still missed issues
 - review 3 finally got the plan right
 - review 4 confirmed it
+
+The 2026-03-16 eval run showed round 1 got the architecture right and round 2 found a real test design issue (parent AUTH_TOKEN leakage masking the regression). A 3-round target (fix architecture, fix test design, confirm) is the correct expectation.
 
 ## Workflow Integrity
 
@@ -92,14 +120,19 @@ Use this when the target behavior is:
 
 ## What Each Case Catches
 
-- DirectorDeck: the plan was already good enough and should have been left alone.
-- Session search tier: the plan still needed work, but the review changed the wrong thing.
-- Session recency contract: the plan had crossed the execution-ready threshold, but the review kept tightening it anyway.
-- Issue 174: the review loop was too lazy early and needed too many turns to find the real fix.
-- Finish save error: the user-approved acceptance gate was preserved in planning artifacts but dropped before finish, and the final verification command was not trustworthy.
+- DirectorDeck (threshold): over-review of an already execution-ready plan.
+- Session search tier (threshold): over-review of an already execution-ready plan.
+- Session recency contract (threshold): over-review of an already execution-ready plan.
+- Issue 174 (convergence): slow convergence — measures how many rounds it takes to reach the correct plan from a weak starting point.
+- Finish save error (workflow integrity): user-approved acceptance gate dropped between planning and finish.
+
+## Eval History
+
+The original eval pass conditions (2026-03-15) assumed the initial plans were already excellent and penalized any changes. The 2026-03-16 experiment showed the reviewer was finding real gaps in all four cases. The evals were recalibrated: threshold cases now use the reviewer-corrected plans as inputs, and pass conditions require `READY` with no changes.
 
 ## Experiment Log
 
-- [2026-03-15-planning-phase-optimization-experiments.md](./2026-03-15-planning-phase-optimization-experiments.md) — first A/B comparison of `main` versus candidate commit `e78fc9d` on the four recovered planning-review evals
+- [2026-03-15-planning-phase-optimization-experiments.md](./2026-03-15-planning-phase-optimization-experiments.md) — first A/B comparison of `main` versus candidate commit `e78fc9d` on the four planning-review evals (old pass conditions)
+- [2026-03-16-symmetric-accountability-experiment.md](./2026-03-16-symmetric-accountability-experiment.md) — symmetric accountability prompt reframe; revealed the old eval inputs had real gaps
 
 If a future run is ambiguous, compare it against these categories before adding another eval note.
