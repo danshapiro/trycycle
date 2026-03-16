@@ -22,7 +22,7 @@ Work in the worktree at `{WORKTREE_PATH}`.
 </post_implementation_review_findings_verbatim>
 {{/if}}
 
-Implement using TDD: for each feature or component, write the relevant failing test or tests from the test plan first, then implement the minimal code to make them pass. If the test plan specifies harnesses to build, build those first.
+Implement using TDD: for each feature or component, first establish the red state with the highest-priority automated check or checks from the test plan. Reuse or extend high-value existing tests when they already cover the behavior; when coverage is missing, write the new failing test or tests first. If the test plan specifies harnesses to build, build those first.
 
 {{#if POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}}Fix the implementation against the attached review report directly.{{/if}}
 

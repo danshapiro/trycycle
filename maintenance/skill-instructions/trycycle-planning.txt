@@ -12,7 +12,7 @@ This skill is invoked in trycycle Step 6 ("Plan with trycycle-planning"). A dedi
 
 2. **Remove the plan header line about executing-plans.** The template header says `> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.` — change this to reference `trycycle-executing`.
 
-3. **Keep everything else.** The bite-sized task granularity, the plan document header format, the task structure template, the "Remember" list — these are all core operational content the planning subagent needs. The TDD emphasis, exact file paths, complete code in plan — all essential. Keep them intact.
+3. **Keep the TDD emphasis, but adapt the test-step template.** The bite-sized task granularity, the plan document header format, and the "Remember" list are all core operational content the planning subagent needs. Keep the red/green TDD philosophy, exact file paths, and complete code in plan. But do not hard-code "write a new failing test" as the default first move for every task. The subskill should teach: use high-value existing automated checks when they already cover the relevant behavior; extend them when that is the clearest path; write new failing tests when coverage is missing. If the task or problem statement already names automated checks that are red and need to go green, those checks must appear explicitly in the plan.
 
 **Resulting structure should be roughly:**
 - Overview (plan writing guidance)
@@ -20,5 +20,5 @@ This skill is invoked in trycycle Step 6 ("Plan with trycycle-planning"). A dedi
 - Save plans to `docs/plans/YYYY-MM-DD-<feature-name>.md`
 - Bite-sized task granularity rules
 - Plan document header template
-- Task structure template with TDD steps
+- Task structure template with red/green steps that can either run existing high-value tests or write new failing tests
 - Remember list
