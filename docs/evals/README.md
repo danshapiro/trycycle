@@ -83,4 +83,8 @@ The historical note is not the target behavior. It documents the old failure pat
 - Session recency contract: the plan had crossed the execution-ready threshold, but the review kept tightening it anyway.
 - Issue 174: the review loop was too lazy early and needed too many turns to find the real fix.
 
+## Experiment Log
+
+- [2026-03-15-planning-phase-optimization-experiments.md](./2026-03-15-planning-phase-optimization-experiments.md) — first A/B comparison of `main` versus candidate commit `e78fc9d` on the four recovered planning-review evals
+
 If a future run is ambiguous, compare it against these categories before adding another eval note.
