@@ -170,11 +170,11 @@ After each edit round:
 2. If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either an updated planning report or another `USER DECISION REQUIRED:` report.
 3. Update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path` in the latest planning report.
 4. Run the Worktree hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
-5. If `## Plan verdict` is `ALREADY-EXCELLENT`, continue to step 8 with the current `{IMPLEMENTATION_PLAN_PATH}`.
-6. If `## Plan verdict` is `MADE-EXCELLENT`, repeat with a fresh planning subagent.
+5. If `## Plan verdict` is `READY`, continue to step 8 with the current `{IMPLEMENTATION_PLAN_PATH}`.
+6. If `## Plan verdict` is `REVISED`, repeat with a fresh planning subagent.
 7. Repeat up to 5 rounds.
 
-If the plan still is not judged already excellent after the 5th editor round:
+If the plan still is not judged ready after the 5th editor round:
 1. Stop looping.
 2. Dispatch a subagent to review past subagent sessions and hypothesize why the loop is not converging.
 3. Present that report and the latest planning report to the user and await user instructions.

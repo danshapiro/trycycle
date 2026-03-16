@@ -24,7 +24,7 @@ Task:
 - Work in the worktree at `{WORKTREE_PATH}`.
 - If you revise the plan, commit the revised plan to the worktree. If you declare it already excellent unchanged, do not modify files.
 - Return a markdown report with these sections in this order:
-  - `## Plan verdict` — `MADE-EXCELLENT` if you changed the plan, or `ALREADY-EXCELLENT` if you left it unchanged
+  - `## Plan verdict` — `REVISED` if you changed the plan, or `READY` if you left it unchanged
   - `## Plan path` — the absolute path to the current plan file
   - `## Commit` — the latest short commit hash
   - `## Changed files` — one changed path per line
