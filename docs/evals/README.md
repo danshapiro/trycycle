@@ -1,6 +1,6 @@
 # Eval Notes
 
-This folder holds plan-review evals recovered from real trycycle runs.
+This folder holds eval candidates recovered from real trycycle runs.
 
 ## Default Run Protocol
 
@@ -12,7 +12,7 @@ This folder holds plan-review evals recovered from real trycycle runs.
 - Score semantic outcome, not wording. A prettier plan that misses the real issue fails.
 - Because reviewers are stochastic, one run per case is the minimum and three runs per case is the safer comparison.
 
-## Suite
+## Planning Review Suite
 
 ### DirectorDeck Provider Errors
 
@@ -76,12 +76,27 @@ The historical note is not the target behavior. It documents the old failure pat
 - review 3 finally got the plan right
 - review 4 confirmed it
 
+## Workflow Integrity
+
+### Finish Save Error Acceptance Gate Drift
+
+Note: [2026-03-15-finish-save-error-acceptance-gate-drift.md](./2026-03-15-finish-save-error-acceptance-gate-drift.md)
+
+This is a workflow-integrity case, not a plan-review case. The user explicitly required the existing browser-use journey to run red before the fix and green after the fix. Trycycle preserved that requirement in the plan and test plan, but the run still finished without recorded evidence that the browser-use gate ran, and the final verification command could mask failure.
+
+Use this when the target behavior is:
+
+- accepted verification gates survive from strategy through finish
+- the final report includes evidence that required acceptance checks actually ran
+- verification commands preserve real exit status
+
 ## What Each Case Catches
 
 - DirectorDeck: the plan was already good enough and should have been left alone.
 - Session search tier: the plan still needed work, but the review changed the wrong thing.
 - Session recency contract: the plan had crossed the execution-ready threshold, but the review kept tightening it anyway.
 - Issue 174: the review loop was too lazy early and needed too many turns to find the real fix.
+- Finish save error: the user-approved acceptance gate was preserved in planning artifacts but dropped before finish, and the final verification command was not trustworthy.
 
 ## Experiment Log
 
