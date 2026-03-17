@@ -1,0 +1,35 @@
+ [project]
+ name = "deepcycle"
+ version = "0.1.0"
+ description = "Deep-learning oriented skill (CV + adversarial) with dataset preprocessing, training, evaluation, and research roadmap automation."
+ readme = "README.md"
+ requires-python = ">=3.10"
+ dependencies = [
+   "numpy>=1.24",
+   "h5py>=3.9",
+   "Pillow>=10.0",
+   "PyYAML>=6.0",
+   "tqdm>=4.66",
+ ]
+ 
+ [project.optional-dependencies]
+ torch = [
+   "torch",
+   "torchvision",
+ ]
+ lightning = [
+   "pytorch-lightning>=2.2",
+ ]
+ coco = [
+   "pycocotools>=2.0.7",
+ ]
+ viz = [
+   "matplotlib>=3.8",
+ ]
+ 
+ [project.scripts]
+ deepcycle = "deepcycle.cli:main"
+ 
+ [build-system]
+ requires = ["setuptools>=68", "wheel"]
+ build-backend = "setuptools.build_meta"

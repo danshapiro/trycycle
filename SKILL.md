@@ -1,236 +1,91 @@
 ---
-name: trycycle
-description: Invoke trycycle only when the user requests it by name.
+name: deepcycle
+description: Invoke deepcycle only when the user requests it by name.
 ---
 
-# Trycycle
+# Deepcycle
 
-Use this skill only when the user requests `trycycle` to implement something. You must follow this skill; if for some reason that becomes impossible, you must stop and tell the user. You must not finish the request in a different way than the user instructed.
+Use this skill only when the user requests `deepcycle` to develop, evaluate, attack, and/or deploy deep learning models. You must follow this skill; if for some reason that becomes impossible, stop and tell the user.
 
 The user's instructions are paramount. If anything in this skill conflicts with the user's instructions, follow the user.
 
-## Phase wrapper helper
+## What Deepcycle does
 
-Several steps below reference prompt template files in `<skill-directory>/subagents/`. Do not reconstruct those prompts yourself. Prepare phase prompts with `python3 <skill-directory>/orchestrator/run_phase.py`.
+Deepcycle is a **computer-vision deep learning development skill**. It helps you:
 
-When a step below tells you to prepare or dispatch a phase:
+- define **datasets** and **split policy**
+- define **augmentations**, **architectures**, **losses**, and **training strategy**
+- preprocess datasets into **HDF5 integrity splits** (`dataset-{train,val,test}.h5` + `metadata.json`)
+- run **train**, **eval**, **adversarial** (FGSM/PGD + learned UAP generator), and **deploy** (TorchScript/ONNX + quantization) workflows
+- generate **reports** and a **research roadmap** from evaluation artifacts
 
-- In native mode, use `python3 <skill-directory>/orchestrator/run_phase.py prepare ...`, then send the exact contents of the returned `prompt_path` verbatim to the target subagent.
-- In fallback-runner mode, use `python3 <skill-directory>/orchestrator/run_phase.py run ...`. It prepares transcript and prompt artifacts, then dispatches through the bundled runner.
-- Treat the wrapper's JSON stdout and `result.json` as authoritative for prompt and artifact paths.
-- In fallback-runner mode, treat the nested `dispatch` payload plus its `result.json` as authoritative for subagent status and reply artifacts. Use the text at `dispatch.reply_path` as the exact subagent reply.
-- If fallback dispatch returns `dispatch.status: "user_decision_required"`, present `dispatch.reply_path` verbatim to the user.
-- If fallback dispatch returns `dispatch.status: "escalate_to_user"`, stop and surface the nested `dispatch.message` plus artifact paths.
-- Pass short scalar placeholder values such as `{WORKTREE_PATH}`, `{IMPLEMENTATION_PLAN_PATH}`, and `{TEST_PLAN_PATH}` with `--set NAME=VALUE`.
-- Pass multiline values such as reviewer outputs with `--set-file NAME=PATH`.
-- When a multiline placeholder comes from command or subagent stdout, save it to a temp file immediately before wrapper invocation so you can bind it with `--set-file`.
-- Bind transcript placeholders such as `{USER_REQUEST_TRANSCRIPT}`, `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}`, and `{FULL_CONVERSATION_VERBATIM}` with `--transcript-placeholder NAME`.
-- Use `--require-nonempty-tag TAG` when a prompt requires a tagged block to contain real content after trimming whitespace.
-- Use `--ignore-tag-for-placeholders TAG` when placeholder-like text may legitimately appear inside that tag.
-- If your environment has no native subagent support and the wrapper's fallback run does not function, escalate to the user.
+This repo contains the Deepcycle CLI implementation (`deepcycle ...`). The skill is the **operating procedure**: ask the right questions, then run the right commands and produce artifacts.
 
-The prompt builder still supports conditional blocks inside templates. A block guarded by `{{#if NAME}} ... {{/if}}` is included only when `NAME` is bound to a non-empty value.
+## 0) Version check
 
-## Transcript placeholder helper
-
-When a phase wrapper call needs `{USER_REQUEST_TRANSCRIPT}`, `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}`, or `{FULL_CONVERSATION_VERBATIM}`:
-1. For Codex CLI, let the wrapper use direct session lookup by default.
-2. If the wrapper reports that a canary is required, run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` as a separate top-level command, capture stdout exactly as `{CANARY}`, then rerun the wrapper with `--canary "{CANARY}"`.
-3. For Claude Code, always run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` as a separate top-level command first, capture stdout exactly as `{CANARY}`, then invoke the wrapper with `--transcript-cli claude-code --canary "{CANARY}"`.
-
-The canary must be emitted by a separate top-level command so it reaches the live session transcript before lookup. Do not rely on shell-specific capture or assignment forms that may keep the canary out of visible command output; shells and host wrappers vary, and if the canary is not visibly emitted into the session transcript, lookup will fail. Build transcript placeholder values immediately before each phase wrapper call that uses them.
-
-When a step below references `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}`, use the corresponding review subagent's stdout exactly as the placeholder value.
-
-When a step below references `{IMPLEMENTATION_PLAN_PATH}`, use the latest absolute plan path returned by the planning subagent in the current trycycle session. Update it after the initial planning result and after every plan-edit result.
-
-When a step below references `{TEST_PLAN_PATH}`, use the latest absolute test-plan path returned by the test-plan subagent in the current trycycle session. Update it after every test-plan result.
-
-## Subagent Defaults
-
-- Planning subagents are ephemeral across plan-edit rounds so they can remain independent: spawn a fresh planning agent for the initial plan and for every plan-edit round until the plan is judged already excellent without changes.
-- In native mode, implementation subagents are persistent: create one implementation agent, then resume it for every implementation-fix round.
-- In fallback-runner mode, implementation subagents are persistent through the runner: create one implementation session, record its `session_id`, then resume it through the runner for every implementation-fix round.
-- Review subagents are ephemeral: create a fresh reviewer for each post-implementation review round.
-- For planning rounds, pass `{USER_REQUEST_TRANSCRIPT}` as the task input. Do not use the full prior conversation.
-- Render the prompt template with the prompt builder and pass the rendered prompt verbatim.
-- User instructions still apply. When they are relevant, relay them.
-
-Example: if the user says "We're almost there, don't start over," relay that instruction.
-
-## Timing expectations
-
-Planning, plan-editor, and code-review subagents typically take 30-60 minutes. The implementation subagent typically takes 60-180 minutes. Do not poll frequently
-
-## 1) Version check
-
-Run `python3 <skill-directory>/check-update.py` (where `<skill-directory>` is the directory containing this SKILL.md). If an update is available, tell the user and ask if they'd like to update before continuing. If they say yes, run `git -C <skill-directory> pull` and then re-read this skill file.
-
-## 2) Ask about critical unknowns before work
-
-If the request leaves out information that could materially change the outcome and likely upset the user if guessed wrong, ask about it.
-
-Assume the user cares about outcomes, not technologies. Mention technology choices only when they impact user experience.
-
-If there are no critical unknowns, reply exactly:
-
-`Getting started.`
-
-If there are critical unknowns, list each blocking question succinctly as:
-
-`1. Question?`
-
-If more than one blocking question exists, ask them together. Proceed once the blocking questions have been answered.
-
-## 3) Testing strategy
-
-If the task specification already includes detailed instructions for testing, you will use it and skip to step 4.
-
-Otherwise, dispatch a subagent to analyze the task and the codebase and propose a testing strategy.
-
-Immediately before dispatch, prepare the `test-strategy` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-test-strategy.md`, `--transcript-placeholder INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION`, and `--require-nonempty-tag context`.
-
-When the subagent returns a proposed strategy, present it to the user verbatim and ask for explicit approval or edits. Do not proceed unless the user explicitly accepts it or provides changes. Silence, implied approval, or the subagent's own recommendation does not count as agreement. The strategy and any later test plan must not rely on manual QA or human validation; prefer reproducible artifacts such as browser snapshots when visual evidence is needed. Put the strongest weight on high-value automated checks that verify real user-visible behavior through the actual UI, CLI, HTTP surface, or other outputs the user consumes, rather than tests that only show the implementation is internally self-consistent. Prefer reusing or extending those checks when they already exist, and add new tests wherever the existing suite leaves meaningful gaps in coverage, fidelity, or diagnosis. If the problem statement or prior investigation already identifies automated checks that are red and must go green, the strategy and any later test plan must include them explicitly. If the user requests changes or redirects the approach, rerun the same `test-strategy` phase wrapper command immediately before redispatching and present the revised strategy verbatim. Repeat until the user explicitly approves a strategy.
-
-The agreed testing strategy is used in step 7.
-
-## 4) Create worktree
-
-Before creating the worktree, fetch and fast-forward the base branch so the worktree starts from the latest code. Other agents may have merged changes while the user was reviewing earlier steps.
+Run:
 
 ```bash
-git fetch origin main && git merge --ff-only origin/main
+python3 <skill-directory>/check-update.py
 ```
 
-Read and follow `<skill-directory>/subskills/trycycle-worktrees/SKILL.md` to create an isolated worktree for the implementation with an appropriately named branch, for example `add-connection-status-icon`.
+If an update is available, ask the user whether to update before continuing.
 
-Immediately after creating the worktree, run:
-- `git -C {WORKTREE_PATH} branch --show-current`
-- `git -C {WORKTREE_PATH} status --short`
+## 1) Ask critical unknowns (only what blocks execution)
 
-Do not continue until the branch is correct and the status is clean.
+If missing, ask for:
 
-## 5) Worktree hygiene gate (mandatory)
+- **task type(s)**: classification / detection / segmentation / adversarial
+- **dataset source(s)** and label format(s): folder-per-class, COCO, YOLO, VOC, mask PNGs, or custom adapter
+- **split policy**: official splits vs fallback ratio (80/10/10 or 70/15/15)
+- **hardware constraints**: CPU-only vs single GPU
+- **success metrics**: e.g., top-1 accuracy / mAP / mIoU and which robustness metrics are required
 
-Before and after each major phase (`plan-editing`, `execution`, `post-implementation review`), run:
-- `git -C {WORKTREE_PATH} branch --show-current`
-- `git -C {WORKTREE_PATH} status --short`
+Do not ask more questions than needed to run safely.
 
-After every subagent completion, also run:
-- `git -C {WORKTREE_PATH} rev-parse --short HEAD`
-- `git -C {WORKTREE_PATH} diff --name-only main...HEAD`
+## 2) Define the deep-oriented plan (deliverables + artifacts)
 
-**GATE — Do not advance phases** until all of the following are true:
-- branch matches expected branch for `{WORKTREE_PATH}`
-- changed-file list matches what the subagent reported
-- any dirty status is understood and intentional
+Produce a plan that explicitly defines:
+- dataset spec(s) and split policy
+- augmentation policy (train-only vs eval)
+- model architecture(s) (baseline + fine-tuning strategy)
+- losses + training loop strategy
+- evaluation reports (clean + adversarial where applicable)
+- deployment export targets + quantization expectations and how accuracy drops will be measured
+- research roadmap generation from evaluation artifacts
 
-## 6) Plan with trycycle-planning (subagent-owned)
+Prefer reproducible, config-driven runs with versioned artifacts under `runs/<run_id>/...`.
 
-Spec writing must be done by a dedicated subagent.
-Only subagents read or write plan files.
+## 3) Execute the pipeline (CLI)
 
-Spawn a fresh planning subagent for each planning round.
-
-Immediately before dispatch, prepare the `planning-initial` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-initial.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, and `--require-nonempty-tag task_input_json`.
-
-Wait for the planning subagent to return either:
-- a planning report containing `## Plan verdict`, `## Plan path`, `## Commit`, and `## Changed files`
-- or a report beginning with `USER DECISION REQUIRED:`
-
-If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either a planning report or another `USER DECISION REQUIRED:` report.
-
-If a planning report was returned, update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path`, then run the Worktree hygiene gate checks, verify the latest commit hash plus changed-file list match the planning subagent's report, and confirm the plan file exists at `{IMPLEMENTATION_PLAN_PATH}`.
-
-## 7) Plan-editor loop (up to 5 rounds)
-
-Deploy a fresh planning subagent to critique the current plan against the user's request and the repo, then either declare it already excellent unchanged or improve it directly.
-
-The plan editor is stateless: each round is a fresh first-look pass with only the template, the same task input used for initial planning, and the current plan.
-
-Immediately before each edit dispatch, prepare the `planning-edit` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-edit.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, and `--require-nonempty-tag task_input_json`, then dispatch a fresh planning subagent with the returned `prompt_path`.
-
-After each edit round:
-1. Wait for the planning subagent to return either an updated planning report containing `## Plan verdict`, `## Plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
-2. If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either an updated planning report or another `USER DECISION REQUIRED:` report.
-3. Update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path` in the latest planning report.
-4. Run the Worktree hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
-5. If `## Plan verdict` is `READY`, continue to step 8 with the current `{IMPLEMENTATION_PLAN_PATH}`.
-6. If `## Plan verdict` is `REVISED`, repeat with a fresh planning subagent.
-7. Repeat up to 5 rounds.
-
-If the plan still is not judged ready after the 5th editor round:
-1. Stop looping.
-2. Dispatch a subagent to review past subagent sessions and hypothesize why the loop is not converging.
-3. Present that report and the latest planning report to the user and await user instructions.
-
-## 8) Build test plan (subagent-owned)
-
-Now that the implementation plan has passed the plan-editor loop and is finalized, dispatch a subagent to reconcile the testing strategy against the plan and produce the concrete test plan, starting from high-value existing automated checks where they exist and adding new tests where coverage is missing.
-
-Immediately before dispatch, prepare the `test-plan` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-test-plan.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--transcript-placeholder FULL_CONVERSATION_VERBATIM`, and `--require-nonempty-tag conversation`.
-
-When the subagent returns:
-
-1. Update `{TEST_PLAN_PATH}` from `## Test plan path` in the latest test-plan report.
-2. If the test-plan report includes `## Strategy changes requiring user approval`, present that section to the user verbatim.
-3. If the user requests changes or redirects the approach, rerun the same `test-plan` phase wrapper command immediately before redispatching, update `{TEST_PLAN_PATH}` from the latest test-plan report, and repeat until the user explicitly approves or the report no longer includes that section.
-4. Do not proceed until the current test-plan report either has no `## Strategy changes requiring user approval` section or the user has explicitly approved it.
-5. Run the Worktree hygiene gate checks, verify the latest commit hash plus changed-file list match the test-plan subagent's report, and verify the test plan file exists at `{TEST_PLAN_PATH}`.
-
-## 9) Execute with trycycle-executing (subagent-owned)
-
-Code implementation must be done by a new, dedicated subagent.
-
-Before dispatching the implementation subagent, rebase onto the latest base branch to incorporate any changes merged by other agents during planning:
+Run the Deepcycle CLI in this order (skip steps the user didn’t request):
 
 ```bash
-git -C {WORKTREE_PATH} fetch origin main
-git -C {WORKTREE_PATH} rebase origin/main
+# Preprocess raw datasets -> HDF5 splits + metadata
+deepcycle data:prepare --dataset <spec.yaml> --out-dir <dataset_dir>
+
+# Train
+deepcycle train --config <train.yaml> --run-dir runs/<run_id>
+
+# Evaluate (writes runs/<run_id>/eval/*)
+deepcycle eval --config runs/<run_id>/config.yaml --checkpoint runs/<run_id>/checkpoints/best.pt --run-dir runs/<run_id>
+
+# Adversarial (writes runs/<run_id>/attack/*)
+deepcycle attack --mode both --config runs/<run_id>/config.yaml --checkpoint runs/<run_id>/checkpoints/best.pt --run-dir runs/<run_id>
+
+# Deploy (writes runs/<run_id>/deploy/*; optionally quant-eval)
+deepcycle deploy --config runs/<run_id>/config.yaml --checkpoint runs/<run_id>/checkpoints/best.pt --run-dir runs/<run_id> --quantize <none|dynamic|static> --eval-quantized
+
+# Aggregate reports + update roadmap
+deepcycle report --runs-dir runs --out docs/summary.md
+deepcycle research --runs-dir runs --out docs/roadmap.md
 ```
 
-If the rebase has conflicts, stop and present them to the user.
+## 4) Output expectations
 
-Spawn a fresh implementation subagent and give it the final excellent plan.
+Ensure the user gets concrete artifacts, not just prose:
+- `runs/<run_id>/eval/metrics.json` + `report.md`
+- `runs/<run_id>/attack/metrics.json` + `report.md`
+- `runs/<run_id>/deploy/*` + `quant_report.md` when quantization is used
+- `docs/summary.md` and `docs/roadmap.md` for iteration
 
-Immediately before dispatch, prepare the `executing` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, and `--set WORKTREE_PATH={WORKTREE_PATH}`, then dispatch the implementation subagent with the returned `prompt_path`.
-
-Do not proceed to post-implementation review until the implementation subagent has returned an implementation report.
-
-After implementation completes, run the Worktree hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before launching post-implementation review.
-
-## 10) Post-implementation review loop (up to 8 rounds)
-
-After execution completes, deploy a new reviewer with no prior context and give it the finalized implementation plan plus the finalized test plan.
-
-Immediately before dispatch, prepare the `post-implementation-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-post-impl-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, and `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, then dispatch a review subagent with the returned `prompt_path`.
-
-Use the review subagent's output as the fix-loop input. When another fix round is needed:
-1. Capture the reviewer stdout exactly as `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}`.
-2. Save `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}` to a temp file immediately.
-3. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, and `--set-file POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM=<review-findings-temp-file>`.
-4. In native mode, resume the same implementation subagent and send the exact returned `prompt_path` contents verbatim. In fallback-runner mode, resume the implementation session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using the saved `session_id` and the wrapper-prepared `prompt_path`.
-
-After each implementation-subagent fix round, run the Worktree hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next fresh review round.
-
-Stop when either condition is met:
-1. No **critical** or **major** issues remain.
-2. 8 rounds have been completed.
-
-If critical or major issues still remain after the 8th review:
-1. Stop looping.
-2. Dispatch a subagent to review past subagent sessions and hypothesize why the loop is not converging.
-3. Present that report and the latest review output to the user and await user instructions.
-
-## 11) Finish
-
-Once the post-implementation review loop passes (no critical or major issues):
-
-Clean up temporary artifacts created during the loop (for example plan scratch files and temp notes), then run:
-- `git -C {WORKTREE_PATH} status --short`
-- `git -C {WORKTREE_PATH} rev-parse --short HEAD`
-- `git -C {WORKTREE_PATH} diff --name-only main...HEAD`
-
-Report the process to the user using concrete facts and returned artifacts: how many plan-editor rounds, how many code-review rounds, the current `HEAD`, the changed-file list, the implementation subagent's latest summary and verification results, and any reviewer-reported residual issues.
-
-Then read and follow `<skill-directory>/subskills/trycycle-finishing/SKILL.md` to present the user with options for integrating the worktree (merge, PR, etc.).
