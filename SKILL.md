@@ -55,6 +55,7 @@ When a step below references `{TEST_PLAN_PATH}`, use the latest absolute test-pl
 - For planning rounds, pass `{USER_REQUEST_TRANSCRIPT}` as the task input. Do not use the full prior conversation.
 - Render the prompt template with the prompt builder and pass the rendered prompt verbatim.
 - User instructions still apply. When they are relevant, relay them.
+- If a subagent returns `USER DECISION REQUIRED:`, keep that same agent or session alive until the user's reply has been forwarded and the round has resolved.
 
 Example: if the user says "We're almost there, don't start over," relay that instruction.
 
@@ -90,7 +91,7 @@ Otherwise, dispatch a subagent to analyze the task and the codebase and propose 
 
 Immediately before dispatch, prepare the `test-strategy` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-test-strategy.md`, `--transcript-placeholder INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION`, and `--require-nonempty-tag context`.
 
-When the subagent returns a proposed strategy, present it to the user verbatim and ask for explicit approval or edits. Do not proceed unless the user explicitly accepts it or provides changes. Silence, implied approval, or the subagent's own recommendation does not count as agreement. The strategy and any later test plan must not rely on manual QA or human validation; prefer reproducible artifacts such as browser snapshots when visual evidence is needed. Put the strongest weight on high-value automated checks that verify real user-visible behavior through the actual UI, CLI, HTTP surface, or other outputs the user consumes, rather than tests that only show the implementation is internally self-consistent. Prefer reusing or extending those checks when they already exist, and add new tests wherever the existing suite leaves meaningful gaps in coverage, fidelity, or diagnosis. If the problem statement or prior investigation already identifies automated checks that are red and must go green, the strategy and any later test plan must include them explicitly. If the user requests changes or redirects the approach, rerun the same `test-strategy` phase wrapper command immediately before redispatching and present the revised strategy verbatim. Repeat until the user explicitly approves a strategy.
+When the subagent returns a proposed strategy, present it to the user verbatim and ask for explicit approval or edits. Then close that completed test-strategy subagent and clear any saved handle or `session_id` for it. Do not proceed unless the user explicitly accepts it or provides changes. Silence, implied approval, or the subagent's own recommendation does not count as agreement. The strategy and any later test plan must not rely on manual QA or human validation; prefer reproducible artifacts such as browser snapshots when visual evidence is needed. Put the strongest weight on high-value automated checks that verify real user-visible behavior through the actual UI, CLI, HTTP surface, or other outputs the user consumes, rather than tests that only show the implementation is internally self-consistent. Prefer reusing or extending those checks when they already exist, and add new tests wherever the existing suite leaves meaningful gaps in coverage, fidelity, or diagnosis. If the problem statement or prior investigation already identifies automated checks that are red and must go green, the strategy and any later test plan must include them explicitly. If the user requests changes or redirects the approach, rerun the same `test-strategy` phase wrapper command immediately before redispatching and present the revised strategy verbatim. Repeat until the user explicitly approves a strategy.
 
 The agreed testing strategy is used in step 7.
 
@@ -140,7 +141,7 @@ Wait for the planning subagent to return either:
 
 If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either a planning report or another `USER DECISION REQUIRED:` report.
 
-If a planning report was returned, update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path`, then run the Worktree hygiene gate checks, verify the latest commit hash plus changed-file list match the planning subagent's report, and confirm the plan file exists at `{IMPLEMENTATION_PLAN_PATH}`.
+If a planning report was returned, update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path`, then run the Worktree hygiene gate checks, verify the latest commit hash plus changed-file list match the planning subagent's report, confirm the plan file exists at `{IMPLEMENTATION_PLAN_PATH}`, then close that planning subagent and clear any saved handle or `session_id` for it.
 
 ## 7) Plan-editor loop (up to 5 rounds)
 
@@ -155,9 +156,10 @@ After each edit round:
 2. If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either an updated planning report or another `USER DECISION REQUIRED:` report.
 3. Update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path` in the latest planning report.
 4. Run the Worktree hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
-5. If `## Plan verdict` is `READY`, continue to step 8 with the current `{IMPLEMENTATION_PLAN_PATH}`.
-6. If `## Plan verdict` is `REVISED`, repeat with a fresh planning subagent.
-7. Repeat up to 5 rounds.
+5. Close that planning subagent for the completed round and clear any saved handle or `session_id` for it.
+6. If `## Plan verdict` is `READY`, continue to step 8 with the current `{IMPLEMENTATION_PLAN_PATH}`.
+7. If `## Plan verdict` is `REVISED`, repeat with a fresh planning subagent.
+8. Repeat up to 5 rounds.
 
 If the plan still is not judged ready after the 5th editor round:
 1. Stop looping.
@@ -174,9 +176,10 @@ When the subagent returns:
 
 1. Update `{TEST_PLAN_PATH}` from `## Test plan path` in the latest test-plan report.
 2. If the test-plan report includes `## Strategy changes requiring user approval`, present that section to the user verbatim.
-3. If the user requests changes or redirects the approach, rerun the same `test-plan` phase wrapper command immediately before redispatching, update `{TEST_PLAN_PATH}` from the latest test-plan report, and repeat until the user explicitly approves or the report no longer includes that section.
+3. If the user requests changes or redirects the approach, close that completed test-plan subagent and clear any saved handle or `session_id` for it, rerun the same `test-plan` phase wrapper command immediately before redispatching, update `{TEST_PLAN_PATH}` from the latest test-plan report, and repeat until the user explicitly approves or the report no longer includes that section.
 4. Do not proceed until the current test-plan report either has no `## Strategy changes requiring user approval` section or the user has explicitly approved it.
 5. Run the Worktree hygiene gate checks, verify the latest commit hash plus changed-file list match the test-plan subagent's report, and verify the test plan file exists at `{TEST_PLAN_PATH}`.
+6. Close the completed test-plan subagent for the approved report and clear any saved handle or `session_id` for it.
 
 ## 9) Execute with trycycle-executing (subagent-owned)
 
@@ -205,7 +208,7 @@ After execution completes, deploy a new reviewer with no prior context and give 
 
 Immediately before dispatch, prepare the `post-implementation-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-post-impl-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, and `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, then dispatch a review subagent with the returned `prompt_path`.
 
-Use the review subagent's output as the fix-loop input. When another fix round is needed:
+Use the review subagent's output as the fix-loop input. As soon as you have captured the reviewer's stdout or decided the review loop is done, close that completed review subagent and clear any saved handle or `session_id` for it. When another fix round is needed:
 1. Capture the reviewer stdout exactly as `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}`.
 2. Save `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}` to a temp file immediately.
 3. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, and `--set-file POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM=<review-findings-temp-file>`.
@@ -230,6 +233,8 @@ Clean up temporary artifacts created during the loop (for example plan scratch f
 - `git -C {WORKTREE_PATH} status --short`
 - `git -C {WORKTREE_PATH} rev-parse --short HEAD`
 - `git -C {WORKTREE_PATH} diff --name-only main...HEAD`
+
+If the implementation subagent is still open, close it and clear its saved handle or `session_id` before handing off to finishing.
 
 Report the process to the user using concrete facts and returned artifacts: how many plan-editor rounds, how many code-review rounds, the current `HEAD`, the changed-file list, the implementation subagent's latest summary and verification results, and any reviewer-reported residual issues.
 
