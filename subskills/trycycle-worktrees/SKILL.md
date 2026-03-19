@@ -3,8 +3,8 @@ name: trycycle-worktrees
 description: "Internal trycycle subskill — do not invoke directly."
 ---
 <!-- trycycle-worktrees: adapted from https://github.com/obra/superpowers using-git-worktrees -->
-<!-- base-commit: 363923f -->
-<!-- imported: 2026-03-15 -->
+<!-- base-commit: 7e51643 -->
+<!-- imported: 2026-03-18 -->
 
 # Using Git Worktrees (trycycle)
 

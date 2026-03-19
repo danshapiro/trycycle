@@ -3,8 +3,8 @@ name: trycycle-executing
 description: Internal trycycle subskill — do not invoke directly.
 ---
 <!-- trycycle-executing: adapted from https://github.com/obra/superpowers executing-plans -->
-<!-- base-commit: 363923f -->
-<!-- imported: 2026-03-15 -->
+<!-- base-commit: 7e51643 -->
+<!-- imported: 2026-03-18 -->
 
 # Executing Plans
 

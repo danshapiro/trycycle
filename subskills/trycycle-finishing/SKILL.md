@@ -3,8 +3,8 @@ name: trycycle-finishing
 description: "Internal trycycle subskill — do not invoke directly."
 ---
 <!-- trycycle-finishing: adapted from https://github.com/obra/superpowers finishing-a-development-branch -->
-<!-- base-commit: 363923f -->
-<!-- imported: 2026-03-15 -->
+<!-- base-commit: 7e51643 -->
+<!-- imported: 2026-03-18 -->
 
 # Finishing a Development Branch
 

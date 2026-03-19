@@ -3,8 +3,8 @@ name: trycycle-planning
 description: "Internal trycycle subskill — do not invoke directly."
 ---
 <!-- trycycle-planning: adapted from https://github.com/obra/superpowers writing-plans -->
-<!-- base-commit: 363923f -->
-<!-- imported: 2026-03-15 -->
+<!-- base-commit: 7e51643 -->
+<!-- imported: 2026-03-18 -->
 
 # Writing Plans
 
@@ -64,7 +64,7 @@ Once the architectural direction is stable and you are confident you are solving
 ```markdown
 # [Feature Name] Implementation Plan
 
-> **For agentic workers:** REQUIRED: Use trycycle-executing to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use trycycle-executing to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** [One sentence describing what this builds]
 
