@@ -58,14 +58,6 @@ When a step below references `{TEST_PLAN_PATH}`, use the latest absolute test-pl
 
 Example: if the user says "We're almost there, don't start over," relay that instruction.
 
-## Subagent Lifecycle
-
-- Close completed subagents as soon as their output has been consumed and the required validations for that phase are complete.
-- Keep a subagent open only while you still expect to send more input to that same subagent.
-- If a subagent returns `USER DECISION REQUIRED:`, keep that same subagent or session open until the user's answer has been forwarded and the round resolves.
-- In native mode, explicitly close completed agents. In fallback-runner mode, keep only the artifacts and any `session_id` intentionally preserved for a future resume.
-- The implementation subagent is the normal exception: keep it open across execution fix rounds, then close it once the workflow ends or it will not be resumed again.
-
 ## Timing expectations
 
 Planning, plan-editor, and code-review subagents typically take 30-60 minutes. The implementation subagent typically takes 60-180 minutes. Do not poll frequently
@@ -148,7 +140,7 @@ Wait for the planning subagent to return either:
 
 If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either a planning report or another `USER DECISION REQUIRED:` report.
 
-If a planning report was returned, update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path`, then run the Worktree hygiene gate checks, verify the latest commit hash plus changed-file list match the planning subagent's report, confirm the plan file exists at `{IMPLEMENTATION_PLAN_PATH}`, and then close that completed planning subagent.
+If a planning report was returned, update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path`, then run the Worktree hygiene gate checks, verify the latest commit hash plus changed-file list match the planning subagent's report, and confirm the plan file exists at `{IMPLEMENTATION_PLAN_PATH}`.
 
 ## 7) Plan-editor loop (up to 5 rounds)
 
@@ -163,10 +155,9 @@ After each edit round:
 2. If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either an updated planning report or another `USER DECISION REQUIRED:` report.
 3. Update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path` in the latest planning report.
 4. Run the Worktree hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
-5. Close that completed planning subagent for the round.
-6. If `## Plan verdict` is `READY`, continue to step 8 with the current `{IMPLEMENTATION_PLAN_PATH}`.
-7. If `## Plan verdict` is `REVISED`, repeat with a fresh planning subagent.
-8. Repeat up to 5 rounds.
+5. If `## Plan verdict` is `READY`, continue to step 8 with the current `{IMPLEMENTATION_PLAN_PATH}`.
+6. If `## Plan verdict` is `REVISED`, repeat with a fresh planning subagent.
+7. Repeat up to 5 rounds.
 
 If the plan still is not judged ready after the 5th editor round:
 1. Stop looping.
@@ -185,7 +176,7 @@ When the subagent returns:
 2. If the test-plan report includes `## Strategy changes requiring user approval`, present that section to the user verbatim.
 3. If the user requests changes or redirects the approach, rerun the same `test-plan` phase wrapper command immediately before redispatching, update `{TEST_PLAN_PATH}` from the latest test-plan report, and repeat until the user explicitly approves or the report no longer includes that section.
 4. Do not proceed until the current test-plan report either has no `## Strategy changes requiring user approval` section or the user has explicitly approved it.
-5. Run the Worktree hygiene gate checks, verify the latest commit hash plus changed-file list match the test-plan subagent's report, verify the test plan file exists at `{TEST_PLAN_PATH}`, and then close that completed test-plan subagent.
+5. Run the Worktree hygiene gate checks, verify the latest commit hash plus changed-file list match the test-plan subagent's report, and verify the test plan file exists at `{TEST_PLAN_PATH}`.
 
 ## 9) Execute with trycycle-executing (subagent-owned)
 
@@ -214,7 +205,7 @@ After execution completes, deploy a new reviewer with no prior context and give 
 
 Immediately before dispatch, prepare the `post-implementation-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-post-impl-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, and `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, then dispatch a review subagent with the returned `prompt_path`.
 
-Use the review subagent's output as the fix-loop input. Each reviewer is single-use: once its output has been captured as fix-loop input or final review output, close that completed review subagent before continuing. When another fix round is needed:
+Use the review subagent's output as the fix-loop input. When another fix round is needed:
 1. Capture the reviewer stdout exactly as `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}`.
 2. Save `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}` to a temp file immediately.
 3. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, and `--set-file POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM=<review-findings-temp-file>`.
@@ -239,8 +230,6 @@ Clean up temporary artifacts created during the loop (for example plan scratch f
 - `git -C {WORKTREE_PATH} status --short`
 - `git -C {WORKTREE_PATH} rev-parse --short HEAD`
 - `git -C {WORKTREE_PATH} diff --name-only main...HEAD`
-
-If the implementation subagent is still open, close it before handing off to finishing.
 
 Report the process to the user using concrete facts and returned artifacts: how many plan-editor rounds, how many code-review rounds, the current `HEAD`, the changed-file list, the implementation subagent's latest summary and verification results, and any reviewer-reported residual issues.
 
