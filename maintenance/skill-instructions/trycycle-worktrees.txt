@@ -16,6 +16,15 @@ This skill is invoked only in the default trycycle Step 4 flow ("Prepare impleme
 
 5. **Keep:** The `.gitignore` safety verification — that's valuable. Keep the project setup auto-detection (npm install, cargo build, etc.) — the subagent needs that. Keep the `git worktree add` mechanics.
 
+6. **Replace the Python setup heuristic.** The upstream Python detection is too coarse — it runs `poetry install` for any `pyproject.toml` and runs both the `requirements.txt` and `pyproject.toml` branches independently. Replace the Python section of the setup block with a mutually exclusive, lock-file-first cascade:
+
+   - If `poetry.lock` exists: `poetry install`
+   - Else if `uv.lock` exists: `uv sync`
+   - Else if `pyproject.toml` exists: `pip install -e .`
+   - Else if `requirements.txt` exists: `pip install -r requirements.txt`
+
+   The first match wins. Only one Python setup command runs. This correctly handles Poetry projects (detected by lock file, not pyproject.toml alone), uv projects, and generic PEP 517 projects.
+
 **Resulting structure should be roughly:**
 - Overview (2-3 sentences)
 - Create worktree in `.worktrees/<branch-name>`
