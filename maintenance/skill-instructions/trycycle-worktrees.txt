@@ -1,4 +1,4 @@
-This skill is invoked in trycycle Step 2 ("Create worktree"). The orchestrator calls it to set up an isolated worktree before any planning or implementation begins.
+This skill is invoked only in the default trycycle Step 4 flow ("Prepare implementation workspace"). The orchestrator calls it to set up an isolated worktree before any planning or implementation begins. If the user request includes `--no-worktree`, the orchestrator skips this skill and reuses the current already-isolated workspace instead.
 
 **What the orchestrator already handles:**
 - Immediately after worktree creation, the orchestrator runs `git branch --show-current` and `git status --short` to verify. So the skill's own verification is redundant but harmless — keep it light.

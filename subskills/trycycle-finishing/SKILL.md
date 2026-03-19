@@ -56,7 +56,7 @@ Implementation complete. What would you like to do?
 
 1. Merge back to <base-branch> locally
 2. Push and create a Pull Request
-3. Keep the branch as-is (I'll handle it later)
+3. Keep the workspace as-is (I'll handle it later)
 4. Discard this work
 
 Which option?
@@ -85,7 +85,7 @@ git merge <feature-branch>
 git branch -d <feature-branch>
 ```
 
-Then: Cleanup worktree (Step 5)
+Then: Cleanup workspace (Step 5)
 
 #### Option 2: Push and Create PR
 
@@ -107,13 +107,13 @@ EOF
 )"
 ```
 
-Then: Cleanup worktree (Step 5)
+Then: Cleanup workspace (Step 5)
 
 #### Option 3: Keep As-Is
 
-Report: "Keeping branch <name>. Worktree preserved at <path>."
+Report: "Keeping branch <name>. Workspace preserved at <path>."
 
-**Don't cleanup worktree.**
+**Don't cleanup workspace.**
 
 #### Option 4: Discard
 
@@ -122,7 +122,7 @@ Report: "Keeping branch <name>. Worktree preserved at <path>."
 This will permanently delete:
 - Branch <name>
 - All commits: <commit-list>
-- Worktree at <path>
+- Workspace at <path>
 
 Type 'discard' to confirm.
 ```
@@ -135,11 +135,13 @@ git checkout <base-branch>
 git branch -D <feature-branch>
 ```
 
-Then: Cleanup worktree (Step 5)
+Then: Cleanup workspace (Step 5)
 
-### Step 5: Cleanup Worktree
+### Step 5: Cleanup Workspace
 
 **For Options 1, 2, 4:**
+
+**Default mode** (dedicated git worktree was created):
 
 Check if in worktree:
 ```bash
@@ -151,12 +153,16 @@ If yes:
 git worktree remove <worktree-path>
 ```
 
-**For Option 3:** Keep worktree.
+**`--no-worktree` mode** (current workspace was reused):
+
+Do not attempt to remove the current workspace. Only perform the branch actions relevant to the chosen option (e.g. delete the feature branch for Options 1 and 4). Leave the workspace directory untouched.
+
+**For Option 3:** Keep workspace in either mode.
 
 ## Quick Reference
 
-| Option | Merge | Push | Keep Worktree | Cleanup Branch |
-|--------|-------|------|---------------|----------------|
+| Option | Merge | Push | Keep Workspace | Cleanup Branch |
+|--------|-------|------|----------------|----------------|
 | 1. Merge locally | ✓ | - | - | ✓ |
 | 2. Create PR | - | ✓ | ✓ | - |
 | 3. Keep as-is | - | - | ✓ | - |
@@ -179,9 +185,10 @@ git worktree remove <worktree-path>
 - Merge without verifying tests on result
 - Delete work without confirmation
 - Force-push without explicit request
+- Remove the current workspace in `--no-worktree` mode
 
 **Always:**
 - Verify tests before offering options
 - Present exactly 4 options
 - Get typed confirmation for Option 4
-- Clean up worktree for Options 1 & 4 only
+- Clean up worktree for Options 1 & 4 only (default mode)

@@ -100,4 +100,4 @@ Return the strategy as a single markdown document ready to present to the user. 
 
 Make the strategy concrete enough that the follow-on test plan can be written without inventing its own priorities: it should be obvious from your recommendation that the goal is high confidence in user-visible behavior, with the strongest weight on real integration coverage.
 
-End with a short `## Approval` section that explicitly says the user must accept this strategy or provide edits before implementation or worktree setup begins.
+End with a short `## Approval` section that explicitly says the user must accept this strategy or provide edits before implementation or workspace setup begins.

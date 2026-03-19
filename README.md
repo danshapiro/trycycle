@@ -55,6 +55,8 @@ Use trycycle to add a dark mode toggle to the settings page.
 
 Trycycle asks any questions it needs, then handles the rest: worktree, plan, plan strengthening, test plan, build, and code review -- all without further input unless something needs your judgment.
 
+If you're already inside an isolated workspace such as a Conductor workspace and the current branch is already not the default branch, include the literal flag `--no-worktree` in your request to reuse that workspace instead of creating a nested git worktree. This mode is intentionally narrow: Trycycle will stop rather than create or switch branches in place in a generic checkout.
+
 Works for anything from small features to large refactors, best when you have a clear goal and a codebase Trycycle can read and test.
 
 ## How it works

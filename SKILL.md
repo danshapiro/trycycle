@@ -31,6 +31,14 @@ When a step below tells you to prepare or dispatch a phase:
 
 The prompt builder still supports conditional blocks inside templates. A block guarded by `{{#if NAME}} ... {{/if}}` is included only when `NAME` is bound to a non-empty value.
 
+## Workspace path convention
+
+Throughout this skill, `{WORKTREE_PATH}` means the directory where implementation happens:
+- In the default mode, it is the path to the dedicated git worktree created in Step 4.
+- If the user's request includes the literal flag `--no-worktree`, it is the path to the current already-isolated workspace instead.
+
+In `--no-worktree` mode, do not create a nested git worktree and do not create or switch branches in place. Reuse the current workspace only when the environment already proves it is isolated, such as a Conductor workspace.
+
 ## Transcript placeholder helper
 
 When a phase wrapper call needs `{USER_REQUEST_TRANSCRIPT}`, `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}`, or `{FULL_CONVERSATION_VERBATIM}`:
@@ -95,9 +103,9 @@ When the subagent returns a proposed strategy, present it to the user verbatim a
 
 The agreed testing strategy is used in step 7.
 
-## 4) Create worktree
+## 4) Prepare implementation workspace
 
-Before creating the worktree, fetch and fast-forward the base branch so the worktree starts from the latest code. Other agents may have merged changes while the user was reviewing earlier steps.
+Default behavior: before creating the worktree, fetch and fast-forward the base branch so the worktree starts from the latest code. Other agents may have merged changes while the user was reviewing earlier steps.
 
 ```bash
 git fetch origin main && git merge --ff-only origin/main
@@ -105,13 +113,21 @@ git fetch origin main && git merge --ff-only origin/main
 
 Read and follow `<skill-directory>/subskills/trycycle-worktrees/SKILL.md` to create an isolated worktree for the implementation with an appropriately named branch, for example `add-connection-status-icon`.
 
-Immediately after creating the worktree, run:
+If the user's request includes the literal flag `--no-worktree`, skip the worktree-creation subskill and prepare the current workspace instead:
+- Set `{WORKTREE_PATH}` to the current repository root.
+- Run `git -C {WORKTREE_PATH} status --short` and stop unless it is clean.
+- Detect the default branch. Prefer `CONDUCTOR_DEFAULT_BRANCH` when it is set and non-empty. Otherwise use the repo's configured remote default branch if available; if not, fall back to `main`, then `master`.
+- Run `git -C {WORKTREE_PATH} branch --show-current` and stop unless it returns a non-empty branch name that is different from the detected default branch.
+- Require `CONDUCTOR_WORKSPACE_PATH` to be set and to resolve to the current workspace. If it is unset or points elsewhere, stop and tell the user that `--no-worktree` is only supported in already-isolated workspaces such as Conductor workspaces.
+- Do not create a branch, switch branches, or create any nested worktree in this mode.
+
+Immediately after preparing the implementation workspace, run:
 - `git -C {WORKTREE_PATH} branch --show-current`
 - `git -C {WORKTREE_PATH} status --short`
 
 Do not continue until the branch is correct and the status is clean.
 
-## 5) Worktree hygiene gate (mandatory)
+## 5) Workspace hygiene gate (mandatory)
 
 Before and after each major phase (`plan-editing`, `execution`, `post-implementation review`), run:
 - `git -C {WORKTREE_PATH} branch --show-current`
@@ -141,7 +157,7 @@ Wait for the planning subagent to return either:
 
 If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either a planning report or another `USER DECISION REQUIRED:` report.
 
-If a planning report was returned, update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path`, then run the Worktree hygiene gate checks, verify the latest commit hash plus changed-file list match the planning subagent's report, confirm the plan file exists at `{IMPLEMENTATION_PLAN_PATH}`, then close that planning subagent and clear any saved handle or `session_id` for it.
+If a planning report was returned, update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path`, then run the workspace hygiene gate checks, verify the latest commit hash plus changed-file list match the planning subagent's report, confirm the plan file exists at `{IMPLEMENTATION_PLAN_PATH}`, then close that planning subagent and clear any saved handle or `session_id` for it.
 
 ## 7) Plan-editor loop (up to 5 rounds)
 
@@ -155,7 +171,7 @@ After each edit round:
 1. Wait for the planning subagent to return either an updated planning report containing `## Plan verdict`, `## Plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
 2. If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either an updated planning report or another `USER DECISION REQUIRED:` report.
 3. Update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path` in the latest planning report.
-4. Run the Worktree hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
+4. Run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
 5. Close that planning subagent for the completed round and clear any saved handle or `session_id` for it.
 6. If `## Plan verdict` is `READY`, continue to step 8 with the current `{IMPLEMENTATION_PLAN_PATH}`.
 7. If `## Plan verdict` is `REVISED`, repeat with a fresh planning subagent.
@@ -178,7 +194,7 @@ When the subagent returns:
 2. If the test-plan report includes `## Strategy changes requiring user approval`, present that section to the user verbatim.
 3. If the user requests changes or redirects the approach, close that completed test-plan subagent and clear any saved handle or `session_id` for it, rerun the same `test-plan` phase wrapper command immediately before redispatching, update `{TEST_PLAN_PATH}` from the latest test-plan report, and repeat until the user explicitly approves or the report no longer includes that section.
 4. Do not proceed until the current test-plan report either has no `## Strategy changes requiring user approval` section or the user has explicitly approved it.
-5. Run the Worktree hygiene gate checks, verify the latest commit hash plus changed-file list match the test-plan subagent's report, and verify the test plan file exists at `{TEST_PLAN_PATH}`.
+5. Run the workspace hygiene gate checks, verify the latest commit hash plus changed-file list match the test-plan subagent's report, and verify the test plan file exists at `{TEST_PLAN_PATH}`.
 6. Close the completed test-plan subagent for the approved report and clear any saved handle or `session_id` for it.
 
 ## 9) Execute with trycycle-executing (subagent-owned)
@@ -200,7 +216,7 @@ Immediately before dispatch, prepare the `executing` phase via the phase wrapper
 
 Do not proceed to post-implementation review until the implementation subagent has returned an implementation report.
 
-After implementation completes, run the Worktree hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before launching post-implementation review.
+After implementation completes, run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before launching post-implementation review.
 
 ## 10) Post-implementation review loop (up to 8 rounds)
 
@@ -214,7 +230,7 @@ Use the review subagent's output as the fix-loop input. As soon as you have capt
 3. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, and `--set-file POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM=<review-findings-temp-file>`.
 4. In native mode, resume the same implementation subagent and send the exact returned `prompt_path` contents verbatim. In fallback-runner mode, resume the implementation session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using the saved `session_id` and the wrapper-prepared `prompt_path`.
 
-After each implementation-subagent fix round, run the Worktree hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next fresh review round.
+After each implementation-subagent fix round, run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next fresh review round.
 
 Stop when either condition is met:
 1. No **critical** or **major** issues remain.
@@ -238,4 +254,4 @@ If the implementation subagent is still open, close it and clear its saved handl
 
 Report the process to the user using concrete facts and returned artifacts: how many plan-editor rounds, how many code-review rounds, the current `HEAD`, the changed-file list, the implementation subagent's latest summary and verification results, and any reviewer-reported residual issues.
 
-Then read and follow `<skill-directory>/subskills/trycycle-finishing/SKILL.md` to present the user with options for integrating the worktree (merge, PR, etc.).
+Then read and follow `<skill-directory>/subskills/trycycle-finishing/SKILL.md` to present the user with options for integrating the implementation workspace (merge, PR, etc.).

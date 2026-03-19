@@ -21,8 +21,8 @@ Task:
 - The bar is: would a skilled developer executing this plan build the right thing without backtracking? If yes, leave it alone. If no, fix what's actually wrong.
 - The plan should land the requested end state directly, not expect interim steps e.g. 'stabilize before cutover'. Prefer what is idiomatic and architecturally clean over what is expedient.
 - If a user decision is genuinely required because there is no safe path forward without it, return a detailed report beginning with `USER DECISION REQUIRED:` that names the decision, explains why it is required, justifies it carefully, and gives your recommended choice.
-- Work in the worktree at `{WORKTREE_PATH}`.
-- If you revise the plan, commit the revised plan to the worktree. If you declare it already excellent unchanged, do not modify files.
+- Work in the implementation workspace at `{WORKTREE_PATH}`.
+- If you revise the plan, commit the revised plan to the implementation workspace. If you declare it already excellent unchanged, do not modify files.
 - Return a markdown report with these sections in this order:
   - `## Plan verdict` — `REVISED` if you changed the plan, or `READY` if you left it unchanged
   - `## Plan path` — the absolute path to the current plan file
