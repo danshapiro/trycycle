@@ -301,6 +301,7 @@ def _codex_command(
     workdir: Path,
     reply_path: Path,
     effort: str | None,
+    model: str | None,
 ) -> list[str]:
     command = [
         binary,
@@ -317,8 +318,13 @@ def _codex_command(
         str(reply_path),
         "-",
     ]
+    config_inserts: list[str] = []
+    if model:
+        config_inserts.extend(["-m", model])
     if effort:
-        command[3:3] = ["-c", f"model_reasoning_effort={effort}"]
+        config_inserts.extend(["-c", f"model_reasoning_effort={effort}"])
+    if config_inserts:
+        command[3:3] = config_inserts
     return command
 
 
@@ -328,6 +334,7 @@ def _codex_resume_command(
     session_id: str,
     reply_path: Path,
     effort: str | None,
+    model: str | None,
 ) -> list[str]:
     command = [
         binary,
@@ -340,8 +347,13 @@ def _codex_resume_command(
         str(reply_path),
         "-",
     ]
+    config_inserts: list[str] = []
+    if model:
+        config_inserts.extend(["-m", model])
     if effort:
-        command[3:3] = ["-c", f"model_reasoning_effort={effort}"]
+        config_inserts.extend(["-c", f"model_reasoning_effort={effort}"])
+    if config_inserts:
+        command[3:3] = config_inserts
     return command
 
 
@@ -349,6 +361,7 @@ def _claude_command(
     *,
     binary: str,
     effort: str | None,
+    model: str | None,
 ) -> tuple[list[str], str]:
     session_id = str(uuid.uuid4())
     command = [
@@ -360,6 +373,8 @@ def _claude_command(
         "text",
         "--dangerously-skip-permissions",
     ]
+    if model:
+        command.extend(["--model", model])
     if effort:
         command.extend(["--effort", effort])
     return command, session_id
@@ -370,6 +385,7 @@ def _claude_resume_command(
     binary: str,
     session_id: str,
     effort: str | None,
+    model: str | None,
 ) -> list[str]:
     command = [
         binary,
@@ -380,6 +396,8 @@ def _claude_resume_command(
         "text",
         "--dangerously-skip-permissions",
     ]
+    if model:
+        command.extend(["--model", model])
     if effort:
         command.extend(["--effort", effort])
     return command
@@ -401,6 +419,7 @@ def _run_backend(
     stdout_path: Path,
     stderr_path: Path,
     effort: str | None,
+    model: str | None,
     timeout_seconds: int,
     dry_run: bool,
     events_path: Path,
@@ -412,6 +431,7 @@ def _run_backend(
             workdir=workdir,
             reply_path=reply_path,
             effort=effort,
+            model=model,
         )
         cwd = workdir
         session_id = None
@@ -419,6 +439,7 @@ def _run_backend(
         command, session_id = _claude_command(
             binary=binary,
             effort=effort,
+            model=model,
         )
         cwd = workdir
     else:
@@ -532,6 +553,7 @@ def _resume_backend(
     stdout_path: Path,
     stderr_path: Path,
     effort: str | None,
+    model: str | None,
     timeout_seconds: int,
     dry_run: bool,
     events_path: Path,
@@ -542,6 +564,7 @@ def _resume_backend(
             session_id=session_id,
             reply_path=reply_path,
             effort=effort,
+            model=model,
         )
         cwd = workdir
     elif backend == "claude":
@@ -549,6 +572,7 @@ def _resume_backend(
             binary=binary,
             session_id=session_id,
             effort=effort,
+            model=model,
         )
         cwd = workdir
     else:
@@ -735,6 +759,7 @@ def _command_run(args: argparse.Namespace) -> int:
         stdout_path=stdout_path,
         stderr_path=stderr_path,
         effort=args.effort,
+        model=args.model,
         timeout_seconds=args.timeout_seconds,
         dry_run=args.dry_run,
         events_path=events_path,
@@ -895,6 +920,7 @@ def _command_resume(args: argparse.Namespace) -> int:
         stdout_path=stdout_path,
         stderr_path=stderr_path,
         effort=args.effort,
+        model=args.model,
         timeout_seconds=args.timeout_seconds,
         dry_run=args.dry_run,
         events_path=events_path,
@@ -1000,6 +1026,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Reasoning effort hint. Codex maps this to model_reasoning_effort.",
     )
     run_parser.add_argument(
+        "--model",
+        help="Model identifier passed to the backend (e.g. claude-opus-4-6 for Claude, o3 for Codex).",
+    )
+    run_parser.add_argument(
         "--timeout-seconds",
         type=int,
         default=DEFAULT_TIMEOUT_SECONDS,
@@ -1050,6 +1080,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--effort",
         choices=["low", "medium", "high", "max"],
         help="Reasoning effort hint. Codex maps this to model_reasoning_effort.",
+    )
+    resume_parser.add_argument(
+        "--model",
+        help="Model identifier passed to the backend (e.g. claude-opus-4-6 for Claude, o3 for Codex).",
     )
     resume_parser.add_argument(
         "--timeout-seconds",

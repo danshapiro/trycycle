@@ -192,6 +192,8 @@ def _command_run(args: argparse.Namespace) -> int:
     ]
     if args.effort:
         command.extend(["--effort", args.effort])
+    if args.model:
+        command.extend(["--model", args.model])
     if args.timeout_seconds is not None:
         command.extend(["--timeout-seconds", str(args.timeout_seconds)])
     if args.dry_run:
@@ -317,6 +319,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--effort",
         choices=["low", "medium", "high", "max"],
         help="Reasoning effort hint for the subagent backend.",
+    )
+    run_parser.add_argument(
+        "--model",
+        help="Model identifier forwarded to subagent_runner.py (e.g. claude-opus-4-6).",
     )
     run_parser.add_argument(
         "--timeout-seconds",
