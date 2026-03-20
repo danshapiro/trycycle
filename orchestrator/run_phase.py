@@ -322,7 +322,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument(
         "--model",
-        help="Model identifier forwarded to subagent_runner.py (e.g. claude-opus-4-6).",
+        help="Model identifier forwarded to subagent_runner.py.",
     )
     run_parser.add_argument(
         "--timeout-seconds",

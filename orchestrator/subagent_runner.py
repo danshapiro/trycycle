@@ -1027,7 +1027,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument(
         "--model",
-        help="Model identifier passed to the backend (e.g. claude-opus-4-6 for Claude, o3 for Codex).",
+        help="Model identifier passed to the backend CLI (--model for Claude, -m for Codex).",
     )
     run_parser.add_argument(
         "--timeout-seconds",
@@ -1083,7 +1083,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     resume_parser.add_argument(
         "--model",
-        help="Model identifier passed to the backend (e.g. claude-opus-4-6 for Claude, o3 for Codex).",
+        help="Model identifier passed to the backend CLI (--model for Claude, -m for Codex).",
     )
     resume_parser.add_argument(
         "--timeout-seconds",

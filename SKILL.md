@@ -57,8 +57,8 @@ When a step below references `{TEST_PLAN_PATH}`, use the latest absolute test-pl
 ## Subagent Defaults
 
 - **Always use the most capable model with maximum reasoning.** Every subagent must be dispatched at the highest capability tier available on the current backend, with maximum reasoning effort.
-  - In native mode (Claude Code Agent tool): pass `model: "opus"`. If the orchestrator is Codex CLI or another platform, use its equivalent top-tier model parameter.
-  - In fallback-runner mode: always pass `--effort max`. Pass `--model` with the most capable model for the detected backend (e.g. `--model claude-opus-4-6` for Claude, the equivalent for Codex/OpenAI).
+  - In native mode (Claude Code Agent tool): pass `model: "opus"`. On other orchestrators, use the equivalent top-tier model parameter.
+  - In fallback-runner mode: always pass `--effort max` and `--model` with the current top-tier model identifier for the detected backend.
 - Planning subagents are ephemeral across plan-edit rounds so they can remain independent: spawn a fresh planning agent for the initial plan and for every plan-edit round until the plan is judged already excellent without changes.
 - In native mode, implementation subagents are persistent: create one implementation agent, then resume it for every implementation-fix round.
 - In fallback-runner mode, implementation subagents are persistent through the runner: create one implementation session, record its `session_id`, then resume it through the runner for every implementation-fix round.
