@@ -6,12 +6,14 @@ import sys
 
 import claude_code
 import codex_cli
+import kimi_cli
 from common import TranscriptError, choose_most_recent_match, render_transcript
 
 
 ADAPTERS = {
     "claude-code": claude_code,
     "codex-cli": codex_cli,
+    "kimi-cli": kimi_cli,
 }
 
 
