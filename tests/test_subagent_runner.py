@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 import unittest
 from pathlib import Path
 
@@ -618,6 +619,70 @@ class SubagentRunnerTests(unittest.TestCase):
                 )
                 self.assertEqual(status, "escalate_to_user")
                 self.assertIn("debug-only reply", message)
+            finally:
+                if old_share_dir is None:
+                    os.environ.pop("KIMI_SHARE_DIR", None)
+                else:
+                    os.environ["KIMI_SHARE_DIR"] = old_share_dir
+
+    def test_classify_run_result_requires_final_visible_kimi_reply_to_match_stdout(
+        self,
+    ) -> None:
+        sys.path.insert(0, str(ORCHESTRATOR_ROOT))
+        try:
+            import subagent_runner  # type: ignore
+        finally:
+            sys.path.pop(0)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            share_root = tmp_path / "share"
+            workdir = tmp_path / "work"
+            session_id = "kimi-final-turn"
+            share_root.mkdir()
+            workdir.mkdir()
+            context_path = _kimi_session_dir(share_root, workdir, session_id) / "context.jsonl"
+            _write_jsonl(
+                context_path,
+                [
+                    {"role": "user", "content": "prompt"},
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "text", "text": "printed reply"},
+                        ],
+                    },
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "text", "text": "later different reply"},
+                        ],
+                    },
+                ],
+            )
+
+            old_share_dir = os.environ.get("KIMI_SHARE_DIR")
+            os.environ["KIMI_SHARE_DIR"] = str(share_root)
+            try:
+                started_at = time.monotonic()
+                status, message = subagent_runner._classify_run_result(
+                    backend="kimi",
+                    run_result={
+                        "command": ["kimi"],
+                        "exit_code": 0,
+                        "reply_text": "printed reply\n",
+                        "timed_out": False,
+                        "dry_run": False,
+                        "session_id": session_id,
+                        "kimi_baseline_line_counts": {},
+                    },
+                    timeout_seconds=60,
+                    success_message="Kimi helper ok",
+                    workdir=workdir,
+                )
+                self.assertEqual(status, "escalate_to_user")
+                self.assertIn("printed reply", message)
+                self.assertLess(time.monotonic() - started_at, 5)
             finally:
                 if old_share_dir is None:
                     os.environ.pop("KIMI_SHARE_DIR", None)

@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 import unittest
 from pathlib import Path
 
@@ -568,6 +569,83 @@ class RunPhaseTests(unittest.TestCase):
                 latest_assistant,
                 Path(prepare_payload["prompt_path"]).read_text(encoding="utf-8"),
             )
+
+    def test_probe_transcript_build_and_kimi_dry_run_complete_within_local_latency_bound(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            workdir = tmp_path / "repo"
+            home_dir = tmp_path / "home"
+            bin_dir = tmp_path / "bin"
+            share_root = tmp_path / "kimi-share"
+            output_path = tmp_path / "transcript.json"
+            template_path = tmp_path / "template.md"
+            workdir.mkdir()
+            home_dir.mkdir()
+            bin_dir.mkdir()
+            template_path.write_text("Work in {WORKTREE_PATH}\n", encoding="utf-8")
+            _write_fake_kimi_binary(bin_dir)
+            _write_kimi_share_root(
+                share_root,
+                workdir=workdir,
+                session_id="session-direct",
+                context_records=[
+                    {"role": "user", "content": "hello from kimi phase"},
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "text", "text": "visible kimi phase reply"},
+                        ],
+                    },
+                ],
+            )
+            env = {
+                "PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}",
+                "HOME": str(home_dir),
+                "KIMI_SHARE_DIR": str(share_root),
+            }
+
+            probe_started_at = time.monotonic()
+            probe_result = self.run_runner("probe", env=env)
+            probe_duration = time.monotonic() - probe_started_at
+
+            build_started_at = time.monotonic()
+            build_result = self.run_builder(
+                "--cli",
+                "kimi-cli",
+                "--search-root",
+                str(share_root),
+                "--output",
+                str(output_path),
+                cwd=workdir,
+            )
+            build_duration = time.monotonic() - build_started_at
+
+            dry_run_started_at = time.monotonic()
+            dry_run_result = self.run_phase(
+                "run",
+                "--phase",
+                "smoke",
+                "--template",
+                str(template_path),
+                "--workdir",
+                str(workdir),
+                "--set",
+                f"WORKTREE_PATH={workdir}",
+                "--backend",
+                "kimi",
+                "--dry-run",
+                env=env,
+            )
+            dry_run_duration = time.monotonic() - dry_run_started_at
+
+            self.assertEqual(probe_result.returncode, 0, probe_result.stderr)
+            self.assertEqual(build_result.returncode, 0, build_result.stderr)
+            self.assertEqual(dry_run_result.returncode, 0, dry_run_result.stderr)
+            self.assertLess(probe_duration, 5)
+            self.assertLess(build_duration, 5)
+            self.assertLess(dry_run_duration, 5)
 
     def test_prepare_fails_cleanly_when_transcript_lookup_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

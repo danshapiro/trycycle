@@ -418,14 +418,18 @@ def _kimi_visible_text(record: dict) -> str:
     )
 
 
-def _extract_kimi_final_visible_assistant_text(path: Path) -> str | None:
+def _extract_kimi_final_visible_assistant_text(
+    path: Path,
+    *,
+    baseline_line_count: int = 0,
+) -> str | None:
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except OSError:
         return None
 
     final_text: str | None = None
-    for raw_line in lines:
+    for raw_line in lines[baseline_line_count:]:
         if not raw_line.strip():
             continue
         try:
@@ -448,37 +452,6 @@ def _normalize_kimi_reply_text(text: str) -> str:
     return normalized
 
 
-def _iter_kimi_new_assistant_replies_from_path(
-    *,
-    path: Path,
-    baseline_line_count: int,
-) -> list[str]:
-    replies: list[str] = []
-
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return replies
-
-    for raw_line in lines[baseline_line_count:]:
-        if not raw_line.strip():
-            continue
-        try:
-            record = json.loads(raw_line)
-        except json.JSONDecodeError:
-            continue
-
-        role = record.get("role") or record.get("type")
-        if role != "assistant":
-            continue
-
-        visible_text = _kimi_visible_text(record)
-        if visible_text:
-            replies.append(visible_text)
-
-    return replies
-
-
 def _kimi_reply_matches_session(
     *,
     reply_text: str,
@@ -499,15 +472,15 @@ def _kimi_reply_matches_session(
     if baseline_line_counts is not None:
         baseline_line_count = baseline_line_counts.get(str(context_path.resolve()), 0)
 
-    for persisted_reply in _iter_kimi_new_assistant_replies_from_path(
+    persisted_reply = _extract_kimi_final_visible_assistant_text(
         path=context_path,
         baseline_line_count=baseline_line_count,
-    ):
-        if _normalize_kimi_reply_text(reply_text) == _normalize_kimi_reply_text(
-            persisted_reply
-        ):
-            return True
-    return False
+    )
+    if persisted_reply is None:
+        return False
+    return _normalize_kimi_reply_text(reply_text) == _normalize_kimi_reply_text(
+        persisted_reply
+    )
 
 
 def _first_visible_reply_line(text: str) -> str | None:

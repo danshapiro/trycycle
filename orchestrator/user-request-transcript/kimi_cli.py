@@ -3,9 +3,16 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import shutil
 import time
 
-from common import TranscriptError, TranscriptTurn, iter_jsonl_records
+from common import (
+    TranscriptError,
+    TranscriptTurn,
+    iter_jsonl_records,
+    python_search,
+    rg_search,
+)
 
 
 DEFAULT_ROOT = Path.home() / ".kimi"
@@ -122,13 +129,22 @@ def find_current_transcript(search_root: Path | None = None) -> Path | None:
     return _select_direct_transcript_path(session_dir, str(session_id))
 
 
-def _iter_canary_candidates(share_root: Path) -> list[Path]:
-    matches: list[Path] = []
-    for session_dir in _sessions_root(share_root).glob("*/*"):
-        if not session_dir.is_dir():
-            continue
-        matches.extend(_top_level_transcript_candidates(session_dir, session_dir.name))
-    return matches
+def _is_top_level_transcript_match(path: Path, *, sessions_root: Path) -> bool:
+    try:
+        relative_path = path.resolve().relative_to(sessions_root.resolve())
+    except ValueError:
+        return False
+
+    if len(relative_path.parts) != 3:
+        return False
+
+    session_id = relative_path.parts[1]
+    filename = relative_path.name
+    if filename == "context.jsonl":
+        return True
+    if filename.startswith("context_"):
+        return True
+    return filename == f"{session_id}.jsonl"
 
 
 def find_matching_transcripts(
@@ -139,16 +155,32 @@ def find_matching_transcripts(
     search_root: Path | None = None,
 ) -> list[Path]:
     share_root = _resolve_share_root(search_root)
+    sessions_root = _sessions_root(share_root)
     deadline = time.monotonic() + (timeout_ms / 1000)
+    use_rg = shutil.which("rg") is not None
 
     while True:
-        matches: list[Path] = []
-        for path in _iter_canary_candidates(share_root):
-            try:
-                if canary in path.read_text(encoding="utf-8"):
-                    matches.append(path)
-            except OSError:
-                continue
+        if use_rg:
+            matches = rg_search(
+                sessions_root,
+                canary=canary,
+                exclude_globs=["**/wire.jsonl", "**/context_sub_*.jsonl"],
+            )
+        else:
+            matches = python_search(
+                sessions_root,
+                canary=canary,
+                exclude_paths=lambda path: not _is_top_level_transcript_match(
+                    path,
+                    sessions_root=sessions_root,
+                ),
+            )
+
+        matches = [
+            path
+            for path in matches
+            if _is_top_level_transcript_match(path, sessions_root=sessions_root)
+        ]
 
         if matches:
             return matches
@@ -158,7 +190,7 @@ def find_matching_transcripts(
         time.sleep(poll_ms / 1000)
 
     raise TranscriptError(
-        f"No Kimi transcript file under {_sessions_root(share_root)} contained canary {canary!r} within {timeout_ms}ms."
+        f"No Kimi transcript file under {sessions_root} contained canary {canary!r} within {timeout_ms}ms."
     )
 
 
