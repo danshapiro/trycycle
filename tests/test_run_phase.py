@@ -1,16 +1,87 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUN_PHASE = REPO_ROOT / "orchestrator" / "run_phase.py"
+
+
+def _write_jsonl(path: Path, records: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "\n".join(json.dumps(record) for record in records) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _kimi_session_dir(share_root: Path, workdir: Path, session_id: str) -> Path:
+    workdir_hash = hashlib.md5(str(workdir.resolve()).encode("utf-8")).hexdigest()
+    return share_root / "sessions" / workdir_hash / session_id
+
+
+def _write_kimi_share_root(
+    share_root: Path,
+    *,
+    workdir: Path,
+    session_id: str,
+    context_records: list[dict],
+) -> None:
+    share_root.mkdir(parents=True, exist_ok=True)
+    (share_root / "kimi.json").write_text(
+        json.dumps(
+            {
+                "work_dirs": [
+                    {
+                        "path": str(workdir.resolve()),
+                        "last_session_id": session_id,
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _write_jsonl(
+        _kimi_session_dir(share_root, workdir, session_id) / "context.jsonl",
+        context_records,
+    )
+
+
+def _write_fake_kimi_binary(bin_dir: Path) -> Path:
+    kimi_path = bin_dir / "kimi"
+    kimi_path.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env python3
+            import sys
+
+            if "--help" in sys.argv:
+                sys.stdout.write(
+                    "Usage: kimi\\n"
+                    "--print\\n"
+                    "--session\\n"
+                    "--continue\\n"
+                    "--work-dir\\n"
+                    "Only print the final assistant message\\n"
+                )
+                raise SystemExit(0)
+
+            raise SystemExit(0)
+            """
+        ),
+        encoding="utf-8",
+    )
+    kimi_path.chmod(0o755)
+    return kimi_path
 
 
 def write_codex_transcript(root: Path, *, thread_id: str) -> None:
@@ -78,7 +149,12 @@ def write_claude_transcript(root: Path, *, canary: str) -> None:
 
 
 class RunPhaseTests(unittest.TestCase):
-    def run_phase(self, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    def run_phase(
+        self,
+        *args: str,
+        env: dict[str, str] | None = None,
+        cwd: Path | None = None,
+    ) -> subprocess.CompletedProcess[str]:
         merged_env = os.environ.copy()
         if env:
             merged_env.update(env)
@@ -88,6 +164,7 @@ class RunPhaseTests(unittest.TestCase):
             capture_output=True,
             check=False,
             env=merged_env,
+            cwd=cwd,
         )
 
     def test_prepare_builds_transcript_and_prompt_for_codex(self) -> None:
@@ -174,6 +251,64 @@ class RunPhaseTests(unittest.TestCase):
             prompt_path = Path(payload["prompt_path"])
             self.assertIn("review request", prompt_path.read_text(encoding="utf-8"))
 
+    def test_prepare_supports_kimi_direct_lookup(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            workdir = tmp_path / "repo"
+            caller_cwd = tmp_path / "caller"
+            workdir.mkdir()
+            caller_cwd.mkdir()
+            template_path = tmp_path / "template.md"
+            share_root = tmp_path / "kimi-share"
+            template_path.write_text(
+                "<task_input_json>{USER_REQUEST_TRANSCRIPT}</task_input_json>\n",
+                encoding="utf-8",
+            )
+            _write_kimi_share_root(
+                share_root,
+                workdir=workdir,
+                session_id="session-direct",
+                context_records=[
+                    {"role": "_system_prompt", "content": "ignored"},
+                    {"role": "user", "content": "hello from kimi phase"},
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "think", "think": "ignored"},
+                            {"type": "text", "text": "visible kimi phase reply"},
+                        ],
+                    },
+                    {"role": "user", "content": "next phase turn"},
+                ],
+            )
+
+            result = self.run_phase(
+                "prepare",
+                "--phase",
+                "planning-initial",
+                "--template",
+                str(template_path),
+                "--workdir",
+                str(workdir),
+                "--transcript-placeholder",
+                "USER_REQUEST_TRANSCRIPT",
+                "--transcript-cli",
+                "kimi-cli",
+                "--transcript-search-root",
+                str(share_root),
+                "--require-nonempty-tag",
+                "task_input_json",
+                cwd=caller_cwd,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "prepared")
+            prompt_path = Path(payload["prompt_path"])
+            prompt_text = prompt_path.read_text(encoding="utf-8")
+            self.assertIn("hello from kimi phase", prompt_text)
+            self.assertIn("visible kimi phase reply", prompt_text)
+
     def test_run_dispatches_with_subagent_runner_dry_run(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
@@ -203,6 +338,40 @@ class RunPhaseTests(unittest.TestCase):
             self.assertEqual(payload["dispatch"]["status"], "ok")
             self.assertTrue(Path(payload["prompt_path"]).exists())
             self.assertTrue(Path(payload["dispatch"]["result_path"]).exists())
+
+    def test_run_dispatches_with_kimi_backend_dry_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            workdir = tmp_path / "repo"
+            bin_dir = tmp_path / "bin"
+            workdir.mkdir()
+            bin_dir.mkdir()
+            template_path = tmp_path / "template.md"
+            template_path.write_text("Work in {WORKTREE_PATH}\n", encoding="utf-8")
+            fake_kimi = _write_fake_kimi_binary(bin_dir)
+
+            result = self.run_phase(
+                "run",
+                "--phase",
+                "smoke",
+                "--template",
+                str(template_path),
+                "--workdir",
+                str(workdir),
+                "--set",
+                f"WORKTREE_PATH={workdir}",
+                "--backend",
+                "kimi",
+                "--dry-run",
+                env={"PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}"},
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "ok")
+            self.assertEqual(payload["dispatch"]["status"], "ok")
+            self.assertEqual(payload["dispatch"]["backend"], "kimi")
+            self.assertEqual(payload["dispatch"]["process"]["command"][0], str(fake_kimi))
 
     def test_prepare_fails_cleanly_when_transcript_lookup_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

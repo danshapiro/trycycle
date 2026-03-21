@@ -55,19 +55,29 @@ def _detect_transcript_cli(selected: str) -> str:
     raise PhaseError("Could not detect transcript CLI. Pass --transcript-cli explicitly.")
 
 
-def _run_command(argv: list[str]) -> subprocess.CompletedProcess[str]:
+def _run_command(
+    argv: list[str],
+    *,
+    cwd: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(
         argv,
         text=True,
         capture_output=True,
         check=False,
+        cwd=cwd,
     )
     if result.returncode != 0:
         raise PhaseError(result.stderr.strip() or f"Command failed: {' '.join(argv)}")
     return result
 
 
-def _prepare_transcripts(args: argparse.Namespace, artifacts_dir: Path) -> tuple[str | None, dict[str, str]]:
+def _prepare_transcripts(
+    args: argparse.Namespace,
+    artifacts_dir: Path,
+    *,
+    workdir: Path,
+) -> tuple[str | None, dict[str, str]]:
     placeholders = [_parse_placeholder_name(raw) for raw in args.transcript_placeholder]
     if not placeholders:
         return None, {}
@@ -96,7 +106,7 @@ def _prepare_transcripts(args: argparse.Namespace, artifacts_dir: Path) -> tuple
         command.extend(["--canary", args.canary])
     if args.transcript_search_root:
         command.extend(["--search-root", str(args.transcript_search_root)])
-    _run_command(command)
+    _run_command(command, cwd=workdir)
     rendered_paths[first_placeholder] = str(first_output_path)
 
     for placeholder in placeholders[1:]:
@@ -144,7 +154,11 @@ def _prepare_phase(args: argparse.Namespace) -> dict[str, Any]:
     )
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-    transcript_cli, transcript_paths = _prepare_transcripts(args, artifacts_dir)
+    transcript_cli, transcript_paths = _prepare_transcripts(
+        args,
+        artifacts_dir,
+        workdir=workdir,
+    )
     prompt_path = _build_prompt(args, artifacts_dir, transcript_paths)
 
     payload = {
@@ -262,7 +276,7 @@ def _add_prepare_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--transcript-cli",
-        choices=["auto", "codex-cli", "claude-code"],
+        choices=["auto", "codex-cli", "claude-code", "kimi-cli"],
         default="auto",
         help="Transcript provider to use for transcript placeholders.",
     )
@@ -311,7 +325,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_prepare_arguments(run_parser)
     run_parser.add_argument(
         "--backend",
-        choices=["auto", "codex", "claude"],
+        choices=["auto", "codex", "claude", "kimi"],
         default="auto",
         help="Subagent backend selection policy.",
     )

@@ -160,18 +160,52 @@ def _probe_claude(binary: str) -> dict[str, Any]:
     }
 
 
+def _probe_kimi(binary: str) -> dict[str, Any]:
+    path = _resolve_binary(binary)
+    if path is None:
+        return {
+            "available": False,
+            "binary": binary,
+            "reason": "binary not found on PATH",
+        }
+
+    ok, output = _run_probe([path, "--help"])
+    if not ok:
+        return {
+            "available": False,
+            "binary": path,
+            "reason": output,
+        }
+
+    required_tokens = ["--print", "--session", "--continue", "--work-dir", "final assistant"]
+    missing = [token for token in required_tokens if token not in output]
+    if missing:
+        return {
+            "available": False,
+            "binary": path,
+            "reason": f"missing required help tokens: {', '.join(missing)}",
+        }
+
+    return {
+        "available": True,
+        "binary": path,
+        "supports_resume": True,
+    }
+
+
 def _detect_backend_preferences() -> list[str]:
     if os.environ.get("CODEX_THREAD_ID") or os.environ.get("CODEX_HOME"):
-        return ["codex", "claude"]
+        return ["codex", "claude", "kimi"]
     if os.environ.get("CLAUDECODE"):
-        return ["claude", "codex"]
-    return ["codex", "claude"]
+        return ["claude", "codex", "kimi"]
+    return ["codex", "claude", "kimi"]
 
 
 def _probe_backends() -> dict[str, Any]:
     backends = {
         "codex": _probe_codex("codex"),
         "claude": _probe_claude("claude"),
+        "kimi": _probe_kimi("kimi"),
     }
 
     preferred_order = _detect_backend_preferences()
@@ -403,6 +437,32 @@ def _claude_resume_command(
     return command
 
 
+def _kimi_command(
+    *,
+    binary: str,
+    workdir: Path,
+    effort: str | None,
+    model: str | None,
+) -> tuple[list[str], str]:
+    session_id = str(uuid.uuid4())
+    command = [
+        binary,
+        "--print",
+        "--final-message-only",
+        "--work-dir",
+        str(workdir),
+        "--session",
+        session_id,
+    ]
+    if model:
+        command.extend(["--model", model])
+    if effort == "low":
+        command.append("--no-thinking")
+    elif effort:
+        command.append("--thinking")
+    return command, session_id
+
+
 def _copy_if_needed(source: Path, target: Path) -> None:
     if source.resolve() == target.resolve():
         return
@@ -438,6 +498,14 @@ def _run_backend(
     elif backend == "claude":
         command, session_id = _claude_command(
             binary=binary,
+            effort=effort,
+            model=model,
+        )
+        cwd = workdir
+    elif backend == "kimi":
+        command, session_id = _kimi_command(
+            binary=binary,
+            workdir=workdir,
             effort=effort,
             model=model,
         )
@@ -507,7 +575,7 @@ def _run_backend(
     stdout_path.write_text(result.stdout or "", encoding="utf-8")
     stderr_path.write_text(result.stderr or "", encoding="utf-8")
 
-    if backend == "claude":
+    if backend in {"claude", "kimi"}:
         reply_text = result.stdout or ""
         reply_path.write_text(reply_text, encoding="utf-8")
     else:
@@ -1016,7 +1084,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument(
         "--backend",
-        choices=["auto", "codex", "claude"],
+        choices=["auto", "codex", "claude", "kimi"],
         default="auto",
         help="Backend selection policy.",
     )
