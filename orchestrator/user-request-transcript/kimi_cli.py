@@ -218,4 +218,7 @@ def extract_transcript(path: Path) -> list[TranscriptTurn]:
                 text=visible_reply,
             )
 
+    if pending_assistant is not None:
+        selected_turns.append(pending_assistant)
+
     return selected_turns

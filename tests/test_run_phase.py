@@ -84,6 +84,31 @@ def _write_fake_kimi_binary(bin_dir: Path) -> Path:
     return kimi_path
 
 
+def _write_fake_codex_binary(bin_dir: Path) -> Path:
+    codex_path = bin_dir / "codex"
+    codex_path.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env python3
+            import sys
+
+            if sys.argv[1:] == ["exec", "--help"]:
+                sys.stdout.write(
+                    "Run Codex non-interactively\\n"
+                    "--output-last-message\\n"
+                    "resume\\n"
+                )
+                raise SystemExit(0)
+
+            raise SystemExit(0)
+            """
+        ),
+        encoding="utf-8",
+    )
+    codex_path.chmod(0o755)
+    return codex_path
+
+
 def write_codex_transcript(root: Path, *, thread_id: str) -> None:
     root.mkdir(parents=True, exist_ok=True)
     (root / f"rollout-{thread_id}.jsonl").write_text(
@@ -313,9 +338,12 @@ class RunPhaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
             workdir = tmp_path / "repo"
+            bin_dir = tmp_path / "bin"
             workdir.mkdir()
+            bin_dir.mkdir()
             template_path = tmp_path / "template.md"
             template_path.write_text("Work in {WORKTREE_PATH}\n", encoding="utf-8")
+            _write_fake_codex_binary(bin_dir)
 
             result = self.run_phase(
                 "run",
@@ -330,6 +358,7 @@ class RunPhaseTests(unittest.TestCase):
                 "--backend",
                 "codex",
                 "--dry-run",
+                env={"PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}"},
             )
 
             self.assertEqual(result.returncode, 0, result.stderr)
