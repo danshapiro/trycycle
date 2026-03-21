@@ -10,8 +10,8 @@ from common import (
     TranscriptError,
     TranscriptTurn,
     iter_jsonl_records,
-    python_search,
-    rg_search,
+    python_search_paths,
+    rg_search_paths,
 )
 
 
@@ -58,15 +58,28 @@ def _workdir_entry(metadata: dict, workdir: Path) -> dict | None:
 
 
 def _candidate_session_dir(share_root: Path, workdir: Path, session_id: str) -> Path:
+    return _workdir_sessions_root(share_root, workdir) / session_id
+
+
+def _workdir_sessions_root(share_root: Path, workdir: Path) -> Path:
     import hashlib
 
     workdir_hash = hashlib.md5(str(workdir).encode("utf-8")).hexdigest()
-    return _sessions_root(share_root) / workdir_hash / session_id
+    return _sessions_root(share_root) / workdir_hash
+
+
+def _legacy_session_path(share_root: Path, workdir: Path, session_id: str) -> Path:
+    return _workdir_sessions_root(share_root, workdir) / f"{session_id}.jsonl"
 
 
 def _top_level_transcript_candidates(session_dir: Path, session_id: str) -> list[Path]:
     candidates: list[Path] = []
-    for path in session_dir.iterdir():
+    try:
+        entries = list(session_dir.iterdir())
+    except OSError:
+        return candidates
+
+    for path in entries:
         if not path.is_file():
             continue
         if path.suffix != ".jsonl":
@@ -84,7 +97,8 @@ def _top_level_transcript_candidates(session_dir: Path, session_id: str) -> list
     return candidates
 
 
-def _select_direct_transcript_path(session_dir: Path, session_id: str) -> Path | None:
+def _select_direct_transcript_path(share_root: Path, workdir: Path, session_id: str) -> Path | None:
+    session_dir = _candidate_session_dir(share_root, workdir, session_id)
     context_path = session_dir / "context.jsonl"
     if context_path.exists():
         return context_path
@@ -101,9 +115,13 @@ def _select_direct_transcript_path(session_dir: Path, session_id: str) -> Path |
             reverse=True,
         )[0]
 
-    legacy_path = session_dir / f"{session_id}.jsonl"
+    legacy_path = _legacy_session_path(share_root, workdir, session_id)
     if legacy_path.exists():
         return legacy_path
+
+    nested_legacy_path = session_dir / f"{session_id}.jsonl"
+    if nested_legacy_path.exists():
+        return nested_legacy_path
     return None
 
 
@@ -120,13 +138,10 @@ def find_current_transcript(search_root: Path | None = None) -> Path | None:
         if not session_id:
             return None
 
-        session_dir = _candidate_session_dir(share_root, workdir, str(session_id))
     except TranscriptError:
         return None
 
-    if not session_dir.exists():
-        return None
-    return _select_direct_transcript_path(session_dir, str(session_id))
+    return _select_direct_transcript_path(share_root, workdir, str(session_id))
 
 
 def _is_top_level_transcript_match(path: Path, *, sessions_root: Path) -> bool:
@@ -135,16 +150,40 @@ def _is_top_level_transcript_match(path: Path, *, sessions_root: Path) -> bool:
     except ValueError:
         return False
 
+    filename = relative_path.name
+    if filename == "wire.jsonl" or filename == "metadata.jsonl":
+        return False
+    if filename.startswith("context_sub_"):
+        return False
+
+    if len(relative_path.parts) == 2:
+        return path.suffix == ".jsonl"
+
     if len(relative_path.parts) != 3:
         return False
 
     session_id = relative_path.parts[1]
-    filename = relative_path.name
     if filename == "context.jsonl":
         return True
     if filename.startswith("context_"):
         return True
     return filename == f"{session_id}.jsonl"
+
+
+def _iter_canary_candidates(share_root: Path) -> list[Path]:
+    sessions_root = _sessions_root(share_root)
+    matches: list[Path] = []
+    seen: set[Path] = set()
+    for pattern in ("*/*.jsonl", "*/*/*.jsonl"):
+        for path in sessions_root.glob(pattern):
+            if not _is_top_level_transcript_match(path, sessions_root=sessions_root):
+                continue
+            resolved = path.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            matches.append(path)
+    return matches
 
 
 def find_matching_transcripts(
@@ -160,27 +199,11 @@ def find_matching_transcripts(
     use_rg = shutil.which("rg") is not None
 
     while True:
+        candidate_paths = _iter_canary_candidates(share_root)
         if use_rg:
-            matches = rg_search(
-                sessions_root,
-                canary=canary,
-                exclude_globs=["**/wire.jsonl", "**/context_sub_*.jsonl"],
-            )
+            matches = rg_search_paths(candidate_paths, canary=canary)
         else:
-            matches = python_search(
-                sessions_root,
-                canary=canary,
-                exclude_paths=lambda path: not _is_top_level_transcript_match(
-                    path,
-                    sessions_root=sessions_root,
-                ),
-            )
-
-        matches = [
-            path
-            for path in matches
-            if _is_top_level_transcript_match(path, sessions_root=sessions_root)
-        ]
+            matches = python_search_paths(candidate_paths, canary=canary)
 
         if matches:
             return matches

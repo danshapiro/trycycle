@@ -339,9 +339,17 @@ def _resolve_kimi_share_root() -> Path:
     return DEFAULT_KIMI_SHARE_ROOT.expanduser().resolve()
 
 
-def _kimi_session_dir(*, workdir: Path, session_id: str) -> Path:
+def _kimi_workdir_sessions_root(*, workdir: Path) -> Path:
     workdir_hash = hashlib.md5(str(workdir.resolve()).encode("utf-8")).hexdigest()
-    return _resolve_kimi_share_root() / "sessions" / workdir_hash / session_id
+    return _resolve_kimi_share_root() / "sessions" / workdir_hash
+
+
+def _kimi_session_dir(*, workdir: Path, session_id: str) -> Path:
+    return _kimi_workdir_sessions_root(workdir=workdir) / session_id
+
+
+def _kimi_legacy_session_path(*, workdir: Path, session_id: str) -> Path:
+    return _kimi_workdir_sessions_root(workdir=workdir) / f"{session_id}.jsonl"
 
 
 def _kimi_top_level_context_candidates(session_dir: Path, session_id: str) -> list[Path]:
@@ -386,9 +394,13 @@ def _find_kimi_context_path(*, workdir: Path, session_id: str) -> Path | None:
             reverse=True,
         )[0]
 
-    legacy_path = session_dir / f"{session_id}.jsonl"
+    legacy_path = _kimi_legacy_session_path(workdir=workdir, session_id=session_id)
     if legacy_path.exists():
         return legacy_path
+
+    nested_legacy_path = session_dir / f"{session_id}.jsonl"
+    if nested_legacy_path.exists():
+        return nested_legacy_path
     return None
 
 
@@ -400,6 +412,14 @@ def _snapshot_kimi_line_counts(*, workdir: Path, session_id: str) -> dict[str, i
             counts[str(path.resolve())] = len(path.read_text(encoding="utf-8").splitlines())
         except OSError:
             continue
+    legacy_path = _kimi_legacy_session_path(workdir=workdir, session_id=session_id)
+    if legacy_path.exists():
+        try:
+            counts[str(legacy_path.resolve())] = len(
+                legacy_path.read_text(encoding="utf-8").splitlines()
+            )
+        except OSError:
+            pass
     return counts
 
 

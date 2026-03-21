@@ -80,11 +80,34 @@ def sanitize_output_text(text: str) -> str:
     )
 
 
-def rg_search(root: Path, canary: str, exclude_globs: list[str] | None = None) -> list[Path]:
-    command = ["rg", "-l", "-F", canary, str(root), "--glob", "*.jsonl"]
+def rg_search(
+    root: Path,
+    canary: str,
+    exclude_globs: list[str] | None = None,
+    include_globs: list[str] | None = None,
+) -> list[Path]:
+    command = ["rg", "-l", "-F", canary, str(root)]
+    for include_glob in include_globs or ["*.jsonl"]:
+        command.extend(["--glob", include_glob])
     for exclude_glob in exclude_globs or []:
         command.extend(["--glob", f"!{exclude_glob}"])
 
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode not in (0, 1):
+        raise TranscriptError(result.stderr.strip() or "ripgrep search failed.")
+    return [Path(line) for line in result.stdout.splitlines() if line.strip()]
+
+
+def rg_search_paths(paths: list[Path], canary: str) -> list[Path]:
+    if not paths:
+        return []
+
+    command = ["rg", "-l", "-F", canary, *(str(path) for path in paths)]
     result = subprocess.run(
         command,
         capture_output=True,
@@ -113,6 +136,17 @@ def python_search(
     return matches
 
 
+def python_search_paths(paths: list[Path], canary: str) -> list[Path]:
+    matches: list[Path] = []
+    for path in paths:
+        try:
+            if canary in path.read_text():
+                matches.append(path)
+        except OSError:
+            continue
+    return matches
+
+
 def wait_for_matches(
     *,
     root: Path,
@@ -120,6 +154,7 @@ def wait_for_matches(
     timeout_ms: int,
     poll_ms: int,
     exclude_globs: list[str] | None = None,
+    include_globs: list[str] | None = None,
     exclude_paths: Callable[[Path], bool] | None = None,
 ) -> list[Path]:
     deadline = time.monotonic() + (timeout_ms / 1000)
@@ -127,7 +162,12 @@ def wait_for_matches(
 
     while True:
         if use_rg:
-            matches = rg_search(root, canary, exclude_globs=exclude_globs)
+            matches = rg_search(
+                root,
+                canary,
+                exclude_globs=exclude_globs,
+                include_globs=include_globs,
+            )
         else:
             matches = python_search(root, canary, exclude_paths=exclude_paths)
 

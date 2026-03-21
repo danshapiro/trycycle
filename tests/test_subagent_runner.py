@@ -23,6 +23,11 @@ def _kimi_session_dir(share_root: Path, workdir: Path, session_id: str) -> Path:
     return share_root / "sessions" / workdir_hash / session_id
 
 
+def _kimi_legacy_session_path(share_root: Path, workdir: Path, session_id: str) -> Path:
+    workdir_hash = hashlib.md5(str(workdir.resolve()).encode("utf-8")).hexdigest()
+    return share_root / "sessions" / workdir_hash / f"{session_id}.jsonl"
+
+
 def _write_jsonl(path: Path, records: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -76,9 +81,15 @@ def _write_fake_kimi_binary(bin_dir: Path) -> Path:
             session_id = read_flag_value("--session")
             prompt_text = sys.stdin.read()
             workdir_hash = hashlib.md5(str(workdir.resolve()).encode("utf-8")).hexdigest()
-            session_dir = share_root / "sessions" / workdir_hash / session_id
-            session_dir.mkdir(parents=True, exist_ok=True)
-            context_path = session_dir / os.environ.get("FAKE_KIMI_CONTEXT_FILENAME", "context.jsonl")
+            sessions_root = share_root / "sessions" / workdir_hash
+            legacy_layout = os.environ.get("FAKE_KIMI_LEGACY_LAYOUT", "0") == "1"
+            if legacy_layout:
+                sessions_root.mkdir(parents=True, exist_ok=True)
+                context_path = sessions_root / f"{{session_id}}.jsonl"
+            else:
+                session_dir = sessions_root / session_id
+                session_dir.mkdir(parents=True, exist_ok=True)
+                context_path = session_dir / os.environ.get("FAKE_KIMI_CONTEXT_FILENAME", "context.jsonl")
             context_path.parent.mkdir(parents=True, exist_ok=True)
 
             mode = os.environ.get("FAKE_KIMI_MODE", "success")
@@ -327,6 +338,55 @@ class SubagentRunnerTests(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertEqual(payload["status"], "ok")
             self.assertEqual(payload["backend"], "kimi")
+
+    def test_run_with_kimi_backend_supports_legacy_flat_session_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            share_root = tmp_path / "share"
+            workdir = tmp_path / "work"
+            artifacts_dir = tmp_path / "artifacts"
+            prompt_path = tmp_path / "prompt.txt"
+            log_path = tmp_path / "kimi-log.jsonl"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            share_root.mkdir()
+            workdir.mkdir()
+            prompt_path.write_text("Reply exactly with legacy flat success\n", encoding="utf-8")
+            _write_fake_kimi_binary(bin_dir)
+
+            result = self.run_runner(
+                "run",
+                "--phase",
+                "smoke",
+                "--prompt-file",
+                str(prompt_path),
+                "--workdir",
+                str(workdir),
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "--backend",
+                "kimi",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "KIMI_SHARE_DIR": str(share_root),
+                    "FAKE_KIMI_LOG": str(log_path),
+                    "FAKE_KIMI_MODE": "success",
+                    "FAKE_KIMI_REPLY": "legacy flat success",
+                    "FAKE_KIMI_LEGACY_LAYOUT": "1",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "ok")
+            self.assertEqual(payload["backend"], "kimi")
+            self.assertEqual(
+                _read_jsonl(_kimi_legacy_session_path(share_root, workdir, payload["session_id"]))[-1]["content"][0]["text"],
+                "legacy flat success",
+            )
 
     def test_resume_with_kimi_backend_uses_explicit_session_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
