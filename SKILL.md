@@ -17,6 +17,7 @@ When a step below tells you to prepare or dispatch a phase:
 
 - In native mode, use `python3 <skill-directory>/orchestrator/run_phase.py prepare ...`, then send the exact contents of the returned `prompt_path` verbatim to the target subagent.
 - In fallback-runner mode, use `python3 <skill-directory>/orchestrator/run_phase.py run ...`. It prepares transcript and prompt artifacts, then dispatches through the bundled runner.
+- When the host agent is Kimi and you are using fallback-runner mode, pass `--backend kimi` on those wrapper calls because `auto` cannot reliably detect a Kimi host.
 - Treat the wrapper's JSON stdout and `result.json` as authoritative for prompt and artifact paths.
 - In fallback-runner mode, treat the nested `dispatch` payload plus its `result.json` as authoritative for subagent status and reply artifacts. Use the text at `dispatch.reply_path` as the exact subagent reply.
 - If fallback dispatch returns `dispatch.status: "user_decision_required"`, present `dispatch.reply_path` verbatim to the user.
@@ -43,10 +44,12 @@ In `--no-worktree` mode, do not create a nested git worktree and do not create o
 
 When a phase wrapper call needs `{USER_REQUEST_TRANSCRIPT}`, `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}`, or `{FULL_CONVERSATION_VERBATIM}`:
 1. For Codex CLI, let the wrapper use direct session lookup by default.
-2. If the wrapper reports that a canary is required, run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` as a separate top-level command, capture stdout exactly as `{CANARY}`, then rerun the wrapper with `--canary "{CANARY}"`.
-3. For Claude Code, always run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` as a separate top-level command first, capture stdout exactly as `{CANARY}`, then invoke the wrapper with `--transcript-cli claude-code --canary "{CANARY}"`.
+2. For Kimi CLI, always pass `--transcript-cli kimi-cli` on transcript-bearing wrapper calls and let direct session lookup run first.
+3. If the wrapper reports that a canary is required, run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` as a separate top-level command, capture stdout exactly as `{CANARY}`, then rerun the wrapper with `--canary "{CANARY}"`. For Kimi-hosted runs, keep `--transcript-cli kimi-cli` on the rerun as well.
+4. For Claude Code, always run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` as a separate top-level command first, capture stdout exactly as `{CANARY}`, then invoke the wrapper with `--transcript-cli claude-code --canary "{CANARY}"`.
 
 The canary must be emitted by a separate top-level command so it reaches the live session transcript before lookup. Do not rely on shell-specific capture or assignment forms that may keep the canary out of visible command output; shells and host wrappers vary, and if the canary is not visibly emitted into the session transcript, lookup will fail. Build transcript placeholder values immediately before each phase wrapper call that uses them.
+Kimi support is explicit here because `auto` cannot reliably detect a Kimi host.
 
 When a step below references `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}`, use the corresponding review subagent's stdout exactly as the placeholder value.
 

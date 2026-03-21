@@ -1,6 +1,6 @@
 <!-- GitHub repo settings (set manually in Settings > General):
   Description: A skill that plans, strengthens, and reviews your code -- automatically.
-  Topics: claude-code, codex-cli, ai-coding, code-review, autonomous-agents, ai-skill, hill-climbing
+  Topics: claude-code, codex-cli, kimi-cli, ai-coding, code-review, autonomous-agents, ai-skill, hill-climbing
   Social preview: upload assets/social-preview.png
 -->
 
@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <em>A skill for Claude Code and Codex CLI that plans, strengthens, and reviews your code -- automatically.</em>
+  <em>A skill for Claude Code, Codex CLI, and Kimi CLI that plans, strengthens, and reviews your code -- automatically.</em>
 </p>
 
 <p align="center">
@@ -26,7 +26,7 @@
 
 ### If you are human
 
-Tell your favorite coding agent (Claude Code, Codex CLI, etc.):
+Tell your favorite coding agent (Claude Code, Codex CLI, Kimi CLI, etc.):
 
 ```
 Read https://raw.githubusercontent.com/danshapiro/trycycle/main/README.md. Follow the installation instructions there.
@@ -38,6 +38,7 @@ Use this instead of a standard installation, or it won't work. Clone into your s
 
 - **Claude Code:** `git clone https://github.com/danshapiro/trycycle.git ~/.claude/skills/trycycle`
 - **Codex CLI:** `git clone https://github.com/danshapiro/trycycle.git ~/.codex/skills/trycycle`
+- **Kimi CLI:** `git clone https://github.com/danshapiro/trycycle.git ~/.kimi/skills/trycycle`
 
 Trycycle requires `python3` at runtime. Make sure it is installed and on your `PATH`.
 
