@@ -391,6 +391,17 @@ def _find_kimi_context_path(*, workdir: Path, session_id: str) -> Path | None:
     return None
 
 
+def _snapshot_kimi_line_counts(*, workdir: Path, session_id: str) -> dict[str, int]:
+    session_dir = _kimi_session_dir(workdir=workdir, session_id=session_id)
+    counts: dict[str, int] = {}
+    for path in _kimi_top_level_context_candidates(session_dir):
+        try:
+            counts[str(path.resolve())] = len(path.read_text(encoding="utf-8").splitlines())
+        except OSError:
+            continue
+    return counts
+
+
 def _kimi_visible_text(record: dict) -> str:
     content = record.get("content")
     if content is None:
@@ -436,7 +447,18 @@ def _normalize_kimi_reply_text(text: str) -> str:
     return normalized
 
 
-def _kimi_reply_matches_session(*, reply_text: str, workdir: Path, session_id: str | None) -> bool:
+def _normalize_kimi_prompt_text(text: str) -> str:
+    return text.replace("\r\n", "\n").replace("\r", "\n").rstrip("\n")
+
+
+def _kimi_reply_matches_session(
+    *,
+    reply_text: str,
+    prompt_text: str,
+    workdir: Path,
+    session_id: str | None,
+    baseline_line_counts: dict[str, int] | None,
+) -> bool:
     if not session_id:
         return False
     if not reply_text.strip():
@@ -446,12 +468,46 @@ def _kimi_reply_matches_session(*, reply_text: str, workdir: Path, session_id: s
     if context_path is None:
         return False
 
-    final_assistant_text = _extract_kimi_final_visible_assistant_text(context_path)
-    if not final_assistant_text:
+    baseline_line_count = 0
+    if baseline_line_counts is not None:
+        baseline_line_count = baseline_line_counts.get(str(context_path.resolve()), 0)
+
+    try:
+        lines = context_path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return False
+
+    normalized_prompt = _normalize_kimi_prompt_text(prompt_text)
+    matched_user = False
+    matched_assistant: str | None = None
+
+    for raw_line in lines[baseline_line_count:]:
+        if not raw_line.strip():
+            continue
+        try:
+            record = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+
+        role = record.get("role") or record.get("type")
+        if role == "user":
+            if _normalize_kimi_prompt_text(_kimi_visible_text(record)) == normalized_prompt:
+                matched_user = True
+                matched_assistant = None
+            continue
+
+        if role != "assistant" or not matched_user:
+            continue
+
+        visible_text = _kimi_visible_text(record)
+        if visible_text:
+            matched_assistant = visible_text
+
+    if not matched_assistant:
         return False
 
     return _normalize_kimi_reply_text(reply_text) == _normalize_kimi_reply_text(
-        final_assistant_text
+        matched_assistant
     )
 
 
@@ -471,6 +527,7 @@ def _classify_run_result(
     timeout_seconds: int,
     success_message: str,
     workdir: Path,
+    prompt_text: str,
 ) -> tuple[str, str]:
     if run_result["dry_run"]:
         return "ok", "Dry run completed."
@@ -482,8 +539,10 @@ def _classify_run_result(
             status = _normalize_status(run_result["reply_text"], run_result["exit_code"])
         elif _kimi_reply_matches_session(
             reply_text=run_result["reply_text"],
+            prompt_text=prompt_text,
             workdir=workdir,
             session_id=run_result["session_id"],
+            baseline_line_counts=run_result.get("kimi_baseline_line_counts"),
         ):
             status = _normalize_status(run_result["reply_text"], run_result["exit_code"])
         else:
@@ -714,6 +773,13 @@ def _run_backend(
     else:
         raise ValueError(f"unsupported backend: {backend}")
 
+    kimi_baseline_line_counts = None
+    if backend == "kimi" and session_id is not None:
+        kimi_baseline_line_counts = _snapshot_kimi_line_counts(
+            workdir=workdir,
+            session_id=session_id,
+        )
+
     if dry_run:
         _append_event(
             events_path,
@@ -729,6 +795,7 @@ def _run_backend(
             "timed_out": False,
             "dry_run": True,
             "session_id": session_id,
+            "kimi_baseline_line_counts": kimi_baseline_line_counts,
         }
 
     _append_event(
@@ -770,6 +837,7 @@ def _run_backend(
             "timed_out": True,
             "dry_run": False,
             "session_id": session_id,
+            "kimi_baseline_line_counts": kimi_baseline_line_counts,
         }
 
     duration_seconds = round(time.monotonic() - process_started_at, 3)
@@ -808,6 +876,7 @@ def _run_backend(
         "timed_out": timed_out,
         "dry_run": False,
         "session_id": session_id,
+        "kimi_baseline_line_counts": kimi_baseline_line_counts,
     }
 
 
@@ -856,6 +925,13 @@ def _resume_backend(
     else:
         raise ValueError(f"unsupported backend: {backend}")
 
+    kimi_baseline_line_counts = None
+    if backend == "kimi":
+        kimi_baseline_line_counts = _snapshot_kimi_line_counts(
+            workdir=workdir,
+            session_id=session_id,
+        )
+
     if dry_run:
         _append_event(
             events_path,
@@ -872,6 +948,7 @@ def _resume_backend(
             "timed_out": False,
             "dry_run": True,
             "session_id": session_id,
+            "kimi_baseline_line_counts": kimi_baseline_line_counts,
         }
 
     _append_event(
@@ -915,6 +992,7 @@ def _resume_backend(
             "timed_out": True,
             "dry_run": False,
             "session_id": session_id,
+            "kimi_baseline_line_counts": kimi_baseline_line_counts,
         }
 
     duration_seconds = round(time.monotonic() - started_at, 3)
@@ -947,6 +1025,7 @@ def _resume_backend(
         "timed_out": timed_out,
         "dry_run": False,
         "session_id": session_id,
+        "kimi_baseline_line_counts": kimi_baseline_line_counts,
     }
 
 
@@ -1049,6 +1128,7 @@ def _command_run(args: argparse.Namespace) -> int:
         timeout_seconds=args.timeout_seconds,
         success_message="Subagent completed successfully.",
         workdir=workdir,
+        prompt_text=prompt_text,
     )
 
     _append_event(
@@ -1203,6 +1283,7 @@ def _command_resume(args: argparse.Namespace) -> int:
         timeout_seconds=args.timeout_seconds,
         success_message="Subagent resumed successfully.",
         workdir=workdir,
+        prompt_text=prompt_text,
     )
 
     _append_event(

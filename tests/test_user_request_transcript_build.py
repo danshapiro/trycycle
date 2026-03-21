@@ -12,6 +12,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TRANSCRIPT_BUILDER = REPO_ROOT / "orchestrator" / "user-request-transcript" / "build.py"
+TRANSCRIPT_MODULE_ROOT = REPO_ROOT / "orchestrator" / "user-request-transcript"
 
 
 def _write_jsonl(path: Path, records: list[dict]) -> None:
@@ -339,6 +340,25 @@ class UserRequestTranscriptBuildTests(unittest.TestCase):
                     }
                 ],
             )
+            debug_path = session_dir / "debug.jsonl"
+            _write_jsonl(
+                debug_path,
+                [
+                    {
+                        "type": "user",
+                        "message": {
+                            "content": [
+                                {"type": "text", "text": f"{canary}\ndebug decoy"},
+                            ]
+                        },
+                    }
+                ],
+            )
+            debug_stat = debug_path.stat()
+            os.utime(
+                debug_path,
+                ns=(debug_stat.st_atime_ns, debug_stat.st_mtime_ns + 1_000_000),
+            )
 
             result = self.run_builder(
                 "--cli",
@@ -359,6 +379,60 @@ class UserRequestTranscriptBuildTests(unittest.TestCase):
                     {"role": "user", "text": f"{canary}\nhello from canary"},
                     {"role": "assistant", "text": "chosen top-level context"},
                     {"role": "user", "text": "after fallback"},
+                ],
+            )
+
+    def test_kimi_extract_transcript_ignores_meta_records_and_keeps_last_visible_assistant_per_interval(
+        self,
+    ) -> None:
+        sys.path.insert(0, str(TRANSCRIPT_MODULE_ROOT))
+        try:
+            import kimi_cli  # type: ignore
+        finally:
+            sys.path.pop(0)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            context_path = Path(tmpdir) / "context.jsonl"
+            _write_jsonl(
+                context_path,
+                [
+                    {"role": "_system_prompt", "content": "ignored"},
+                    {"role": "_checkpoint", "id": 0},
+                    {"role": "user", "content": "first user"},
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "think", "text": "internal"},
+                            {"type": "text", "text": "first visible"},
+                        ],
+                    },
+                    {"role": "_usage", "token_count": 123},
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "text", "text": "last visible before next user"},
+                        ],
+                    },
+                    {"role": "user", "content": "second user"},
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "think", "text": "ignored"},
+                            {"type": "text", "text": "final visible reply"},
+                        ],
+                    },
+                ],
+            )
+
+            turns = kimi_cli.extract_transcript(context_path)
+
+            self.assertEqual(
+                [(turn.role, turn.text) for turn in turns],
+                [
+                    ("user", "first user"),
+                    ("assistant", "last visible before next user"),
+                    ("user", "second user"),
+                    ("assistant", "final visible reply"),
                 ],
             )
 

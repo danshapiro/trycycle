@@ -57,21 +57,23 @@ def _candidate_session_dir(share_root: Path, workdir: Path, session_id: str) -> 
     return _sessions_root(share_root) / workdir_hash / session_id
 
 
-def _top_level_transcript_candidates(session_dir: Path) -> list[Path]:
+def _top_level_transcript_candidates(session_dir: Path, session_id: str) -> list[Path]:
     candidates: list[Path] = []
     for path in session_dir.iterdir():
         if not path.is_file():
             continue
         if path.suffix != ".jsonl":
             continue
-        if path.name == "wire.jsonl":
-            continue
         if path.name.startswith("context_sub_"):
             continue
-        if path.name == "context.jsonl" or path.name.startswith("context_"):
+        if path.name == "context.jsonl":
             candidates.append(path)
             continue
-        candidates.append(path)
+        if path.name.startswith("context_"):
+            candidates.append(path)
+            continue
+        if path.name == f"{session_id}.jsonl":
+            candidates.append(path)
     return candidates
 
 
@@ -82,7 +84,7 @@ def _select_direct_transcript_path(session_dir: Path, session_id: str) -> Path |
 
     top_level_contexts = [
         path
-        for path in _top_level_transcript_candidates(session_dir)
+        for path in _top_level_transcript_candidates(session_dir, session_id)
         if path.name == "context.jsonl" or path.name.startswith("context_")
     ]
     if top_level_contexts:
@@ -121,7 +123,7 @@ def _iter_canary_candidates(share_root: Path) -> list[Path]:
     for session_dir in _sessions_root(share_root).glob("*/*"):
         if not session_dir.is_dir():
             continue
-        matches.extend(_top_level_transcript_candidates(session_dir))
+        matches.extend(_top_level_transcript_candidates(session_dir, session_dir.name))
     return matches
 
 

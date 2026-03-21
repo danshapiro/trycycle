@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -12,6 +13,20 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SUBAGENT_RUNNER = REPO_ROOT / "orchestrator" / "subagent_runner.py"
+ORCHESTRATOR_ROOT = REPO_ROOT / "orchestrator"
+
+
+def _kimi_session_dir(share_root: Path, workdir: Path, session_id: str) -> Path:
+    workdir_hash = hashlib.md5(str(workdir.resolve()).encode("utf-8")).hexdigest()
+    return share_root / "sessions" / workdir_hash / session_id
+
+
+def _write_jsonl(path: Path, records: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "\n".join(json.dumps(record) for record in records) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _write_fake_kimi_binary(bin_dir: Path) -> Path:
@@ -66,10 +81,10 @@ def _write_fake_kimi_binary(bin_dir: Path) -> Path:
             mode = os.environ.get("FAKE_KIMI_MODE", "success")
             reply_text = os.environ.get("FAKE_KIMI_REPLY", "fake kimi reply")
 
-            records = [
-                {{"role": "user", "content": prompt_text.rstrip("\\n")}},
-            ]
-            if mode != "failure":
+            records = []
+            if mode != "stale":
+                records.append({{"role": "user", "content": prompt_text.rstrip("\\n")}})
+            if mode not in {{"failure", "stale"}}:
                 records.append(
                     {{
                         "role": "assistant",
@@ -263,6 +278,65 @@ class SubagentRunnerTests(unittest.TestCase):
             self.assertIn(session_id, argv)
             self.assertNotIn("--continue", argv)
 
+    def test_resume_with_kimi_backend_escalates_when_persisted_reply_is_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            share_root = tmp_path / "share"
+            workdir = tmp_path / "work"
+            artifacts_dir = tmp_path / "artifacts"
+            prompt_path = tmp_path / "prompt.txt"
+            log_path = tmp_path / "kimi-log.jsonl"
+            session_id = "kimi-stale-session"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            share_root.mkdir()
+            workdir.mkdir()
+            prompt_path.write_text("resume prompt\n", encoding="utf-8")
+            _write_fake_kimi_binary(bin_dir)
+            _write_jsonl(
+                _kimi_session_dir(share_root, workdir, session_id) / "context.jsonl",
+                [
+                    {"role": "user", "content": "old prompt"},
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "text", "text": "stale persisted reply"},
+                        ],
+                    },
+                ],
+            )
+
+            result = self.run_runner(
+                "resume",
+                "--phase",
+                "smoke",
+                "--session-id",
+                session_id,
+                "--prompt-file",
+                str(prompt_path),
+                "--workdir",
+                str(workdir),
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "--backend",
+                "kimi",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "KIMI_SHARE_DIR": str(share_root),
+                    "FAKE_KIMI_LOG": str(log_path),
+                    "FAKE_KIMI_MODE": "stale",
+                    "FAKE_KIMI_REPLY": "stale persisted reply",
+                },
+            )
+
+            self.assertEqual(result.returncode, 1)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "escalate_to_user")
+            self.assertIn("stale persisted reply", payload["message"])
+
     def test_run_with_kimi_backend_escalates_when_stdout_is_not_backed_by_visible_assistant_output(
         self,
     ) -> None:
@@ -309,6 +383,75 @@ class SubagentRunnerTests(unittest.TestCase):
             self.assertIn("LLM not set", payload["message"])
             self.assertEqual(Path(payload["stdout_path"]).read_text(encoding="utf-8"), "LLM not set")
             self.assertEqual(Path(payload["reply_path"]).read_text(encoding="utf-8"), "LLM not set")
+
+    def test_classify_run_result_normalizes_kimi_reply_text_and_rejects_material_mismatches(
+        self,
+    ) -> None:
+        sys.path.insert(0, str(ORCHESTRATOR_ROOT))
+        try:
+            import subagent_runner  # type: ignore
+        finally:
+            sys.path.pop(0)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            share_root = tmp_path / "share"
+            workdir = tmp_path / "work"
+            session_id = "kimi-direct-helper"
+            share_root.mkdir()
+            workdir.mkdir()
+            context_path = _kimi_session_dir(share_root, workdir, session_id) / "context.jsonl"
+            _write_jsonl(
+                context_path,
+                [
+                    {"role": "user", "content": "normalize me"},
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "text", "text": "normalized reply"},
+                        ],
+                    },
+                ],
+            )
+
+            base_run_result = {
+                "command": ["kimi"],
+                "exit_code": 0,
+                "reply_text": "normalized reply\r\n",
+                "timed_out": False,
+                "dry_run": False,
+                "session_id": session_id,
+                "kimi_baseline_line_counts": {},
+            }
+
+            old_share_dir = os.environ.get("KIMI_SHARE_DIR")
+            os.environ["KIMI_SHARE_DIR"] = str(share_root)
+            try:
+                status, message = subagent_runner._classify_run_result(
+                    backend="kimi",
+                    run_result=base_run_result,
+                    timeout_seconds=60,
+                    success_message="Kimi helper ok",
+                    workdir=workdir,
+                    prompt_text="normalize me\n",
+                )
+                self.assertEqual((status, message), ("ok", "Kimi helper ok"))
+
+                mismatch_status, mismatch_message = subagent_runner._classify_run_result(
+                    backend="kimi",
+                    run_result={**base_run_result, "reply_text": "materially different"},
+                    timeout_seconds=60,
+                    success_message="Kimi helper ok",
+                    workdir=workdir,
+                    prompt_text="normalize me\n",
+                )
+                self.assertEqual(mismatch_status, "escalate_to_user")
+                self.assertIn("materially different", mismatch_message)
+            finally:
+                if old_share_dir is None:
+                    os.environ.pop("KIMI_SHARE_DIR", None)
+                else:
+                    os.environ["KIMI_SHARE_DIR"] = old_share_dir
 
 
 if __name__ == "__main__":
