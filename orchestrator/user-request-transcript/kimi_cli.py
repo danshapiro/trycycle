@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import time
 
@@ -17,6 +18,7 @@ from common import (
 
 DEFAULT_ROOT = Path.home() / ".kimi"
 KIMI_SHARE_DIR_ENV = "KIMI_SHARE_DIR"
+LEGACY_SESSION_FILENAME_RE = re.compile(r"[A-Za-z0-9]{4,}(?:-[A-Za-z0-9]{2,})+\.jsonl\Z")
 
 
 def _resolve_share_root(search_root: Path | None) -> Path:
@@ -157,7 +159,7 @@ def _is_top_level_transcript_match(path: Path, *, sessions_root: Path) -> bool:
         return False
 
     if len(relative_path.parts) == 2:
-        return path.suffix == ".jsonl"
+        return bool(LEGACY_SESSION_FILENAME_RE.fullmatch(filename))
 
     if len(relative_path.parts) != 3:
         return False

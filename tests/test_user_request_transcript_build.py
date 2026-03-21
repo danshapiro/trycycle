@@ -602,6 +602,80 @@ class UserRequestTranscriptBuildTests(unittest.TestCase):
                 ],
             )
 
+    def test_kimi_canary_lookup_ignores_hash_root_debug_decoy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            share_root = tmp_path / "kimi-share"
+            workdir = tmp_path / "repo"
+            output_path = tmp_path / "transcript.json"
+            canary = "trycycle-kimi-hash-root-decoy"
+            workdir.mkdir()
+            session_dir = _write_kimi_share_root(
+                share_root,
+                workdir=workdir,
+                session_id="session-fallback",
+                last_session_id=None,
+                context_records=[
+                    {"role": "assistant", "content": "seed"},
+                ],
+            )
+            context_path = session_dir / "context.jsonl"
+            _write_jsonl(
+                context_path,
+                [
+                    {"role": "user", "content": f"{canary}\nreal user"},
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "text", "text": "real reply"},
+                        ],
+                    },
+                ],
+            )
+            debug_path = _kimi_legacy_session_path(share_root, workdir, "debug")
+            _write_jsonl(
+                debug_path,
+                [
+                    {"role": "user", "content": f"{canary}\ndebug decoy"},
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "text", "text": "wrong decoy reply"},
+                        ],
+                    },
+                ],
+            )
+            debug_stat = debug_path.stat()
+            os.utime(
+                debug_path,
+                ns=(debug_stat.st_atime_ns, debug_stat.st_mtime_ns + 1_000_000),
+            )
+
+            result = self.run_builder(
+                "--cli",
+                "kimi-cli",
+                "--canary",
+                canary,
+                "--timeout-ms",
+                "1000",
+                "--poll-ms",
+                "10",
+                "--search-root",
+                str(share_root),
+                "--output",
+                str(output_path),
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            rendered = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                rendered,
+                [
+                    {"role": "user", "text": f"{canary}\nreal user"},
+                    {"role": "assistant", "text": "real reply"},
+                ],
+            )
+
     def test_kimi_canary_lookup_limits_ripgrep_to_top_level_transcript_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
