@@ -94,6 +94,12 @@ def _prepare_transcripts(
 
     first_placeholder = placeholders[0]
     first_output_path = inputs_dir / f"{first_placeholder}.txt"
+    transcript_search_root = None
+    if args.transcript_search_root:
+        transcript_search_root = args.transcript_search_root
+        if not transcript_search_root.is_absolute():
+            transcript_search_root = (Path.cwd() / transcript_search_root).resolve()
+
     command = [
         sys.executable,
         str(TRANSCRIPT_BUILDER),
@@ -104,8 +110,8 @@ def _prepare_transcripts(
     ]
     if args.canary:
         command.extend(["--canary", args.canary])
-    if args.transcript_search_root:
-        command.extend(["--search-root", str(args.transcript_search_root)])
+    if transcript_search_root:
+        command.extend(["--search-root", str(transcript_search_root)])
     _run_command(command, cwd=workdir)
     rendered_paths[first_placeholder] = str(first_output_path)
 

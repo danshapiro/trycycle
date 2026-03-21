@@ -447,14 +447,47 @@ def _normalize_kimi_reply_text(text: str) -> str:
     return normalized
 
 
-def _normalize_kimi_prompt_text(text: str) -> str:
-    return text.replace("\r\n", "\n").replace("\r", "\n").rstrip("\n")
+def _iter_kimi_new_assistant_replies(
+    *,
+    workdir: Path,
+    session_id: str,
+    baseline_line_counts: dict[str, int] | None,
+) -> list[str]:
+    session_dir = _kimi_session_dir(workdir=workdir, session_id=session_id)
+    replies: list[str] = []
+
+    for path in _kimi_top_level_context_candidates(session_dir):
+        baseline_line_count = 0
+        if baseline_line_counts is not None:
+            baseline_line_count = baseline_line_counts.get(str(path.resolve()), 0)
+
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+
+        for raw_line in lines[baseline_line_count:]:
+            if not raw_line.strip():
+                continue
+            try:
+                record = json.loads(raw_line)
+            except json.JSONDecodeError:
+                continue
+
+            role = record.get("role") or record.get("type")
+            if role != "assistant":
+                continue
+
+            visible_text = _kimi_visible_text(record)
+            if visible_text:
+                replies.append(visible_text)
+
+    return replies
 
 
 def _kimi_reply_matches_session(
     *,
     reply_text: str,
-    prompt_text: str,
     workdir: Path,
     session_id: str | None,
     baseline_line_counts: dict[str, int] | None,
@@ -464,51 +497,16 @@ def _kimi_reply_matches_session(
     if not reply_text.strip():
         return False
 
-    context_path = _find_kimi_context_path(workdir=workdir, session_id=session_id)
-    if context_path is None:
-        return False
-
-    baseline_line_count = 0
-    if baseline_line_counts is not None:
-        baseline_line_count = baseline_line_counts.get(str(context_path.resolve()), 0)
-
-    try:
-        lines = context_path.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return False
-
-    normalized_prompt = _normalize_kimi_prompt_text(prompt_text)
-    matched_user = False
-    matched_assistant: str | None = None
-
-    for raw_line in lines[baseline_line_count:]:
-        if not raw_line.strip():
-            continue
-        try:
-            record = json.loads(raw_line)
-        except json.JSONDecodeError:
-            continue
-
-        role = record.get("role") or record.get("type")
-        if role == "user":
-            if _normalize_kimi_prompt_text(_kimi_visible_text(record)) == normalized_prompt:
-                matched_user = True
-                matched_assistant = None
-            continue
-
-        if role != "assistant" or not matched_user:
-            continue
-
-        visible_text = _kimi_visible_text(record)
-        if visible_text:
-            matched_assistant = visible_text
-
-    if not matched_assistant:
-        return False
-
-    return _normalize_kimi_reply_text(reply_text) == _normalize_kimi_reply_text(
-        matched_assistant
-    )
+    for persisted_reply in _iter_kimi_new_assistant_replies(
+        workdir=workdir,
+        session_id=session_id,
+        baseline_line_counts=baseline_line_counts,
+    ):
+        if _normalize_kimi_reply_text(reply_text) == _normalize_kimi_reply_text(
+            persisted_reply
+        ):
+            return True
+    return False
 
 
 def _first_visible_reply_line(text: str) -> str | None:
@@ -527,7 +525,6 @@ def _classify_run_result(
     timeout_seconds: int,
     success_message: str,
     workdir: Path,
-    prompt_text: str,
 ) -> tuple[str, str]:
     if run_result["dry_run"]:
         return "ok", "Dry run completed."
@@ -539,7 +536,6 @@ def _classify_run_result(
             status = _normalize_status(run_result["reply_text"], run_result["exit_code"])
         elif _kimi_reply_matches_session(
             reply_text=run_result["reply_text"],
-            prompt_text=prompt_text,
             workdir=workdir,
             session_id=run_result["session_id"],
             baseline_line_counts=run_result.get("kimi_baseline_line_counts"),
@@ -1128,7 +1124,6 @@ def _command_run(args: argparse.Namespace) -> int:
         timeout_seconds=args.timeout_seconds,
         success_message="Subagent completed successfully.",
         workdir=workdir,
-        prompt_text=prompt_text,
     )
 
     _append_event(
@@ -1283,7 +1278,6 @@ def _command_resume(args: argparse.Namespace) -> int:
         timeout_seconds=args.timeout_seconds,
         success_message="Subagent resumed successfully.",
         workdir=workdir,
-        prompt_text=prompt_text,
     )
 
     _append_event(

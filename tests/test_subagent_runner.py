@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -76,13 +77,15 @@ def _write_fake_kimi_binary(bin_dir: Path) -> Path:
             workdir_hash = hashlib.md5(str(workdir.resolve()).encode("utf-8")).hexdigest()
             session_dir = share_root / "sessions" / workdir_hash / session_id
             session_dir.mkdir(parents=True, exist_ok=True)
-            context_path = session_dir / "context.jsonl"
+            context_path = session_dir / os.environ.get("FAKE_KIMI_CONTEXT_FILENAME", "context.jsonl")
+            context_path.parent.mkdir(parents=True, exist_ok=True)
 
             mode = os.environ.get("FAKE_KIMI_MODE", "success")
             reply_text = os.environ.get("FAKE_KIMI_REPLY", "fake kimi reply")
+            include_user = os.environ.get("FAKE_KIMI_INCLUDE_USER", "1") == "1"
 
             records = []
-            if mode != "stale":
+            if mode != "stale" and include_user:
                 records.append({{"role": "user", "content": prompt_text.rstrip("\\n")}})
             if mode not in {{"failure", "stale"}}:
                 records.append(
@@ -110,6 +113,32 @@ def _write_fake_kimi_binary(bin_dir: Path) -> Path:
     )
     kimi_path.chmod(0o755)
     return kimi_path
+
+
+def _write_fake_claude_binary(bin_dir: Path) -> Path:
+    claude_path = bin_dir / "claude"
+    claude_path.write_text(
+        textwrap.dedent(
+            f"""\
+            #!{sys.executable}
+            import sys
+
+            if "--help" in sys.argv:
+                sys.stdout.write(
+                    "-p, --print\\n"
+                    "--output-format\\n"
+                    "--resume\\n"
+                    "--session-id\\n"
+                )
+                raise SystemExit(0)
+
+            raise SystemExit(0)
+            """
+        ),
+        encoding="utf-8",
+    )
+    claude_path.chmod(0o755)
+    return claude_path
 
 
 def _read_jsonl(path: Path) -> list[dict]:
@@ -226,6 +255,52 @@ class SubagentRunnerTests(unittest.TestCase):
             self.assertIn("--thinking", argv)
             self.assertIn("--model", argv)
             self.assertIn("kimi-test-model", argv)
+
+    def test_run_with_kimi_backend_accepts_new_persisted_reply_without_prompt_echo(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            share_root = tmp_path / "share"
+            workdir = tmp_path / "work"
+            artifacts_dir = tmp_path / "artifacts"
+            prompt_path = tmp_path / "prompt.txt"
+            log_path = tmp_path / "kimi-log.jsonl"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            share_root.mkdir()
+            workdir.mkdir()
+            prompt_path.write_text("Reply exactly with delta-only success\n", encoding="utf-8")
+            _write_fake_kimi_binary(bin_dir)
+
+            result = self.run_runner(
+                "run",
+                "--phase",
+                "smoke",
+                "--prompt-file",
+                str(prompt_path),
+                "--workdir",
+                str(workdir),
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "--backend",
+                "kimi",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "KIMI_SHARE_DIR": str(share_root),
+                    "FAKE_KIMI_LOG": str(log_path),
+                    "FAKE_KIMI_MODE": "success",
+                    "FAKE_KIMI_REPLY": "delta-only success",
+                    "FAKE_KIMI_INCLUDE_USER": "0",
+                    "FAKE_KIMI_CONTEXT_FILENAME": "context_1.jsonl",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "ok")
+            self.assertEqual(payload["backend"], "kimi")
 
     def test_resume_with_kimi_backend_uses_explicit_session_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -433,7 +508,6 @@ class SubagentRunnerTests(unittest.TestCase):
                     timeout_seconds=60,
                     success_message="Kimi helper ok",
                     workdir=workdir,
-                    prompt_text="normalize me\n",
                 )
                 self.assertEqual((status, message), ("ok", "Kimi helper ok"))
 
@@ -443,7 +517,6 @@ class SubagentRunnerTests(unittest.TestCase):
                     timeout_seconds=60,
                     success_message="Kimi helper ok",
                     workdir=workdir,
-                    prompt_text="normalize me\n",
                 )
                 self.assertEqual(mismatch_status, "escalate_to_user")
                 self.assertIn("materially different", mismatch_message)
@@ -452,6 +525,123 @@ class SubagentRunnerTests(unittest.TestCase):
                     os.environ.pop("KIMI_SHARE_DIR", None)
                 else:
                     os.environ["KIMI_SHARE_DIR"] = old_share_dir
+
+    def test_run_with_claude_backend_dry_run_returns_ok(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            prompt_path = tmp_path / "prompt.txt"
+            artifacts_dir = tmp_path / "artifacts"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            prompt_path.write_text("Claude dry run\n", encoding="utf-8")
+            fake_claude = _write_fake_claude_binary(bin_dir)
+
+            result = self.run_runner(
+                "run",
+                "--phase",
+                "smoke",
+                "--prompt-file",
+                str(prompt_path),
+                "--workdir",
+                str(tmp_path),
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "--backend",
+                "claude",
+                "--dry-run",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "ok")
+            self.assertEqual(payload["backend"], "claude")
+            self.assertEqual(payload["process"]["command"][0], str(fake_claude))
+
+    @unittest.skipUnless(
+        os.environ.get("TRYCYCLE_RUN_LIVE_KIMI_TESTS") == "1",
+        "set TRYCYCLE_RUN_LIVE_KIMI_TESTS=1 to run live Kimi acceptance coverage",
+    )
+    def test_live_kimi_run_and_resume_preserve_session_identity(self) -> None:
+        if shutil.which("kimi") is None:
+            self.skipTest("kimi binary not available")
+
+        sys.path.insert(0, str(ORCHESTRATOR_ROOT))
+        try:
+            import subagent_runner  # type: ignore
+        finally:
+            sys.path.pop(0)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            workdir = tmp_path / "work"
+            workdir.mkdir()
+            prompt1 = tmp_path / "prompt1.txt"
+            prompt2 = tmp_path / "prompt2.txt"
+            run1_dir = tmp_path / "run1"
+            run2_dir = tmp_path / "run2"
+            prompt1.write_text("Reply exactly with TRYCYCLE-LIVE-KIMI-1\n", encoding="utf-8")
+            prompt2.write_text("Reply exactly with TRYCYCLE-LIVE-KIMI-2\n", encoding="utf-8")
+
+            run1 = self.run_runner(
+                "run",
+                "--phase",
+                "smoke",
+                "--prompt-file",
+                str(prompt1),
+                "--workdir",
+                str(workdir),
+                "--artifacts-dir",
+                str(run1_dir),
+                "--backend",
+                "kimi",
+                "--timeout-seconds",
+                "180",
+            )
+            self.assertEqual(run1.returncode, 0, run1.stderr)
+            run1_payload = json.loads(run1.stdout)
+            self.assertEqual(run1_payload["status"], "ok")
+
+            run2 = self.run_runner(
+                "resume",
+                "--phase",
+                "smoke",
+                "--session-id",
+                run1_payload["session_id"],
+                "--prompt-file",
+                str(prompt2),
+                "--workdir",
+                str(workdir),
+                "--artifacts-dir",
+                str(run2_dir),
+                "--backend",
+                "kimi",
+                "--timeout-seconds",
+                "180",
+            )
+            self.assertEqual(run2.returncode, 0, run2.stderr)
+            run2_payload = json.loads(run2.stdout)
+            self.assertEqual(run2_payload["status"], "ok")
+            self.assertEqual(run2_payload["session_id"], run1_payload["session_id"])
+            self.assertIn(
+                "TRYCYCLE-LIVE-KIMI-2",
+                Path(run2_payload["reply_path"]).read_text(encoding="utf-8"),
+            )
+
+            context_path = subagent_runner._find_kimi_context_path(
+                workdir=workdir,
+                session_id=run2_payload["session_id"],
+            )
+            self.assertIsNotNone(context_path)
+            self.assertIn(
+                "TRYCYCLE-LIVE-KIMI-2",
+                Path(context_path).read_text(encoding="utf-8"),
+            )
 
 
 if __name__ == "__main__":

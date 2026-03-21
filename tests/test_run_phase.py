@@ -334,6 +334,46 @@ class RunPhaseTests(unittest.TestCase):
             self.assertIn("hello from kimi phase", prompt_text)
             self.assertIn("visible kimi phase reply", prompt_text)
 
+    def test_prepare_resolves_relative_transcript_search_root_from_caller_cwd(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            workdir = tmp_path / "repo"
+            caller_cwd = tmp_path / "caller"
+            search_root = caller_cwd / "relative-sessions"
+            workdir.mkdir()
+            caller_cwd.mkdir()
+            template_path = tmp_path / "template.md"
+            template_path.write_text(
+                "<task_input_json>{USER_REQUEST_TRANSCRIPT}</task_input_json>\n",
+                encoding="utf-8",
+            )
+            write_codex_transcript(search_root, thread_id="thread-relative")
+
+            result = self.run_phase(
+                "prepare",
+                "--phase",
+                "planning-initial",
+                "--template",
+                str(template_path),
+                "--workdir",
+                str(workdir),
+                "--transcript-placeholder",
+                "USER_REQUEST_TRANSCRIPT",
+                "--transcript-cli",
+                "codex-cli",
+                "--transcript-search-root",
+                "relative-sessions",
+                "--require-nonempty-tag",
+                "task_input_json",
+                env={"CODEX_THREAD_ID": "thread-relative"},
+                cwd=caller_cwd,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            prompt_path = Path(payload["prompt_path"])
+            self.assertIn("ship it", prompt_path.read_text(encoding="utf-8"))
+
     def test_run_dispatches_with_subagent_runner_dry_run(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
