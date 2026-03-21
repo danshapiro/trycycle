@@ -53,9 +53,9 @@ help = "Transcript JSON used when building the test plan."
 widget = "textarea"
 source_category = "user-input"
 
-[bindings.POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM]
-label = "Post-implementation review findings"
-help = "Reviewer findings fed back into the execution loop."
+[bindings.POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON]
+label = "Post-implementation review observations JSON"
+help = "Structured review observations fed back into the execution loop."
 widget = "textarea"
 source_category = "user-input"
 
@@ -226,7 +226,7 @@ to = "execute-with-trycycle-executing"
 [[outcomes]]
 from = "post-implementation-review-loop"
 id = "approved"
-label = "Review verdict: no blocking issues"
+label = "No blocking review observations"
 to = "finish"
 
 [[outcomes]]

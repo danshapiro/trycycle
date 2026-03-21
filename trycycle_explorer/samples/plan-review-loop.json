@@ -43,7 +43,7 @@
         "text": "approved"
       }
     ],
-    "POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM": "",
+    "POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON": "",
     "WORKTREE_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer",
     "IMPLEMENTATION_PLAN_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer/docs/plans/2026-03-10-trycycle-explorer.md",
     "TEST_PLAN_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer/docs/plans/2026-03-10-trycycle-explorer-test-plan.md"

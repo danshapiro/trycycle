@@ -59,7 +59,7 @@
         "text": "approved"
       }
     ],
-    "POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM": "1. minor [README.md:31] Explorer usage is undocumented.",
+    "POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON": "{\n  \"status\": \"issues_found\",\n  \"summary\": \"One documentation issue remains.\",\n  \"observations\": [\n    {\n      \"id\": \"R1\",\n      \"severity\": \"minor\",\n      \"category\": \"implementation_plan_mismatch\",\n      \"expected\": \"The README documents how to use the explorer after installation.\",\n      \"observed\": \"Explorer usage is not documented in the README.\",\n      \"where\": {\n        \"file\": \"README.md\",\n        \"line\": 31\n      },\n      \"evidence\": {\n        \"commands\": [\"rg -n \\\"Trycycle Explorer\\\" README.md\"],\n        \"notes\": \"Review did not find an explorer usage section in README.md.\"\n      }\n    }\n  ]\n}",
     "WORKTREE_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer",
     "IMPLEMENTATION_PLAN_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer/docs/plans/2026-03-10-trycycle-explorer.md",
     "TEST_PLAN_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer/docs/plans/2026-03-10-trycycle-explorer-test-plan.md"

@@ -55,7 +55,7 @@ When a phase wrapper call needs `{USER_REQUEST_TRANSCRIPT}`, `{INITIAL_REQUEST_A
 The canary must be emitted by a separate top-level command so it reaches the live session transcript before lookup. Do not rely on shell-specific capture or assignment forms that may keep the canary out of visible command output; shells and host wrappers vary, and if the canary is not visibly emitted into the session transcript, lookup will fail. Build transcript placeholder values immediately before each phase wrapper call that uses them.
 Kimi and OpenCode support is explicit here because `host` and `auto` cannot reliably detect a Kimi host, and OpenCode requires canary-based lookup.
 
-When a step below references `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}`, use the corresponding review subagent's stdout exactly as the placeholder value.
+When a step below references `{POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}`, use the extracted review observations JSON exactly as the placeholder value.
 
 When a step below references `{IMPLEMENTATION_PLAN_PATH}`, use the latest absolute plan path returned by the planning subagent in the current trycycle session. Update it after the initial planning result and after every plan-edit result.
 
@@ -246,26 +246,42 @@ After execution completes, deploy a new reviewer with no prior context and give 
 
 Immediately before dispatch, prepare the `post-implementation-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-post-impl-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, and `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, then dispatch a review subagent with the returned `prompt_path`.
 
-Use the review subagent's output as the fix-loop input. As soon as you have captured the reviewer's stdout or decided the review loop is done, close that completed review subagent and clear any saved handle or `session_id` for it. When another fix round is needed:
-1. Capture the reviewer stdout exactly as `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}`.
-2. Save `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}` to a temp file immediately.
-3. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, and `--set-file POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM=<review-findings-temp-file>`.
-4. In native mode, resume the same implementation subagent and send the exact returned `prompt_path` contents verbatim. In fallback-runner mode, resume the implementation session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using the saved `session_id`, `--backend {IMPLEMENTATION_BACKEND}`, and the wrapper-prepared `prompt_path`.
+Use the review subagent's output as the fix-loop input. As soon as you have captured the reviewer's stdout or decided the review loop is done, close that completed review subagent and clear any saved handle or `session_id` for it.
+
+After every review round, save the reviewer's raw stdout to a temp file immediately and extract a structured review-observations artifact from it:
+
+```bash
+python3 <skill-directory>/orchestrator/review_observations.py extract \
+  --reply <review-reply-temp-file> \
+  --output <review-observations-temp-file>
+```
+
+Treat the extractor's JSON stdout as authoritative for:
+- `issue_count`
+- `blocking_issue_count`
+- `has_blocking_issues`
+- `review_status`
+
+If extraction fails, stop and surface the review reply plus the extractor failure to the user rather than guessing.
+
+When another fix round is needed:
+1. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>`, and `--ignore-tag-for-placeholders post_implementation_review_observations_json`.
+2. In native mode, resume the same implementation subagent and send the exact returned `prompt_path` contents verbatim. In fallback-runner mode, resume the implementation session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using the saved `session_id`, `--backend {IMPLEMENTATION_BACKEND}`, and the wrapper-prepared `prompt_path`.
 
 After each implementation-subagent fix round, run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next fresh review round.
 
 Stop when either condition is met:
-1. `## Review verdict` is `NO_BLOCKING_ISSUES` (meaning no **critical** or **major** issues remain).
+1. The extracted review-observations artifact reports `blocking_issue_count: 0`.
 2. 8 rounds have been completed.
 
-If the latest review output still reports `## Review verdict` as `BLOCKING_ISSUES` after the 8th review:
+If the latest extracted review-observations artifact still reports `blocking_issue_count > 0` after the 8th review:
 1. Stop looping.
 2. Dispatch a subagent to review past subagent sessions and hypothesize why the loop is not converging.
 3. Present that report and the latest review output to the user and await user instructions.
 
 ## 11) Finish
 
-Once the post-implementation review loop passes (`## Review verdict` is `NO_BLOCKING_ISSUES`):
+Once the post-implementation review loop passes (`blocking_issue_count: 0`):
 
 Clean up temporary artifacts created during the loop (for example plan scratch files and temp notes), then run:
 - `git -C {WORKTREE_PATH} status --short`

@@ -1,7 +1,7 @@
 {
   "id": "post-review-fix",
   "label": "Post-review fix loop",
-  "description": "A scenario that keeps the execution prompt focused on reviewer findings and the fix loop.",
+  "description": "A scenario that keeps the execution prompt focused on structured review observations and the fix loop.",
   "selected_gate_id": "post-implementation-review-loop",
   "selected_outcome_id": "fix-round",
   "bindings": {
@@ -35,7 +35,7 @@
         "text": "approved"
       }
     ],
-    "POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM": "1. major [trycycle_explorer/assets/app.js:142] Missing-binding diagnostics are not visible after rerender.\n2. minor [trycycle_explorer/assets/app.css:88] Mobile input chips clip at narrow widths.",
+    "POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON": "{\n  \"status\": \"issues_found\",\n  \"summary\": \"Two review observations remain before the explorer is ready.\",\n  \"observations\": [\n    {\n      \"id\": \"R1\",\n      \"severity\": \"major\",\n      \"category\": \"behavior\",\n      \"expected\": \"Missing-binding diagnostics remain visible after rerender.\",\n      \"observed\": \"After rerender, the diagnostics panel clears even when required bindings are still missing.\",\n      \"where\": {\n        \"file\": \"trycycle_explorer/assets/app.js\",\n        \"line\": 142\n      },\n      \"evidence\": {\n        \"commands\": [\"git diff -- trycycle_explorer/assets/app.js\"],\n        \"notes\": \"The rerender path replaces diagnostics state without reapplying missing-binding markers.\"\n      }\n    },\n    {\n      \"id\": \"R2\",\n      \"severity\": \"minor\",\n      \"category\": \"behavior\",\n      \"expected\": \"Input chips stay fully visible on narrow screens.\",\n      \"observed\": \"On a 390px-wide viewport, input chips clip instead of wrapping cleanly.\",\n      \"where\": {\n        \"file\": \"trycycle_explorer/assets/app.css\",\n        \"line\": 88\n      },\n      \"evidence\": {\n        \"artifacts\": [\"/tmp/trycycle-explorer-mobile.png\"],\n        \"notes\": \"Observed in the mobile screenshot capture during review.\"\n      }\n    }\n  ]\n}",
     "WORKTREE_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer",
     "IMPLEMENTATION_PLAN_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer/docs/plans/2026-03-10-trycycle-explorer.md",
     "TEST_PLAN_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer/docs/plans/2026-03-10-trycycle-explorer-test-plan.md"
