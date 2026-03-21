@@ -382,6 +382,59 @@ class UserRequestTranscriptBuildTests(unittest.TestCase):
                 ],
             )
 
+    def test_kimi_canary_lookup_works_when_metadata_file_is_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            share_root = tmp_path / "kimi-share"
+            workdir = tmp_path / "repo"
+            output_path = tmp_path / "transcript.json"
+            canary = "trycycle-kimi-metadata-missing"
+            session_dir = _kimi_session_dir(share_root, workdir, "session-fallback")
+            workdir.mkdir()
+            _write_jsonl(
+                session_dir / "context.jsonl",
+                [
+                    {
+                        "type": "user",
+                        "message": {
+                            "content": [
+                                {"type": "text", "text": f"{canary}\nhello from missing metadata"},
+                            ]
+                        },
+                    },
+                    {
+                        "type": "assistant",
+                        "message": {
+                            "content": [
+                                {"type": "think", "text": "ignore me"},
+                                {"type": "text", "text": "fallback still works"},
+                            ]
+                        },
+                    },
+                ],
+            )
+
+            result = self.run_builder(
+                "--cli",
+                "kimi-cli",
+                "--canary",
+                canary,
+                "--search-root",
+                str(share_root),
+                "--output",
+                str(output_path),
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            rendered = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                rendered,
+                [
+                    {"role": "user", "text": f"{canary}\nhello from missing metadata"},
+                    {"role": "assistant", "text": "fallback still works"},
+                ],
+            )
+
     def test_kimi_extract_transcript_ignores_meta_records_and_keeps_last_visible_assistant_per_interval(
         self,
     ) -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -13,6 +14,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUN_PHASE = REPO_ROOT / "orchestrator" / "run_phase.py"
+SUBAGENT_RUNNER = REPO_ROOT / "orchestrator" / "subagent_runner.py"
+TRANSCRIPT_BUILDER = REPO_ROOT / "orchestrator" / "user-request-transcript" / "build.py"
 
 
 def _write_jsonl(path: Path, records: list[dict]) -> None:
@@ -174,6 +177,42 @@ def write_claude_transcript(root: Path, *, canary: str) -> None:
 
 
 class RunPhaseTests(unittest.TestCase):
+    def run_runner(
+        self,
+        *args: str,
+        env: dict[str, str] | None = None,
+        cwd: Path | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        merged_env = os.environ.copy()
+        if env:
+            merged_env.update(env)
+        return subprocess.run(
+            [sys.executable, str(SUBAGENT_RUNNER), *args],
+            text=True,
+            capture_output=True,
+            check=False,
+            env=merged_env,
+            cwd=cwd,
+        )
+
+    def run_builder(
+        self,
+        *args: str,
+        env: dict[str, str] | None = None,
+        cwd: Path | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        merged_env = os.environ.copy()
+        if env:
+            merged_env.update(env)
+        return subprocess.run(
+            [sys.executable, str(TRANSCRIPT_BUILDER), *args],
+            text=True,
+            capture_output=True,
+            check=False,
+            env=merged_env,
+            cwd=cwd,
+        )
+
     def run_phase(
         self,
         *args: str,
@@ -441,6 +480,94 @@ class RunPhaseTests(unittest.TestCase):
             self.assertEqual(payload["dispatch"]["status"], "ok")
             self.assertEqual(payload["dispatch"]["backend"], "kimi")
             self.assertEqual(payload["dispatch"]["process"]["command"][0], str(fake_kimi))
+
+    @unittest.skipUnless(
+        os.environ.get("TRYCYCLE_RUN_LIVE_KIMI_TESTS") == "1",
+        "set TRYCYCLE_RUN_LIVE_KIMI_TESTS=1 to run live Kimi acceptance coverage",
+    )
+    def test_live_kimi_prepare_and_builder_agree_on_latest_visible_reply(self) -> None:
+        if shutil.which("kimi") is None:
+            self.skipTest("kimi binary not available")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            workdir = tmp_path / "work"
+            caller_cwd = tmp_path / "caller"
+            run_dir = tmp_path / "run"
+            prompt_path = tmp_path / "prompt.txt"
+            transcript_output = tmp_path / "transcript.json"
+            template_path = tmp_path / "template.md"
+            workdir.mkdir()
+            caller_cwd.mkdir()
+            prompt_path.write_text("Reply exactly with TRYCYCLE-LIVE-KIMI-PREPARE\n", encoding="utf-8")
+            template_path.write_text(
+                "<task_input_json>{USER_REQUEST_TRANSCRIPT}</task_input_json>\n",
+                encoding="utf-8",
+            )
+
+            run_result = self.run_runner(
+                "run",
+                "--phase",
+                "smoke",
+                "--prompt-file",
+                str(prompt_path),
+                "--workdir",
+                str(workdir),
+                "--artifacts-dir",
+                str(run_dir),
+                "--backend",
+                "kimi",
+                "--timeout-seconds",
+                "180",
+            )
+            self.assertEqual(run_result.returncode, 0, run_result.stderr)
+            run_payload = json.loads(run_result.stdout)
+            self.assertEqual(run_payload["status"], "ok")
+
+            prepare_result = self.run_phase(
+                "prepare",
+                "--phase",
+                "planning-initial",
+                "--template",
+                str(template_path),
+                "--workdir",
+                str(workdir),
+                "--transcript-placeholder",
+                "USER_REQUEST_TRANSCRIPT",
+                "--transcript-cli",
+                "kimi-cli",
+                "--require-nonempty-tag",
+                "task_input_json",
+                cwd=caller_cwd,
+            )
+            self.assertEqual(prepare_result.returncode, 0, prepare_result.stderr)
+            prepare_payload = json.loads(prepare_result.stdout)
+
+            build_result = self.run_builder(
+                "--cli",
+                "kimi-cli",
+                "--output",
+                str(transcript_output),
+                cwd=workdir,
+            )
+            self.assertEqual(build_result.returncode, 0, build_result.stderr)
+            transcript = json.loads(transcript_output.read_text(encoding="utf-8"))
+            latest_assistant = next(
+                turn["text"] for turn in reversed(transcript) if turn["role"] == "assistant"
+            )
+            normalized_reply = (
+                Path(run_payload["reply_path"])
+                .read_text(encoding="utf-8")
+                .replace("\r\n", "\n")
+                .replace("\r", "\n")
+                .rstrip("\n")
+            )
+
+            self.assertEqual(latest_assistant, normalized_reply)
+            self.assertIn(
+                latest_assistant,
+                Path(prepare_payload["prompt_path"]).read_text(encoding="utf-8"),
+            )
 
     def test_prepare_fails_cleanly_when_transcript_lookup_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

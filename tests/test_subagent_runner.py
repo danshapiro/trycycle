@@ -115,6 +115,31 @@ def _write_fake_kimi_binary(bin_dir: Path) -> Path:
     return kimi_path
 
 
+def _write_fake_codex_binary(bin_dir: Path) -> Path:
+    codex_path = bin_dir / "codex"
+    codex_path.write_text(
+        textwrap.dedent(
+            f"""\
+            #!{sys.executable}
+            import sys
+
+            if sys.argv[1:] == ["exec", "--help"]:
+                sys.stdout.write(
+                    "Run Codex non-interactively\\n"
+                    "--output-last-message\\n"
+                    "resume\\n"
+                )
+                raise SystemExit(0)
+
+            raise SystemExit(0)
+            """
+        ),
+        encoding="utf-8",
+    )
+    codex_path.chmod(0o755)
+    return codex_path
+
+
 def _write_fake_claude_binary(bin_dir: Path) -> Path:
     claude_path = bin_dir / "claude"
     claude_path.write_text(
@@ -526,6 +551,116 @@ class SubagentRunnerTests(unittest.TestCase):
                 else:
                     os.environ["KIMI_SHARE_DIR"] = old_share_dir
 
+    def test_classify_run_result_rejects_debug_jsonl_match_when_session_context_is_stale(
+        self,
+    ) -> None:
+        sys.path.insert(0, str(ORCHESTRATOR_ROOT))
+        try:
+            import subagent_runner  # type: ignore
+        finally:
+            sys.path.pop(0)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            share_root = tmp_path / "share"
+            workdir = tmp_path / "work"
+            session_id = "kimi-stale-context"
+            share_root.mkdir()
+            workdir.mkdir()
+            session_dir = _kimi_session_dir(share_root, workdir, session_id)
+            context_path = session_dir / "context.jsonl"
+            debug_path = session_dir / "debug.jsonl"
+            _write_jsonl(
+                context_path,
+                [
+                    {"role": "user", "content": "old prompt"},
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "text", "text": "stale persisted reply"},
+                        ],
+                    },
+                ],
+            )
+            _write_jsonl(
+                debug_path,
+                [
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "text", "text": "debug-only reply"},
+                        ],
+                    },
+                ],
+            )
+
+            old_share_dir = os.environ.get("KIMI_SHARE_DIR")
+            os.environ["KIMI_SHARE_DIR"] = str(share_root)
+            try:
+                status, message = subagent_runner._classify_run_result(
+                    backend="kimi",
+                    run_result={
+                        "command": ["kimi"],
+                        "exit_code": 0,
+                        "reply_text": "debug-only reply\n",
+                        "timed_out": False,
+                        "dry_run": False,
+                        "session_id": session_id,
+                        "kimi_baseline_line_counts": {
+                            str(context_path.resolve()): len(
+                                context_path.read_text(encoding="utf-8").splitlines()
+                            )
+                        },
+                    },
+                    timeout_seconds=60,
+                    success_message="Kimi helper ok",
+                    workdir=workdir,
+                )
+                self.assertEqual(status, "escalate_to_user")
+                self.assertIn("debug-only reply", message)
+            finally:
+                if old_share_dir is None:
+                    os.environ.pop("KIMI_SHARE_DIR", None)
+                else:
+                    os.environ["KIMI_SHARE_DIR"] = old_share_dir
+
+    def test_run_with_codex_backend_dry_run_returns_ok(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            prompt_path = tmp_path / "prompt.txt"
+            artifacts_dir = tmp_path / "artifacts"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            prompt_path.write_text("Codex dry run\n", encoding="utf-8")
+            fake_codex = _write_fake_codex_binary(bin_dir)
+
+            result = self.run_runner(
+                "run",
+                "--phase",
+                "smoke",
+                "--prompt-file",
+                str(prompt_path),
+                "--workdir",
+                str(tmp_path),
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "--backend",
+                "codex",
+                "--dry-run",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "ok")
+            self.assertEqual(payload["backend"], "codex")
+            self.assertEqual(payload["process"]["command"][0], str(fake_codex))
+
     def test_run_with_claude_backend_dry_run_returns_ok(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
@@ -642,6 +777,48 @@ class SubagentRunnerTests(unittest.TestCase):
                 "TRYCYCLE-LIVE-KIMI-2",
                 Path(context_path).read_text(encoding="utf-8"),
             )
+
+    @unittest.skipUnless(
+        os.environ.get("TRYCYCLE_RUN_LIVE_KIMI_TESTS") == "1",
+        "set TRYCYCLE_RUN_LIVE_KIMI_TESTS=1 to run live Kimi acceptance coverage",
+    )
+    def test_live_kimi_zero_exit_misconfiguration_escalates(self) -> None:
+        if shutil.which("kimi") is None:
+            self.skipTest("kimi binary not available")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            workdir = tmp_path / "work"
+            share_root = tmp_path / "isolated-share"
+            prompt_path = tmp_path / "prompt.txt"
+            artifacts_dir = tmp_path / "run"
+            workdir.mkdir()
+            prompt_path.write_text("Reply exactly with TRYCYCLE-LIVE-KIMI-FAIL\n", encoding="utf-8")
+
+            result = self.run_runner(
+                "run",
+                "--phase",
+                "smoke",
+                "--prompt-file",
+                str(prompt_path),
+                "--workdir",
+                str(workdir),
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "--backend",
+                "kimi",
+                "--timeout-seconds",
+                "60",
+                env={"KIMI_SHARE_DIR": str(share_root)},
+            )
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "escalate_to_user")
+            stdout_text = Path(payload["stdout_path"]).read_text(encoding="utf-8")
+            self.assertTrue(stdout_text.strip())
+            self.assertIn(stdout_text.strip().splitlines()[0], payload["message"])
+            self.assertNotIn("kimi exited with code 0", payload["message"])
 
 
 if __name__ == "__main__":

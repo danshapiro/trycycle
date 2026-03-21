@@ -102,17 +102,21 @@ def _select_direct_transcript_path(session_dir: Path, session_id: str) -> Path |
 
 def find_current_transcript(search_root: Path | None = None) -> Path | None:
     share_root = _resolve_share_root(search_root)
-    metadata = _load_metadata(share_root)
     workdir = Path.cwd().resolve()
-    entry = _workdir_entry(metadata, workdir)
-    if entry is None:
+    try:
+        metadata = _load_metadata(share_root)
+        entry = _workdir_entry(metadata, workdir)
+        if entry is None:
+            return None
+
+        session_id = entry.get("last_session_id")
+        if not session_id:
+            return None
+
+        session_dir = _candidate_session_dir(share_root, workdir, str(session_id))
+    except TranscriptError:
         return None
 
-    session_id = entry.get("last_session_id")
-    if not session_id:
-        return None
-
-    session_dir = _candidate_session_dir(share_root, workdir, str(session_id))
     if not session_dir.exists():
         return None
     return _select_direct_transcript_path(session_dir, str(session_id))

@@ -344,7 +344,7 @@ def _kimi_session_dir(*, workdir: Path, session_id: str) -> Path:
     return _resolve_kimi_share_root() / "sessions" / workdir_hash / session_id
 
 
-def _kimi_top_level_context_candidates(session_dir: Path) -> list[Path]:
+def _kimi_top_level_context_candidates(session_dir: Path, session_id: str) -> list[Path]:
     candidates: list[Path] = []
     try:
         entries = list(session_dir.iterdir())
@@ -363,7 +363,8 @@ def _kimi_top_level_context_candidates(session_dir: Path) -> list[Path]:
         if path.name == "context.jsonl" or path.name.startswith("context_"):
             candidates.append(path)
             continue
-        candidates.append(path)
+        if path.name == f"{session_id}.jsonl":
+            candidates.append(path)
     return candidates
 
 
@@ -375,7 +376,7 @@ def _find_kimi_context_path(*, workdir: Path, session_id: str) -> Path | None:
 
     top_level_contexts = [
         path
-        for path in _kimi_top_level_context_candidates(session_dir)
+        for path in _kimi_top_level_context_candidates(session_dir, session_id)
         if path.name == "context.jsonl" or path.name.startswith("context_")
     ]
     if top_level_contexts:
@@ -394,7 +395,7 @@ def _find_kimi_context_path(*, workdir: Path, session_id: str) -> Path | None:
 def _snapshot_kimi_line_counts(*, workdir: Path, session_id: str) -> dict[str, int]:
     session_dir = _kimi_session_dir(workdir=workdir, session_id=session_id)
     counts: dict[str, int] = {}
-    for path in _kimi_top_level_context_candidates(session_dir):
+    for path in _kimi_top_level_context_candidates(session_dir, session_id):
         try:
             counts[str(path.resolve())] = len(path.read_text(encoding="utf-8").splitlines())
         except OSError:
@@ -447,40 +448,33 @@ def _normalize_kimi_reply_text(text: str) -> str:
     return normalized
 
 
-def _iter_kimi_new_assistant_replies(
+def _iter_kimi_new_assistant_replies_from_path(
     *,
-    workdir: Path,
-    session_id: str,
-    baseline_line_counts: dict[str, int] | None,
+    path: Path,
+    baseline_line_count: int,
 ) -> list[str]:
-    session_dir = _kimi_session_dir(workdir=workdir, session_id=session_id)
     replies: list[str] = []
 
-    for path in _kimi_top_level_context_candidates(session_dir):
-        baseline_line_count = 0
-        if baseline_line_counts is not None:
-            baseline_line_count = baseline_line_counts.get(str(path.resolve()), 0)
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return replies
 
+    for raw_line in lines[baseline_line_count:]:
+        if not raw_line.strip():
+            continue
         try:
-            lines = path.read_text(encoding="utf-8").splitlines()
-        except OSError:
+            record = json.loads(raw_line)
+        except json.JSONDecodeError:
             continue
 
-        for raw_line in lines[baseline_line_count:]:
-            if not raw_line.strip():
-                continue
-            try:
-                record = json.loads(raw_line)
-            except json.JSONDecodeError:
-                continue
+        role = record.get("role") or record.get("type")
+        if role != "assistant":
+            continue
 
-            role = record.get("role") or record.get("type")
-            if role != "assistant":
-                continue
-
-            visible_text = _kimi_visible_text(record)
-            if visible_text:
-                replies.append(visible_text)
+        visible_text = _kimi_visible_text(record)
+        if visible_text:
+            replies.append(visible_text)
 
     return replies
 
@@ -497,10 +491,17 @@ def _kimi_reply_matches_session(
     if not reply_text.strip():
         return False
 
-    for persisted_reply in _iter_kimi_new_assistant_replies(
-        workdir=workdir,
-        session_id=session_id,
-        baseline_line_counts=baseline_line_counts,
+    context_path = _find_kimi_context_path(workdir=workdir, session_id=session_id)
+    if context_path is None:
+        return False
+
+    baseline_line_count = 0
+    if baseline_line_counts is not None:
+        baseline_line_count = baseline_line_counts.get(str(context_path.resolve()), 0)
+
+    for persisted_reply in _iter_kimi_new_assistant_replies_from_path(
+        path=context_path,
+        baseline_line_count=baseline_line_count,
     ):
         if _normalize_kimi_reply_text(reply_text) == _normalize_kimi_reply_text(
             persisted_reply
