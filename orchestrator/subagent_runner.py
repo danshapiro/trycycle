@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -18,6 +19,8 @@ import uuid
 DEFAULT_TIMEOUT_SECONDS = 60 * 60
 CODEX_HOME_ENV = "CODEX_HOME"
 DEFAULT_CODEX_SESSIONS_ROOT = Path.home() / ".codex" / "sessions"
+KIMI_SHARE_DIR_ENV = "KIMI_SHARE_DIR"
+DEFAULT_KIMI_SHARE_ROOT = Path.home() / ".kimi"
 
 
 def _binary_name_candidates(binary: str) -> list[str]:
@@ -329,6 +332,178 @@ def _normalize_status(reply_text: str, exit_code: int) -> str:
     return "ok"
 
 
+def _resolve_kimi_share_root() -> Path:
+    configured = os.environ.get(KIMI_SHARE_DIR_ENV)
+    if configured:
+        return Path(configured).expanduser().resolve()
+    return DEFAULT_KIMI_SHARE_ROOT.expanduser().resolve()
+
+
+def _kimi_session_dir(*, workdir: Path, session_id: str) -> Path:
+    workdir_hash = hashlib.md5(str(workdir.resolve()).encode("utf-8")).hexdigest()
+    return _resolve_kimi_share_root() / "sessions" / workdir_hash / session_id
+
+
+def _kimi_top_level_context_candidates(session_dir: Path) -> list[Path]:
+    candidates: list[Path] = []
+    try:
+        entries = list(session_dir.iterdir())
+    except OSError:
+        return []
+
+    for path in entries:
+        if not path.is_file():
+            continue
+        if path.suffix != ".jsonl":
+            continue
+        if path.name == "wire.jsonl":
+            continue
+        if path.name.startswith("context_sub_"):
+            continue
+        if path.name == "context.jsonl" or path.name.startswith("context_"):
+            candidates.append(path)
+            continue
+        candidates.append(path)
+    return candidates
+
+
+def _find_kimi_context_path(*, workdir: Path, session_id: str) -> Path | None:
+    session_dir = _kimi_session_dir(workdir=workdir, session_id=session_id)
+    context_path = session_dir / "context.jsonl"
+    if context_path.exists():
+        return context_path
+
+    top_level_contexts = [
+        path
+        for path in _kimi_top_level_context_candidates(session_dir)
+        if path.name == "context.jsonl" or path.name.startswith("context_")
+    ]
+    if top_level_contexts:
+        return sorted(
+            top_level_contexts,
+            key=lambda path: (path.stat().st_mtime_ns, str(path)),
+            reverse=True,
+        )[0]
+
+    legacy_path = session_dir / f"{session_id}.jsonl"
+    if legacy_path.exists():
+        return legacy_path
+    return None
+
+
+def _kimi_visible_text(record: dict) -> str:
+    content = record.get("content")
+    if content is None:
+        content = record.get("message", {}).get("content")
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return ""
+    return "".join(
+        block.get("text", "")
+        for block in content
+        if isinstance(block, dict) and block.get("type") == "text"
+    )
+
+
+def _extract_kimi_final_visible_assistant_text(path: Path) -> str | None:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+
+    final_text: str | None = None
+    for raw_line in lines:
+        if not raw_line.strip():
+            continue
+        try:
+            record = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        role = record.get("role") or record.get("type")
+        if role != "assistant":
+            continue
+        visible_text = _kimi_visible_text(record)
+        if visible_text:
+            final_text = visible_text
+    return final_text
+
+
+def _normalize_kimi_reply_text(text: str) -> str:
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    if normalized.endswith("\n"):
+        normalized = normalized[:-1]
+    return normalized
+
+
+def _kimi_reply_matches_session(*, reply_text: str, workdir: Path, session_id: str | None) -> bool:
+    if not session_id:
+        return False
+    if not reply_text.strip():
+        return False
+
+    context_path = _find_kimi_context_path(workdir=workdir, session_id=session_id)
+    if context_path is None:
+        return False
+
+    final_assistant_text = _extract_kimi_final_visible_assistant_text(context_path)
+    if not final_assistant_text:
+        return False
+
+    return _normalize_kimi_reply_text(reply_text) == _normalize_kimi_reply_text(
+        final_assistant_text
+    )
+
+
+def _first_visible_reply_line(text: str) -> str | None:
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    for line in normalized.split("\n"):
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return None
+
+
+def _classify_run_result(
+    *,
+    backend: str,
+    run_result: dict[str, Any],
+    timeout_seconds: int,
+    success_message: str,
+    workdir: Path,
+) -> tuple[str, str]:
+    if run_result["dry_run"]:
+        return "ok", "Dry run completed."
+    if run_result["timed_out"]:
+        return "escalate_to_user", f"{backend} timed out after {timeout_seconds} seconds."
+
+    if backend == "kimi":
+        if run_result["exit_code"] != 0:
+            status = _normalize_status(run_result["reply_text"], run_result["exit_code"])
+        elif _kimi_reply_matches_session(
+            reply_text=run_result["reply_text"],
+            workdir=workdir,
+            session_id=run_result["session_id"],
+        ):
+            status = _normalize_status(run_result["reply_text"], run_result["exit_code"])
+        else:
+            first_line = _first_visible_reply_line(run_result["reply_text"])
+            if first_line:
+                return (
+                    "escalate_to_user",
+                    f"Kimi did not produce a valid persisted reply: {first_line}",
+                )
+            return "escalate_to_user", "Kimi did not produce a valid persisted reply."
+    else:
+        status = _normalize_status(run_result["reply_text"], run_result["exit_code"])
+
+    if status == "ok":
+        return status, success_message
+    if status == "user_decision_required":
+        return status, "Subagent requested a user decision."
+    return status, f"{backend} exited with code {run_result['exit_code']}."
+
+
 def _codex_command(
     *,
     binary: str,
@@ -461,6 +636,32 @@ def _kimi_command(
     elif effort:
         command.append("--thinking")
     return command, session_id
+
+
+def _kimi_resume_command(
+    *,
+    binary: str,
+    session_id: str,
+    workdir: Path,
+    effort: str | None,
+    model: str | None,
+) -> list[str]:
+    command = [
+        binary,
+        "--print",
+        "--final-message-only",
+        "--work-dir",
+        str(workdir),
+        "--session",
+        session_id,
+    ]
+    if model:
+        command.extend(["--model", model])
+    if effort == "low":
+        command.append("--no-thinking")
+    elif effort:
+        command.append("--thinking")
+    return command
 
 
 def _copy_if_needed(source: Path, target: Path) -> None:
@@ -643,6 +844,15 @@ def _resume_backend(
             model=model,
         )
         cwd = workdir
+    elif backend == "kimi":
+        command = _kimi_resume_command(
+            binary=binary,
+            session_id=session_id,
+            workdir=workdir,
+            effort=effort,
+            model=model,
+        )
+        cwd = workdir
     else:
         raise ValueError(f"unsupported backend: {backend}")
 
@@ -711,7 +921,7 @@ def _resume_backend(
     stdout_path.write_text(result.stdout or "", encoding="utf-8")
     stderr_path.write_text(result.stderr or "", encoding="utf-8")
 
-    if backend == "claude":
+    if backend in {"claude", "kimi"}:
         reply_text = result.stdout or ""
         reply_path.write_text(reply_text, encoding="utf-8")
     else:
@@ -833,20 +1043,13 @@ def _command_run(args: argparse.Namespace) -> int:
         events_path=events_path,
     )
 
-    if run_result["dry_run"]:
-        status = "ok"
-        message = "Dry run completed."
-    elif run_result["timed_out"]:
-        status = "escalate_to_user"
-        message = f"{backend} timed out after {args.timeout_seconds} seconds."
-    else:
-        status = _normalize_status(run_result["reply_text"], run_result["exit_code"])
-        if status == "ok":
-            message = "Subagent completed successfully."
-        elif status == "user_decision_required":
-            message = "Subagent requested a user decision."
-        else:
-            message = f"{backend} exited with code {run_result['exit_code']}."
+    status, message = _classify_run_result(
+        backend=backend,
+        run_result=run_result,
+        timeout_seconds=args.timeout_seconds,
+        success_message="Subagent completed successfully.",
+        workdir=workdir,
+    )
 
     _append_event(
         events_path,
@@ -994,20 +1197,13 @@ def _command_resume(args: argparse.Namespace) -> int:
         events_path=events_path,
     )
 
-    if run_result["dry_run"]:
-        status = "ok"
-        message = "Dry run completed."
-    elif run_result["timed_out"]:
-        status = "escalate_to_user"
-        message = f"{backend} timed out after {args.timeout_seconds} seconds."
-    else:
-        status = _normalize_status(run_result["reply_text"], run_result["exit_code"])
-        if status == "ok":
-            message = "Subagent resumed successfully."
-        elif status == "user_decision_required":
-            message = "Subagent requested a user decision."
-        else:
-            message = f"{backend} exited with code {run_result['exit_code']}."
+    status, message = _classify_run_result(
+        backend=backend,
+        run_result=run_result,
+        timeout_seconds=args.timeout_seconds,
+        success_message="Subagent resumed successfully.",
+        workdir=workdir,
+    )
 
     _append_event(
         events_path,
@@ -1049,19 +1245,19 @@ def _command_resume(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Safe fallback runner for trycycle subagent dispatch.",
+        description="Safe fallback runner for trycycle subagent dispatch via Codex, Claude, or Kimi.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     probe_parser = subparsers.add_parser(
         "probe",
-        help="Detect supported Codex and Claude backends.",
+        help="Detect supported Codex, Claude, and Kimi backends.",
     )
     probe_parser.set_defaults(func=_command_probe)
 
     run_parser = subparsers.add_parser(
         "run",
-        help="Run a subagent prompt through Codex or Claude without shell quoting.",
+        help="Run a subagent prompt through Codex, Claude, or Kimi without shell quoting.",
     )
     run_parser.add_argument(
         "--phase",
@@ -1091,11 +1287,11 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument(
         "--effort",
         choices=["low", "medium", "high", "max"],
-        help="Reasoning effort hint. Codex maps this to model_reasoning_effort.",
+        help="Reasoning effort hint. Codex maps this to model_reasoning_effort; Kimi maps it to thinking mode.",
     )
     run_parser.add_argument(
         "--model",
-        help="Model identifier passed to the backend CLI (--model for Claude, -m for Codex).",
+        help="Model identifier passed to the backend CLI (--model for Claude/Kimi, -m for Codex).",
     )
     run_parser.add_argument(
         "--timeout-seconds",
@@ -1140,18 +1336,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     resume_parser.add_argument(
         "--backend",
-        choices=["auto", "codex", "claude"],
+        choices=["auto", "codex", "claude", "kimi"],
         default="auto",
         help="Backend selection policy.",
     )
     resume_parser.add_argument(
         "--effort",
         choices=["low", "medium", "high", "max"],
-        help="Reasoning effort hint. Codex maps this to model_reasoning_effort.",
+        help="Reasoning effort hint. Codex maps this to model_reasoning_effort; Kimi maps it to thinking mode.",
     )
     resume_parser.add_argument(
         "--model",
-        help="Model identifier passed to the backend CLI (--model for Claude, -m for Codex).",
+        help="Model identifier passed to the backend CLI (--model for Claude/Kimi, -m for Codex).",
     )
     resume_parser.add_argument(
         "--timeout-seconds",
