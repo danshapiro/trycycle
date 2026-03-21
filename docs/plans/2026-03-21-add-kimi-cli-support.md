@@ -4,7 +4,7 @@
 
 **Goal:** Add first-class Kimi CLI support to trycycle's existing transcript-adapter and fallback-runner paths so Trycycle can run under Kimi without introducing a second orchestration architecture.
 
-**Architecture:** Extend the three existing seams that already carry Codex and Claude support: `user-request-transcript/build.py` gets a Kimi adapter, `run_phase.py` accepts explicit Kimi transcript/backend choices, and `subagent_runner.py` gets a Kimi print-mode backend with robust success validation. Update `SKILL.md` to use explicit `--transcript-cli kimi-cli` and `--backend kimi` when the host agent is Kimi, because Kimi does not expose a reliable host marker for `auto` detection. Keep the implementation small and local; do not add a separate Kimi-native subagent orchestration path.
+**Architecture:** Extend the three existing seams that already carry Codex and Claude support: `user-request-transcript/build.py` gets a Kimi adapter, `run_phase.py` accepts explicit Kimi transcript/backend choices and launches transcript lookup from the phase `--workdir`, and `subagent_runner.py` gets a Kimi print-mode backend with robust success validation. Update `SKILL.md` to use explicit `--transcript-cli kimi-cli` and `--backend kimi` when the host agent is Kimi, because Kimi does not expose a reliable host marker for `auto` detection. Keep the implementation small and local; do not add a separate Kimi-native subagent orchestration path.
 
 **Tech Stack:** Python 3 stdlib, `unittest`, Markdown docs, real `kimi` CLI smoke commands
 
@@ -33,17 +33,24 @@ Do **not** add a "detect Kimi host" branch. In local inspection, Kimi does not e
 
 This gives correct behavior in real Trycycle usage without inventing brittle heuristics.
 
-### Kimi transcript lookup uses `kimi.json` plus session files, not `kimi export`
+### Kimi transcript lookup uses `kimi.json` plus top-level session context files, not `kimi export`
 
 Direct lookup should read:
 
 - `KIMI_SHARE_DIR` when set, otherwise `~/.kimi`
 - `<share-root>/kimi.json` for `work_dirs[].last_session_id`
 - `<share-root>/sessions/<md5(workdir)>/<session-id>/context.jsonl`
+- if needed, the most recent top-level `context*.jsonl` file in that same session directory, excluding `context_sub_*.jsonl`
 
-Fallback canary lookup should search `<share-root>/sessions/**/*.jsonl`.
+Fallback canary lookup must search only top-level transcript files under `<share-root>/sessions`, not every `*.jsonl`. In real Kimi session directories, `wire.jsonl` and `context_sub_*.jsonl` are present and can contain the same canary text, but they are not the top-level user transcript Trycycle needs.
 
 Do **not** use `kimi export` in the implementation. Trycycle only needs the current session transcript, and the on-disk files are the direct source of truth with fewer moving parts.
+
+### Kimi transcript lookup must be anchored to the phase `--workdir`, not the caller's cwd
+
+Direct Kimi lookup keys off the current worktree path recorded in `kimi.json`. `run_phase.py` currently launches the transcript builder in the caller's cwd, which is not guaranteed to equal `--workdir` during normal Trycycle execution.
+
+The wrapper must therefore invoke transcript lookup with `cwd=Path(args.workdir).resolve()` so Kimi direct lookup tracks the implementation workspace, not wherever the orchestrator happened to be launched from.
 
 ### Kimi runner success is validated against session context, not exit code alone
 
@@ -53,7 +60,7 @@ For Kimi, success should require all of the following:
 
 - exit code `0`
 - non-empty printed reply
-- the Kimi session context for the dispatched `session_id` contains a visible final assistant turn whose text matches the printed reply
+- the Kimi session context for the dispatched `session_id` contains a visible final assistant turn whose text matches the printed reply after normalizing line endings and trimming the single trailing newline added by print mode
 
 This is stronger than string-matching error messages and more precise than checking `kimi.json` alone:
 
@@ -81,6 +88,15 @@ Kimi does not expose multi-level reasoning effort. Keep the existing `--effort` 
 - `medium`, `high`, `max` -> `--thinking`
 
 This keeps the public runner interface unchanged and makes Trycycle's existing `--effort max` usage do the right thing under Kimi.
+
+### Kimi probe must tolerate rich-help formatting
+
+`kimi --help` on the installed `1.24.0` binary exposes the needed functionality, but its rich table formatting truncates long option names such as `--final-message-only`. Do **not** probe Kimi by requiring that exact full token to appear verbatim in help output.
+
+Probe for stable evidence instead:
+
+- exact tokens that are rendered in full, such as `--print`, `--session`, `--continue`, and `--work-dir`
+- plus either the phrase `final assistant` from the help description or another stable indicator for final-message-only support
 
 ### Update docs narrowly
 
@@ -153,7 +169,7 @@ The direct-lookup case should:
 - assert the rendered JSON includes user and assistant turns
 - assert assistant extraction ignores `{"type": "think"}` blocks and keeps only visible `{"type": "text"}` blocks
 
-The canary case should set `last_session_id` to `null`, include a canary in the session context, and assert the builder falls back to canary search successfully.
+The canary case should set `last_session_id` to `null`, include the canary in the top-level `context.jsonl`, and also place the same canary in decoy files such as `wire.jsonl` and `context_sub_1.jsonl`. Assert the builder still falls back to the top-level transcript successfully so the test goes red if the implementation searches every `*.jsonl`.
 
 - [ ] **Step 2: Run the transcript builder tests to verify they fail**
 
@@ -172,9 +188,12 @@ Create `orchestrator/user-request-transcript/kimi_cli.py` with these responsibil
 - resolve the share root from `search_root`, else `KIMI_SHARE_DIR`, else `Path.home() / ".kimi"`
 - read `kimi.json` and find the current workdir entry by exact resolved cwd string
 - locate the current session transcript at:
-  - `sessions/<md5(workdir)>/<session-id>/context.jsonl`
+  - prefer `sessions/<md5(workdir)>/<session-id>/context.jsonl`
+  - else fall back to the most recent top-level `context*.jsonl` in that session directory, excluding `context_sub_*.jsonl`
   - or legacy fallback `sessions/<md5(workdir)>/<session-id>.jsonl`
-- implement canary lookup by searching under `<share-root>/sessions`
+- implement canary lookup by searching only top-level transcript files under `<share-root>/sessions`:
+  - include `context.jsonl`, `context_*.jsonl`, and any legacy `<session-id>.jsonl`
+  - exclude `wire.jsonl`, `metadata.json`, and `context_sub_*.jsonl`
 - extract transcript turns from `context.jsonl` with the same interval behavior as the existing adapters:
   - append each visible user turn
   - keep only the last non-empty visible assistant reply between user turns
@@ -235,7 +254,9 @@ def test_run_dispatches_with_kimi_backend_dry_run(self):
 - `--transcript-placeholder USER_REQUEST_TRANSCRIPT`
 - `--transcript-cli kimi-cli`
 - `--transcript-search-root <fake-share-root>`
-- subprocess `cwd=workdir`
+- subprocess from a cwd that is **not** `workdir`
+
+The fixture should only register `workdir` inside `kimi.json`. The test should assert Kimi direct lookup succeeds anyway, which proves `run_phase.py` launches transcript lookup from `--workdir` instead of inheriting the caller's cwd.
 
 `test_run_dispatches_with_kimi_backend_dry_run` should prepend a temporary fake `kimi` executable to `PATH` that only needs to satisfy the help-token probe. Then run:
 
@@ -262,6 +283,8 @@ Modify `orchestrator/run_phase.py` so that:
 - `--transcript-cli` accepts `kimi-cli`
 - `run --backend` accepts `kimi`
 - `_prepare_transcripts()` treats Kimi like Codex for canary requirements: direct lookup is allowed with no canary, and canary is only required if direct lookup returns `None`
+- `_run_command()` accepts an optional `cwd`
+- `_prepare_transcripts()` invokes `user-request-transcript/build.py` with `cwd=workdir` so direct-lookup adapters use the phase worktree rather than the orchestrator's current directory
 
 Keep `_detect_transcript_cli("auto")` unchanged except for any message text needed to stay accurate. Do **not** add a Kimi auto-detection heuristic here.
 
@@ -314,7 +337,12 @@ The fake `kimi` binary should:
 - in the success case, write a visible assistant `text` block matching stdout
 - in the failure case, print `LLM not set` to stdout but write no visible assistant reply to the context file
 
-The probe test should run with a `PATH` that only contains the fake `kimi` binary, so the probe payload proves Kimi can be both discovered and selected when Codex/Claude are absent.
+The probe test should run with:
+
+- a `PATH` that only contains the fake `kimi` binary
+- a temporary `HOME` so `_search_paths()` cannot discover the real `~/bin/claude` or `~/.local/bin/kimi`
+
+This isolation is required because `subagent_runner.py` appends home-based search paths even when `PATH` is overridden.
 
 The resume test should assert the recorded argv contains `--session <id>` and **not** `--continue`.
 
@@ -336,10 +364,10 @@ Modify `orchestrator/subagent_runner.py` to add:
    - add `_probe_kimi("kimi")`
    - require help tokens proving the binary supports:
      - `--print`
-     - `--final-message-only`
      - `--session`
      - `--continue`
      - `--work-dir`
+     - plus a stable indicator for final-message-only support such as the phrase `final assistant`
    - include `kimi` in the probe payload
    - append `kimi` to the default backend order after Codex/Claude
    - update parser descriptions and help text so they say `Codex, Claude, or Kimi` instead of only `Codex and Claude`
@@ -375,7 +403,7 @@ Modify `orchestrator/subagent_runner.py` to add:
      - locate the session context path from `workdir` + `session_id`
      - extract the final visible assistant text from that context file
    - replace the duplicated status/message logic in `_command_run()` and `_command_resume()` with one helper that classifies the result
-   - for Kimi, only return `ok` / `user_decision_required` when the persisted final assistant text matches the printed reply
+   - for Kimi, only return `ok` / `user_decision_required` when the persisted final assistant text matches the printed reply after normalizing line endings and trimming only the print-mode trailing newline
    - when Kimi validation fails, return `escalate_to_user` with a message derived from the actual printed output, for example:
 
 ```python
@@ -512,6 +540,23 @@ PY
 
 Expected: both runner invocations return `status: "ok"` and the same `session_id`.
 
+- [ ] Verify `run_phase.py prepare` can read the live Kimi session from outside the workdir:
+
+```bash
+template="$tmpdir/template.md"
+printf '<task_input_json>{USER_REQUEST_TRANSCRIPT}</task_input_json>\n' > "$template"
+python3 orchestrator/run_phase.py prepare --phase smoke --template "$template" --workdir "$workdir" --artifacts-dir "$tmpdir/phase" --transcript-placeholder USER_REQUEST_TRANSCRIPT --transcript-cli kimi-cli --require-nonempty-tag task_input_json
+PHASE_RESULT="$tmpdir/phase/result.json" python3 - <<'PY'
+import json, os, pathlib
+payload = json.loads(pathlib.Path(os.environ["PHASE_RESULT"]).read_text())
+prompt = pathlib.Path(payload["prompt_path"]).read_text()
+assert "TRYCYCLE-KIMI-RUN-2" in prompt, prompt
+print("run_phase kimi lookup ok")
+PY
+```
+
+Expected: transcript lookup succeeds even though the command is launched from the repo root instead of `"$workdir"`.
+
 - [ ] Verify the transcript builder can read the live Kimi session:
 
 ```bash
@@ -552,5 +597,6 @@ Expected: both dry runs return `status: "ok"`.
 
 - Keep the Kimi implementation local. Do not convert `orchestrator/user-request-transcript` into a package just to share tiny helpers with `subagent_runner.py`; that would be more invasive than the feature warrants.
 - In transcript code, `search_root` for Kimi should mean the Kimi share root (the directory that contains both `kimi.json` and `sessions/`), not the nested `sessions/` directory alone.
+- In transcript lookup, never treat `wire.jsonl` or `context_sub_*.jsonl` as top-level user transcripts.
 - Keep Codex and Claude behavior unchanged except where the new shared result-classification helper removes duplication.
 - If a real Kimi smoke fails because the local Kimi installation is not authenticated or configured, record that explicitly in the implementation report; do not hide it.
