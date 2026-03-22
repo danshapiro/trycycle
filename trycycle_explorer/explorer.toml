@@ -9,7 +9,7 @@ gates = [
   "version-check",
   "ask-about-critical-unknowns-before-work",
   "testing-strategy",
-  "prepare-workspace",
+  "prepare-implementation-workspace",
   "workspace-hygiene-gate",
 ]
 
@@ -143,7 +143,7 @@ to = "testing-strategy"
 from = "testing-strategy"
 id = "approved"
 label = "Strategy approved"
-to = "prepare-workspace"
+to = "prepare-implementation-workspace"
 
 [[outcomes]]
 from = "testing-strategy"
@@ -152,7 +152,7 @@ label = "Revise strategy"
 to = "testing-strategy"
 
 [[outcomes]]
-from = "prepare-workspace"
+from = "prepare-implementation-workspace"
 id = "worktree-ready"
 label = "Workspace ready"
 to = "workspace-hygiene-gate"

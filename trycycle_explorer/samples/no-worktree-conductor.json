@@ -2,7 +2,7 @@
   "id": "no-worktree-conductor",
   "label": "No-worktree Conductor workspace",
   "description": "A request that asks Trycycle to reuse an already-isolated Conductor workspace instead of creating a nested git worktree.",
-  "selected_gate_id": "prepare-workspace",
+  "selected_gate_id": "prepare-implementation-workspace",
   "selected_outcome_id": "worktree-ready",
   "bindings": {
     "INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION": [
