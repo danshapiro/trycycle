@@ -17,7 +17,8 @@ When a step below tells you to prepare or dispatch a phase:
 
 - In native mode, use `python3 <skill-directory>/orchestrator/run_phase.py prepare ...`, then send the exact contents of the returned `prompt_path` verbatim to the target subagent.
 - In fallback-runner mode, use `python3 <skill-directory>/orchestrator/run_phase.py run ...`. It prepares transcript and prompt artifacts, then dispatches through the bundled runner.
-- When the host agent is Kimi and you are using fallback-runner mode, pass `--backend kimi` on those wrapper calls because `auto` cannot reliably detect a Kimi host.
+- In fallback-runner mode, pass `--backend host` on wrapper calls so fresh subagents stay on the same backend as the parent agent.
+- When the host agent is Kimi and you are using fallback-runner mode, pass `--backend kimi` instead because `host` and `auto` cannot reliably detect a Kimi host.
 - Treat the wrapper's JSON stdout and `result.json` as authoritative for prompt and artifact paths.
 - In fallback-runner mode, treat the nested `dispatch` payload plus its `result.json` as authoritative for subagent status and reply artifacts. Use the text at `dispatch.reply_path` as the exact subagent reply.
 - If fallback dispatch returns `dispatch.status: "user_decision_required"`, present `dispatch.reply_path` verbatim to the user.
@@ -49,7 +50,7 @@ When a phase wrapper call needs `{USER_REQUEST_TRANSCRIPT}`, `{INITIAL_REQUEST_A
 4. For Claude Code, always run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` as a separate top-level command first, capture stdout exactly as `{CANARY}`, then invoke the wrapper with `--transcript-cli claude-code --canary "{CANARY}"`.
 
 The canary must be emitted by a separate top-level command so it reaches the live session transcript before lookup. Do not rely on shell-specific capture or assignment forms that may keep the canary out of visible command output; shells and host wrappers vary, and if the canary is not visibly emitted into the session transcript, lookup will fail. Build transcript placeholder values immediately before each phase wrapper call that uses them.
-Kimi support is explicit here because `auto` cannot reliably detect a Kimi host.
+Kimi support is explicit here because `host` and `auto` cannot reliably detect a Kimi host.
 
 When a step below references `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}`, use the corresponding review subagent's stdout exactly as the placeholder value.
 
@@ -57,10 +58,13 @@ When a step below references `{IMPLEMENTATION_PLAN_PATH}`, use the latest absolu
 
 When a step below references `{TEST_PLAN_PATH}`, use the latest absolute test-plan path returned by the test-plan subagent in the current trycycle session. Update it after every test-plan result.
 
+When a step below references `{IMPLEMENTATION_BACKEND}`, use the resolved `dispatch.backend` returned by the initial implementation dispatch in the current trycycle session. Update it if you ever recreate the implementation session.
+
 ## Subagent Defaults
 
-- **Use the same model unless local configuration says otherwise, and always use maximum reasoning.** Do not switch subagents to a different "best" model on your own.
+- **Use the same backend/model unless local configuration says otherwise, and do not switch subagents to a different "best" model on your own.**
   - In native mode, keep subagents on the same model you are currently using unless the user or local configuration overrides that.
+  - In fallback-runner mode, use `--backend host` by default so fresh subagents stay on the parent backend. When the host agent is Kimi, use `--backend kimi` explicitly.
   - In fallback-runner mode, always pass `--effort max`.
   - Prefer local overrides when present: `TRYCYCLE_CODEX_PROFILE`, `TRYCYCLE_CODEX_MODEL`, `TRYCYCLE_CLAUDE_MODEL`, and `TRYCYCLE_KIMI_MODEL`.
   - `--profile` is a Codex-only exact override for a local Codex profile name.
@@ -69,6 +73,7 @@ When a step below references `{TEST_PLAN_PATH}`, use the latest absolute test-pl
 - Planning subagents are ephemeral across plan-edit rounds so they can remain independent: spawn a fresh planning agent for the initial plan and for every plan-edit round until the plan is judged already excellent without changes.
 - In native mode, implementation subagents are persistent: create one implementation agent, then resume it for every implementation-fix round.
 - In fallback-runner mode, implementation subagents are persistent through the runner: create one implementation session, record its `session_id`, then resume it through the runner for every implementation-fix round.
+- In fallback-runner mode, record the resolved `dispatch.backend` for persistent sessions and reuse that same backend on every `resume`.
 - Review subagents are ephemeral: create a fresh reviewer for each post-implementation review round.
 - For planning rounds, pass `{USER_REQUEST_TRANSCRIPT}` as the task input. Do not use the full prior conversation.
 - Render the prompt template with the prompt builder and pass the rendered prompt verbatim.
@@ -224,6 +229,8 @@ Spawn a fresh implementation subagent and give it the final excellent plan.
 
 Immediately before dispatch, prepare the `executing` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, and `--set WORKTREE_PATH={WORKTREE_PATH}`, then dispatch the implementation subagent with the returned `prompt_path`.
 
+In fallback-runner mode, record the returned `dispatch.backend` as `{IMPLEMENTATION_BACKEND}` alongside the saved `session_id`.
+
 Do not proceed to post-implementation review until the implementation subagent has returned an implementation report.
 
 After implementation completes, run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before launching post-implementation review.
@@ -238,7 +245,7 @@ Use the review subagent's output as the fix-loop input. As soon as you have capt
 1. Capture the reviewer stdout exactly as `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}`.
 2. Save `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}` to a temp file immediately.
 3. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, and `--set-file POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM=<review-findings-temp-file>`.
-4. In native mode, resume the same implementation subagent and send the exact returned `prompt_path` contents verbatim. In fallback-runner mode, resume the implementation session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using the saved `session_id` and the wrapper-prepared `prompt_path`.
+4. In native mode, resume the same implementation subagent and send the exact returned `prompt_path` contents verbatim. In fallback-runner mode, resume the implementation session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using the saved `session_id`, `--backend {IMPLEMENTATION_BACKEND}`, and the wrapper-prepared `prompt_path`.
 
 After each implementation-subagent fix round, run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next fresh review round.
 
