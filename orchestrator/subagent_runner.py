@@ -864,6 +864,9 @@ def _run_backend(
         command=command,
     )
 
+    child_env = os.environ.copy()
+    child_env.pop("CLAUDE_CODE_ENTRYPOINT", None)
+
     process_started_at = time.monotonic()
     try:
         result = subprocess.run(
@@ -874,6 +877,7 @@ def _run_backend(
             cwd=cwd,
             check=False,
             timeout=timeout_seconds,
+            env=child_env,
         )
         timed_out = False
     except subprocess.TimeoutExpired as exc:
@@ -1020,6 +1024,9 @@ def _resume_backend(
         session_id=session_id,
     )
 
+    child_env = os.environ.copy()
+    child_env.pop("CLAUDE_CODE_ENTRYPOINT", None)
+
     started_at = time.monotonic()
     try:
         result = subprocess.run(
@@ -1030,6 +1037,7 @@ def _resume_backend(
             cwd=cwd,
             check=False,
             timeout=timeout_seconds,
+            env=child_env,
         )
         timed_out = False
     except subprocess.TimeoutExpired as exc:
