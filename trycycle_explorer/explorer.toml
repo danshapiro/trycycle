@@ -226,7 +226,7 @@ to = "execute-with-trycycle-executing"
 [[outcomes]]
 from = "post-implementation-review-loop"
 id = "approved"
-label = "No critical or major issues"
+label = "Review verdict: no blocking issues"
 to = "finish"
 
 [[outcomes]]
