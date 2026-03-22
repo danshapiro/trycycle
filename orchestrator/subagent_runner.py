@@ -21,6 +21,12 @@ CODEX_HOME_ENV = "CODEX_HOME"
 DEFAULT_CODEX_SESSIONS_ROOT = Path.home() / ".codex" / "sessions"
 KIMI_SHARE_DIR_ENV = "KIMI_SHARE_DIR"
 DEFAULT_KIMI_SHARE_ROOT = Path.home() / ".kimi"
+CODEX_PROFILE_ENV = "TRYCYCLE_CODEX_PROFILE"
+MODEL_OVERRIDE_ENV_BY_BACKEND = {
+    "codex": "TRYCYCLE_CODEX_MODEL",
+    "claude": "TRYCYCLE_CLAUDE_MODEL",
+    "kimi": "TRYCYCLE_KIMI_MODEL",
+}
 
 
 def _binary_name_candidates(binary: str) -> list[str]:
@@ -66,6 +72,14 @@ def _resolve_binary(binary: str) -> str | None:
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _read_nonempty_env(name: str) -> str | None:
+    value = os.environ.get(name)
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
 
 
 def _append_event(path: Path, *, severity: str, event: str, **fields: Any) -> None:
@@ -560,6 +574,7 @@ def _codex_command(
     reply_path: Path,
     effort: str | None,
     model: str | None,
+    profile: str | None,
 ) -> list[str]:
     command = [
         binary,
@@ -577,6 +592,8 @@ def _codex_command(
         "-",
     ]
     config_inserts: list[str] = []
+    if profile:
+        config_inserts.extend(["--profile", profile])
     if model:
         config_inserts.extend(["-m", model])
     if effort:
@@ -593,6 +610,7 @@ def _codex_resume_command(
     reply_path: Path,
     effort: str | None,
     model: str | None,
+    profile: str | None,
 ) -> list[str]:
     command = [
         binary,
@@ -606,6 +624,8 @@ def _codex_resume_command(
         "-",
     ]
     config_inserts: list[str] = []
+    if profile:
+        config_inserts.extend(["--profile", profile])
     if model:
         config_inserts.extend(["-m", model])
     if effort:
@@ -613,6 +633,27 @@ def _codex_resume_command(
     if config_inserts:
         command[3:3] = config_inserts
     return command
+
+
+def _resolve_model_override(backend: str, explicit_model: str | None) -> tuple[str | None, str | None]:
+    if explicit_model:
+        return explicit_model, "argument"
+    env_name = MODEL_OVERRIDE_ENV_BY_BACKEND.get(backend)
+    if env_name is None:
+        return None, None
+    env_value = _read_nonempty_env(env_name)
+    if env_value:
+        return env_value, f"env:{env_name}"
+    return None, None
+
+
+def _resolve_codex_profile(explicit_profile: str | None) -> tuple[str | None, str | None]:
+    if explicit_profile:
+        return explicit_profile, "argument"
+    env_value = _read_nonempty_env(CODEX_PROFILE_ENV)
+    if env_value:
+        return env_value, f"env:{CODEX_PROFILE_ENV}"
+    return None, None
 
 
 def _claude_command(
@@ -730,6 +771,7 @@ def _run_backend(
     stderr_path: Path,
     effort: str | None,
     model: str | None,
+    profile: str | None,
     timeout_seconds: int,
     dry_run: bool,
     events_path: Path,
@@ -742,6 +784,7 @@ def _run_backend(
             reply_path=reply_path,
             effort=effort,
             model=model,
+            profile=profile,
         )
         cwd = workdir
         session_id = None
@@ -882,6 +925,7 @@ def _resume_backend(
     stderr_path: Path,
     effort: str | None,
     model: str | None,
+    profile: str | None,
     timeout_seconds: int,
     dry_run: bool,
     events_path: Path,
@@ -893,6 +937,7 @@ def _resume_backend(
             reply_path=reply_path,
             effort=effort,
             model=model,
+            profile=profile,
         )
         cwd = workdir
     elif backend == "claude":
@@ -1088,6 +1133,30 @@ def _command_run(args: argparse.Namespace) -> int:
         sys.stdout.write("\n")
         return 1
 
+    if args.profile and backend != "codex":
+        payload = {
+            "status": "escalate_to_user",
+            "phase": args.phase,
+            "backend": backend,
+            "message": "--profile is supported only for the codex backend.",
+            "artifacts_dir": str(artifacts_dir),
+            "result_path": str(result_path),
+            "stdout_path": str(stdout_path),
+            "stderr_path": str(stderr_path),
+            "reply_path": str(reply_path),
+            "probe": probe,
+        }
+        _write_json(result_path, payload)
+        json.dump(payload, sys.stdout, indent=2, sort_keys=True)
+        sys.stdout.write("\n")
+        return 1
+
+    resolved_model, model_source = _resolve_model_override(backend, args.model)
+    if backend == "codex":
+        resolved_profile, profile_source = _resolve_codex_profile(args.profile)
+    else:
+        resolved_profile, profile_source = None, None
+
     _append_event(
         events_path,
         severity="INFO",
@@ -1095,6 +1164,10 @@ def _command_run(args: argparse.Namespace) -> int:
         phase=args.phase,
         backend=backend,
         workdir=str(workdir),
+        model=resolved_model,
+        model_source=model_source,
+        profile=resolved_profile,
+        profile_source=profile_source,
     )
 
     run_result = _run_backend(
@@ -1106,7 +1179,8 @@ def _command_run(args: argparse.Namespace) -> int:
         stdout_path=stdout_path,
         stderr_path=stderr_path,
         effort=args.effort,
-        model=args.model,
+        model=resolved_model,
+        profile=resolved_profile,
         timeout_seconds=args.timeout_seconds,
         dry_run=args.dry_run,
         events_path=events_path,
@@ -1147,6 +1221,12 @@ def _command_run(args: argparse.Namespace) -> int:
             "exit_code": run_result["exit_code"],
             "timed_out": run_result["timed_out"],
             "dry_run": run_result["dry_run"],
+        },
+        "selection": {
+            "model": resolved_model,
+            "model_source": model_source,
+            "profile": resolved_profile if backend == "codex" else None,
+            "profile_source": profile_source if backend == "codex" else None,
         },
         "probe": probe,
     }
@@ -1240,6 +1320,31 @@ def _command_resume(args: argparse.Namespace) -> int:
         sys.stdout.write("\n")
         return 1
 
+    if args.profile and backend != "codex":
+        payload = {
+            "status": "escalate_to_user",
+            "phase": args.phase,
+            "backend": backend,
+            "session_id": args.session_id,
+            "message": "--profile is supported only for the codex backend.",
+            "artifacts_dir": str(artifacts_dir),
+            "result_path": str(result_path),
+            "stdout_path": str(stdout_path),
+            "stderr_path": str(stderr_path),
+            "reply_path": str(reply_path),
+            "probe": probe,
+        }
+        _write_json(result_path, payload)
+        json.dump(payload, sys.stdout, indent=2, sort_keys=True)
+        sys.stdout.write("\n")
+        return 1
+
+    resolved_model, model_source = _resolve_model_override(backend, args.model)
+    if backend == "codex":
+        resolved_profile, profile_source = _resolve_codex_profile(args.profile)
+    else:
+        resolved_profile, profile_source = None, None
+
     _append_event(
         events_path,
         severity="INFO",
@@ -1248,6 +1353,10 @@ def _command_resume(args: argparse.Namespace) -> int:
         backend=backend,
         workdir=str(workdir),
         session_id=args.session_id,
+        model=resolved_model,
+        model_source=model_source,
+        profile=resolved_profile,
+        profile_source=profile_source,
     )
 
     run_result = _resume_backend(
@@ -1260,7 +1369,8 @@ def _command_resume(args: argparse.Namespace) -> int:
         stdout_path=stdout_path,
         stderr_path=stderr_path,
         effort=args.effort,
-        model=args.model,
+        model=resolved_model,
+        profile=resolved_profile,
         timeout_seconds=args.timeout_seconds,
         dry_run=args.dry_run,
         events_path=events_path,
@@ -1302,6 +1412,12 @@ def _command_resume(args: argparse.Namespace) -> int:
             "exit_code": run_result["exit_code"],
             "timed_out": run_result["timed_out"],
             "dry_run": run_result["dry_run"],
+        },
+        "selection": {
+            "model": resolved_model,
+            "model_source": model_source,
+            "profile": resolved_profile if backend == "codex" else None,
+            "profile_source": profile_source if backend == "codex" else None,
         },
         "probe": probe,
     }
@@ -1359,8 +1475,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Reasoning effort hint. Codex maps this to model_reasoning_effort; Kimi maps it to thinking mode.",
     )
     run_parser.add_argument(
+        "--profile",
+        help=f"Codex only. Advanced override for an exact Codex profile name. If omitted, {CODEX_PROFILE_ENV} is used when set.",
+    )
+    run_parser.add_argument(
         "--model",
-        help="Model identifier passed to the backend CLI (--model for Claude/Kimi, -m for Codex).",
+        help="Advanced backend-specific model override. Use only with an exact valid model name. If omitted, TRYCYCLE_<BACKEND>_MODEL is used when set.",
     )
     run_parser.add_argument(
         "--timeout-seconds",
@@ -1415,8 +1535,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Reasoning effort hint. Codex maps this to model_reasoning_effort; Kimi maps it to thinking mode.",
     )
     resume_parser.add_argument(
+        "--profile",
+        help=f"Codex only. Advanced override for an exact Codex profile name. If omitted, {CODEX_PROFILE_ENV} is used when set.",
+    )
+    resume_parser.add_argument(
         "--model",
-        help="Model identifier passed to the backend CLI (--model for Claude/Kimi, -m for Codex).",
+        help="Advanced backend-specific model override. Use only with an exact valid model name. If omitted, TRYCYCLE_<BACKEND>_MODEL is used when set.",
     )
     resume_parser.add_argument(
         "--timeout-seconds",

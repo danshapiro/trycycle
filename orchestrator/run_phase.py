@@ -212,6 +212,8 @@ def _command_run(args: argparse.Namespace) -> int:
     ]
     if args.effort:
         command.extend(["--effort", args.effort])
+    if args.profile:
+        command.extend(["--profile", args.profile])
     if args.model:
         command.extend(["--model", args.model])
     if args.timeout_seconds is not None:
@@ -341,8 +343,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Reasoning effort hint for the subagent backend.",
     )
     run_parser.add_argument(
+        "--profile",
+        help="Codex only. Advanced profile override forwarded to subagent_runner.py.",
+    )
+    run_parser.add_argument(
         "--model",
-        help="Model identifier forwarded to subagent_runner.py.",
+        help="Advanced exact model override forwarded to subagent_runner.py. Use only with a valid exact backend model name.",
     )
     run_parser.add_argument(
         "--timeout-seconds",

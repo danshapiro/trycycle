@@ -786,6 +786,215 @@ class SubagentRunnerTests(unittest.TestCase):
             self.assertEqual(payload["backend"], "codex")
             self.assertEqual(payload["process"]["command"][0], str(fake_codex))
 
+    def test_run_with_codex_backend_uses_profile_override_from_env(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            prompt_path = tmp_path / "prompt.txt"
+            artifacts_dir = tmp_path / "artifacts"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            prompt_path.write_text("Codex dry run\n", encoding="utf-8")
+            _write_fake_codex_binary(bin_dir)
+
+            result = self.run_runner(
+                "run",
+                "--phase",
+                "smoke",
+                "--prompt-file",
+                str(prompt_path),
+                "--workdir",
+                str(tmp_path),
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "--backend",
+                "codex",
+                "--dry-run",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "TRYCYCLE_CODEX_PROFILE": "trycycle-max",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["selection"]["profile"], "trycycle-max")
+            self.assertEqual(
+                payload["selection"]["profile_source"],
+                "env:TRYCYCLE_CODEX_PROFILE",
+            )
+            self.assertIn("--profile", payload["process"]["command"])
+            self.assertIn("trycycle-max", payload["process"]["command"])
+
+    def test_run_with_codex_backend_prefers_explicit_profile_over_env(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            prompt_path = tmp_path / "prompt.txt"
+            artifacts_dir = tmp_path / "artifacts"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            prompt_path.write_text("Codex dry run\n", encoding="utf-8")
+            _write_fake_codex_binary(bin_dir)
+
+            result = self.run_runner(
+                "run",
+                "--phase",
+                "smoke",
+                "--prompt-file",
+                str(prompt_path),
+                "--workdir",
+                str(tmp_path),
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "--backend",
+                "codex",
+                "--profile",
+                "cli-profile",
+                "--dry-run",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "TRYCYCLE_CODEX_PROFILE": "env-profile",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["selection"]["profile"], "cli-profile")
+            self.assertEqual(payload["selection"]["profile_source"], "argument")
+            self.assertIn("--profile", payload["process"]["command"])
+            self.assertIn("cli-profile", payload["process"]["command"])
+            self.assertNotIn("env-profile", payload["process"]["command"])
+
+    def test_run_with_kimi_backend_uses_model_override_from_env(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            share_root = tmp_path / "share"
+            prompt_path = tmp_path / "prompt.txt"
+            artifacts_dir = tmp_path / "artifacts"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            share_root.mkdir()
+            prompt_path.write_text("Kimi dry run\n", encoding="utf-8")
+            _write_fake_kimi_binary(bin_dir)
+
+            result = self.run_runner(
+                "run",
+                "--phase",
+                "smoke",
+                "--prompt-file",
+                str(prompt_path),
+                "--workdir",
+                str(tmp_path),
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "--backend",
+                "kimi",
+                "--dry-run",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "KIMI_SHARE_DIR": str(share_root),
+                    "TRYCYCLE_KIMI_MODEL": "kimi-local-model",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["selection"]["model"], "kimi-local-model")
+            self.assertEqual(payload["selection"]["model_source"], "env:TRYCYCLE_KIMI_MODEL")
+            self.assertIn("--model", payload["process"]["command"])
+            self.assertIn("kimi-local-model", payload["process"]["command"])
+
+    def test_run_with_kimi_backend_prefers_explicit_model_over_env(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            share_root = tmp_path / "share"
+            prompt_path = tmp_path / "prompt.txt"
+            artifacts_dir = tmp_path / "artifacts"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            share_root.mkdir()
+            prompt_path.write_text("Kimi dry run\n", encoding="utf-8")
+            _write_fake_kimi_binary(bin_dir)
+
+            result = self.run_runner(
+                "run",
+                "--phase",
+                "smoke",
+                "--prompt-file",
+                str(prompt_path),
+                "--workdir",
+                str(tmp_path),
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "--backend",
+                "kimi",
+                "--model",
+                "kimi-cli-arg-model",
+                "--dry-run",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "KIMI_SHARE_DIR": str(share_root),
+                    "TRYCYCLE_KIMI_MODEL": "kimi-env-model",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["selection"]["model"], "kimi-cli-arg-model")
+            self.assertEqual(payload["selection"]["model_source"], "argument")
+            self.assertIn("--model", payload["process"]["command"])
+            self.assertIn("kimi-cli-arg-model", payload["process"]["command"])
+            self.assertNotIn("kimi-env-model", payload["process"]["command"])
+
+    def test_run_with_kimi_backend_rejects_codex_profile_override(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            prompt_path = tmp_path / "prompt.txt"
+            artifacts_dir = tmp_path / "artifacts"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            prompt_path.write_text("Kimi dry run\n", encoding="utf-8")
+            _write_fake_kimi_binary(bin_dir)
+
+            result = self.run_runner(
+                "run",
+                "--phase",
+                "smoke",
+                "--prompt-file",
+                str(prompt_path),
+                "--workdir",
+                str(tmp_path),
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "--backend",
+                "kimi",
+                "--profile",
+                "codex-only-profile",
+                "--dry-run",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                },
+            )
+
+            self.assertEqual(result.returncode, 1)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "escalate_to_user")
+            self.assertIn("supported only for the codex backend", payload["message"])
+
     def test_run_with_claude_backend_dry_run_returns_ok(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)

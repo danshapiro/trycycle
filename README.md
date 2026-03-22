@@ -60,6 +60,19 @@ If you're already inside an isolated workspace such as a Conductor workspace and
 
 Works for anything from small features to large refactors, best when you have a clear goal and a codebase Trycycle can read and test.
 
+## Model selection
+
+Trycycle does not assume a hard-coded "best" model. Subagents should stay on the caller's current model unless a local override is configured.
+
+In fallback-runner mode, `--model` is an exact backend override. If you pass it, you must identify a valid backend model name and spell it exactly. For stable local setup, prefer one-time local overrides instead:
+
+- `TRYCYCLE_CODEX_PROFILE`
+- `TRYCYCLE_CODEX_MODEL`
+- `TRYCYCLE_CLAUDE_MODEL`
+- `TRYCYCLE_KIMI_MODEL`
+
+If no explicit override is passed, the fallback runner consults those environment variables and otherwise leaves model selection to the backend CLI's own local default configuration.
+
 ## How it works
 
 Trycycle is a hill climber. It writes a plan, then sends it to a fresh plan editor with the same task input and repo context. That editor either approves the plan unchanged or rewrites it, repeating up to five rounds. Once the plan is locked, Trycycle builds a test plan, builds the code, sends it to a fresh reviewer, fixes what the reviewer finds, and repeats that loop too (up to eight rounds). Each review uses a new reviewer with no memory of previous rounds, and each planning round spawns a fresh agent, so stale context never accumulates.

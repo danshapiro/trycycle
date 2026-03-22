@@ -448,6 +448,41 @@ class RunPhaseTests(unittest.TestCase):
             self.assertTrue(Path(payload["prompt_path"]).exists())
             self.assertTrue(Path(payload["dispatch"]["result_path"]).exists())
 
+    def test_run_dispatches_with_codex_profile_forwarded_to_subagent_runner(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            workdir = tmp_path / "repo"
+            bin_dir = tmp_path / "bin"
+            workdir.mkdir()
+            bin_dir.mkdir()
+            template_path = tmp_path / "template.md"
+            template_path.write_text("Work in {WORKTREE_PATH}\n", encoding="utf-8")
+            _write_fake_codex_binary(bin_dir)
+
+            result = self.run_phase(
+                "run",
+                "--phase",
+                "smoke",
+                "--template",
+                str(template_path),
+                "--workdir",
+                str(workdir),
+                "--set",
+                f"WORKTREE_PATH={workdir}",
+                "--backend",
+                "codex",
+                "--profile",
+                "trycycle-max",
+                "--dry-run",
+                env={"PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}"},
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["dispatch"]["selection"]["profile"], "trycycle-max")
+            self.assertIn("--profile", payload["dispatch"]["process"]["command"])
+            self.assertIn("trycycle-max", payload["dispatch"]["process"]["command"])
+
     def test_run_dispatches_with_kimi_backend_dry_run(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
