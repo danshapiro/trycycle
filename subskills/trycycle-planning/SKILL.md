@@ -3,8 +3,8 @@ name: trycycle-planning
 description: "Internal trycycle subskill — do not invoke directly."
 ---
 <!-- trycycle-planning: adapted from https://github.com/obra/superpowers writing-plans -->
-<!-- base-commit: 7e51643 -->
-<!-- imported: 2026-03-18 -->
+<!-- base-commit: 8ea3981 -->
+<!-- imported: 2026-03-21 -->
 
 # Writing Plans
 
@@ -55,7 +55,18 @@ Once the architectural direction is stable and you are confident you are solving
 - "Run it to make sure it fails" - step
 - "Implement the minimal code to make the test pass" - step
 - "Run the tests and make sure they pass" - step
+- "Refactor" - step: tighten the implementation and tests, then re-run the relevant checks and broader required suite
 - "Commit" - step
+
+## Completion Standard
+
+A task is not done when one targeted test passes. Execution is complete only when:
+
+- The targeted test passes for legitimate reasons (the code is correct, not the test weakened)
+- All required automated checks for the work pass — including any broader regression suite or full project suite that the repo convention requires before completion
+- No valid test has been weakened, deleted, or diluted merely to obtain a green result
+
+Test changes are allowed when a test is wrong, obsolete, or can be replaced by a stronger or more faithful check. "Make the test easier so it passes" is never acceptable. If a check reveals a real defect, fix the defect. If checks are still failing, keep improving the code and tests — failed checks mean continue, not stop and declare done.
 
 ## Plan Document Header
 
@@ -116,7 +127,15 @@ def function(input):
 Run: `pytest tests/path/test.py::test_name -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Refactor and verify**
+
+Tighten the implementation and tests. Remove duplication, improve clarity, and strengthen assertions where possible. Then re-run the targeted test and the broader required suite to confirm nothing regressed.
+
+Run: `pytest tests/path/test.py::test_name -v`
+Run: `<full project suite command>`
+Expected: all PASS
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git add tests/path/test.py src/path/file.py
@@ -129,5 +148,6 @@ git commit -m "feat: add specific feature"
 - Complete code in plan (not "add validation")
 - Exact commands with expected output
 - If the problem statement names automated checks that are red and must go green, include them explicitly in the plan
+- Do not weaken, delete, or dilute valid tests to obtain a passing result — fix the code instead
 - Reference relevant skills with @ syntax
 - DRY, YAGNI, TDD, frequent commits
