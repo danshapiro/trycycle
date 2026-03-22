@@ -22,6 +22,7 @@ Review for:
 - Doing things the right way, without taking shortcuts
 
 Output format:
-1. Numbered list of issues, each with severity: critical, major, minor, or nit.
-2. Include file and line when possible.
-3. If no issues, respond: "No issues found."
+1. `## Review verdict` — `BLOCKING_ISSUES` if any critical or major issues remain, otherwise `NO_BLOCKING_ISSUES`.
+2. `## Issues` — numbered list of issues, each with severity: critical, major, minor, or nit.
+3. Include file and line when possible.
+4. If there are no issues at all, write `No issues found.` under `## Issues`.

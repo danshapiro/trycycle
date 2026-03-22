@@ -252,17 +252,17 @@ Use the review subagent's output as the fix-loop input. As soon as you have capt
 After each implementation-subagent fix round, run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next fresh review round.
 
 Stop when either condition is met:
-1. No **critical** or **major** issues remain.
+1. `## Review verdict` is `NO_BLOCKING_ISSUES` (meaning no **critical** or **major** issues remain).
 2. 8 rounds have been completed.
 
-If critical or major issues still remain after the 8th review:
+If the latest review output still reports `## Review verdict` as `BLOCKING_ISSUES` after the 8th review:
 1. Stop looping.
 2. Dispatch a subagent to review past subagent sessions and hypothesize why the loop is not converging.
 3. Present that report and the latest review output to the user and await user instructions.
 
 ## 11) Finish
 
-Once the post-implementation review loop passes (no critical or major issues):
+Once the post-implementation review loop passes (`## Review verdict` is `NO_BLOCKING_ISSUES`):
 
 Clean up temporary artifacts created during the loop (for example plan scratch files and temp notes), then run:
 - `git -C {WORKTREE_PATH} status --short`
