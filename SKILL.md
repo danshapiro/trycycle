@@ -227,6 +227,8 @@ If the rebase has conflicts, stop and present them to the user.
 
 Spawn a fresh implementation subagent and give it the final excellent plan.
 
+The implementation subagent stays in execute mode until the plan is complete, the work has gone through red/green/refactor cycles as needed, and all required automated tests are passing for legitimate reasons. Failed checks mean keep improving the code and tests unless there is a genuine blocker. Do not accept weakened or deleted valid tests as a shortcut to green.
+
 Immediately before dispatch, prepare the `executing` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, and `--set WORKTREE_PATH={WORKTREE_PATH}`, then dispatch the implementation subagent with the returned `prompt_path`.
 
 In fallback-runner mode, record the returned `dispatch.backend` as `{IMPLEMENTATION_BACKEND}` alongside the saved `session_id`.

@@ -22,17 +22,23 @@ This skill is invoked in trycycle Step 9 ("Execute with trycycle-executing"). A 
 
 7. **Do NOT frame Step 1 as "review critically"** or imply the subagent should second-guess the plan. The orchestrator already ran up to 5 rounds of plan review. Step 1 is just: read the plan and create TodoWrite entries.
 
+8. **Make execution iterative and explicitly red/green/refactor.** The adapted skill should not read like a one-pass checklist. Within execute mode, the subagent should keep cycling through the plan's red/green/refactor work until the task is actually complete: run the failing check, make it pass, refactor/tighten the implementation and tests, and re-run the relevant automated checks after refactoring.
+
+9. **Require full legitimate green before execution is complete.** The adapted skill must explicitly say that execution is not done merely because one targeted check turned green. The subagent should continue improving the code and the tests until all required automated checks named or implied by the plan are passing, including any broader regression suite or full project suite that the repo convention requires before completion. A failing test is usually a reason to keep working, not a blocker.
+
+10. **Protect test quality.** The adapted skill must explicitly forbid weakening, deleting, or diluting a valid automated test just to obtain a passing result. If a test is wrong, obsolete, or lower-fidelity than a better replacement, the subagent may correct or replace it, but it must not manufacture green by making good tests less demanding.
+
 **Critical framing requirement — binary stop/go:**
 
 The adapted skill must have exactly two modes: execute or stop for a blocker. There is no interim state — no "document concerns," no "review critically," no "questions about the plan." The subagent proceeds unless it hits a blocker it cannot work around.
 
 Blocker means the agent cannot use its best judgment because there is no path forward, or because being wrong could cause harm. If something is unfixably broken (system unstable, corrupted instructions, dirty file that cannot be handled properly while proceeding), the subagent MUST stop rather than silently produce broken output. But "I have concerns about the approach" is not a blocker — the plan is already reviewed.
 
-The blocker handling section should make this clear: the only reason to stop is a blocker (the agent cannot use its best judgment because there is no path forward, or because being wrong could cause harm). Everything else is proceed.
+The blocker handling section should make this clear: the only reason to stop is a blocker (the agent cannot use its best judgment because there is no path forward, or because being wrong could cause harm). Everything else is proceed. In particular, red tests and review findings are inputs to keep iterating unless the environment itself is broken.
 
 **Resulting structure should be roughly:**
 - Overview (load plan, execute all tasks continuously)
 - Step 1: Load Plan (read plan, create TodoWrite entries for all tasks)
-- Step 2: Execute All Tasks (for each task: mark in_progress, follow steps, verify, mark completed)
+- Step 2: Execute All Tasks (for each task: mark in_progress, follow steps, work red/green/refactor, run all required verifications, mark completed)
 - Blockers (the ONLY reason to stop — the agent cannot use its best judgment because there is no path forward, or because being wrong could cause harm; detecting these is critical)
 - Remember list (trimmed)

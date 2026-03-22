@@ -10,7 +10,7 @@ This skill is invoked in trycycle Step 11 ("Finish"). After the post-implementat
 1. **Remove references to subagent-driven-development and brainstorming** in "Called by" / integration sections.
 
 2. **Keep almost everything else.** This skill is already lean and focused:
-   - Step 1 (Verify Tests) — keep. Even though the review loop passed, a final test run before merge is good hygiene.
+   - Step 1 (Verify Tests) — keep. Even though the review loop passed, a final run of the full required automated suite before merge is good hygiene. This should stay strict: do not present merge/PR options on the basis of a weakened test suite or a narrowed spot-check.
    - Step 2 (Determine Base Branch) — keep.
    - Step 3 (Present Options) — keep the 4 options and their mechanics, but replace any placeholder summary-writing or verification-writing with reuse of artifacts already produced earlier in trycycle. For the PR option, replace `<paste the implementation subagent's implementation summary here>` with `<paste the latest \`## Implementation summary\` returned by the implementation subagent here>`, replace `<paste the implementation subagent's verification results here>` with `<paste the latest \`## Verification results\` returned by the implementation subagent here>`, and carry through any reviewer-reported residual issues if present.
    - Step 4 (Execute Choice) — keep all 4 option implementations, and keep using those same latest implementation-summary / verification-result / residual-issue artifacts whenever an option needs PR text or user-facing reporting.
