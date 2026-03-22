@@ -333,7 +333,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_prepare_arguments(run_parser)
     run_parser.add_argument(
         "--backend",
-        choices=["auto", "codex", "claude", "kimi"],
+        choices=["auto", "host", "codex", "claude", "kimi"],
         default="auto",
         help="Subagent backend selection policy.",
     )

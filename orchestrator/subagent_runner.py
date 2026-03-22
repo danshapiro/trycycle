@@ -210,10 +210,19 @@ def _probe_kimi(binary: str) -> dict[str, Any]:
     }
 
 
-def _detect_backend_preferences() -> list[str]:
+def _detect_host_backend() -> str | None:
     if os.environ.get("CODEX_THREAD_ID") or os.environ.get("CODEX_HOME"):
-        return ["codex", "claude", "kimi"]
+        return "codex"
     if os.environ.get("CLAUDECODE"):
+        return "claude"
+    return None
+
+
+def _detect_backend_preferences() -> list[str]:
+    host_backend = _detect_host_backend()
+    if host_backend == "codex":
+        return ["codex", "claude", "kimi"]
+    if host_backend == "claude":
         return ["claude", "codex", "kimi"]
     return ["codex", "claude", "kimi"]
 
@@ -233,10 +242,26 @@ def _probe_backends() -> dict[str, Any]:
             break
 
     return {
+        "host_backend": _detect_host_backend(),
         "selected_backend": selected_backend,
         "backend_order": preferred_order,
         "backends": backends,
     }
+
+
+def _resolve_backend_selection(
+    requested_backend: str,
+    *,
+    probe: dict[str, Any],
+) -> tuple[str | None, str | None]:
+    if requested_backend == "auto":
+        return probe["selected_backend"], None
+    if requested_backend == "host":
+        host_backend = probe["host_backend"]
+        if host_backend is None:
+            return None, "Could not detect the host backend. Pass --backend explicitly."
+        return host_backend, None
+    return requested_backend, None
 
 
 def _read_text(path: Path) -> str:
@@ -1092,16 +1117,14 @@ def _command_run(args: argparse.Namespace) -> int:
     prompt_text = _read_text(prompt_file)
     probe = _probe_backends()
 
-    backend = args.backend
-    if backend == "auto":
-        backend = probe["selected_backend"]
+    backend, backend_error = _resolve_backend_selection(args.backend, probe=probe)
 
     if backend is None:
         payload = {
             "status": "escalate_to_user",
             "phase": args.phase,
             "backend": None,
-            "message": "No supported backend is available.",
+            "message": backend_error or "No supported backend is available.",
             "artifacts_dir": str(artifacts_dir),
             "result_path": str(result_path),
             "stdout_path": str(stdout_path),
@@ -1258,9 +1281,7 @@ def _command_resume(args: argparse.Namespace) -> int:
     prompt_text = _read_text(prompt_file)
     probe = _probe_backends()
 
-    backend = args.backend
-    if backend == "auto":
-        backend = probe["selected_backend"]
+    backend, backend_error = _resolve_backend_selection(args.backend, probe=probe)
 
     if backend is None:
         payload = {
@@ -1268,7 +1289,7 @@ def _command_resume(args: argparse.Namespace) -> int:
             "phase": args.phase,
             "backend": None,
             "session_id": args.session_id,
-            "message": "No supported backend is available.",
+            "message": backend_error or "No supported backend is available.",
             "artifacts_dir": str(artifacts_dir),
             "result_path": str(result_path),
             "stdout_path": str(stdout_path),
@@ -1465,9 +1486,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument(
         "--backend",
-        choices=["auto", "codex", "claude", "kimi"],
+        choices=["auto", "host", "codex", "claude", "kimi"],
         default="auto",
-        help="Backend selection policy.",
+        help="Backend selection policy. Use 'host' to stay on the parent backend.",
     )
     run_parser.add_argument(
         "--effort",
@@ -1525,9 +1546,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     resume_parser.add_argument(
         "--backend",
-        choices=["auto", "codex", "claude", "kimi"],
+        choices=["auto", "host", "codex", "claude", "kimi"],
         default="auto",
-        help="Backend selection policy.",
+        help="Backend selection policy. Use 'host' to stay on the parent backend.",
     )
     resume_parser.add_argument(
         "--effort",

@@ -230,6 +230,111 @@ class SubagentRunnerTests(unittest.TestCase):
             self.assertTrue(payload["backends"]["kimi"]["available"])
             self.assertTrue(payload["backends"]["kimi"]["supports_resume"])
 
+    def test_probe_reports_codex_host_backend_when_codex_is_host(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            _write_fake_codex_binary(bin_dir)
+
+            result = self.run_runner(
+                "probe",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "CODEX_THREAD_ID": "thread-123",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["host_backend"], "codex")
+            self.assertEqual(payload["selected_backend"], "codex")
+
+    def test_run_with_host_backend_uses_codex_when_codex_is_host(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            workdir = tmp_path / "work"
+            artifacts_dir = tmp_path / "artifacts"
+            prompt_path = tmp_path / "prompt.txt"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            workdir.mkdir()
+            prompt_path.write_text("host backend dry run\n", encoding="utf-8")
+            fake_codex = _write_fake_codex_binary(bin_dir)
+
+            result = self.run_runner(
+                "run",
+                "--phase",
+                "smoke",
+                "--prompt-file",
+                str(prompt_path),
+                "--workdir",
+                str(workdir),
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "--backend",
+                "host",
+                "--dry-run",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "CODEX_THREAD_ID": "thread-123",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "ok")
+            self.assertEqual(payload["backend"], "codex")
+            self.assertEqual(payload["process"]["command"][0], str(fake_codex))
+
+    def test_run_with_host_backend_escalates_when_host_is_unknown(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            workdir = tmp_path / "work"
+            artifacts_dir = tmp_path / "artifacts"
+            prompt_path = tmp_path / "prompt.txt"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            workdir.mkdir()
+            prompt_path.write_text("host backend should not guess\n", encoding="utf-8")
+            _write_fake_codex_binary(bin_dir)
+
+            result = self.run_runner(
+                "run",
+                "--phase",
+                "smoke",
+                "--prompt-file",
+                str(prompt_path),
+                "--workdir",
+                str(workdir),
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "--backend",
+                "host",
+                "--dry-run",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "CODEX_THREAD_ID": "",
+                    "CODEX_HOME": "",
+                    "CLAUDECODE": "",
+                },
+            )
+
+            self.assertEqual(result.returncode, 1)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "escalate_to_user")
+            self.assertIsNone(payload["backend"])
+            self.assertIn("Could not detect the host backend", payload["message"])
+
     def test_run_with_kimi_backend_returns_ok_when_context_matches_stdout(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
