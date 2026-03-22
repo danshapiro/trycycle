@@ -46,3 +46,7 @@ To release a new version:
 2. Ask the user what version number to use — never pick one yourself.
 3. Tag: `git tag v<version>`
 4. Push: `git push origin main --tags`
+5. Update any local Trycycle installs you control by running `git pull` in each installed clone so your manual checks use the pushed version, not a stale checkout. Check the common skill locations for all supported agents, including:
+   - Unix / WSL home directories such as `~/.claude/skills/trycycle`, `~/.codex/skills/trycycle`, and `~/.kimi/skills/trycycle`
+   - Windows-side installs visible from WSL, such as `/mnt/c/Users/<user>/.claude/skills/trycycle`, `/mnt/c/Users/<user>/.codex/skills/trycycle`, and `/mnt/c/Users/<user>/.kimi/skills/trycycle`
+   - Native PowerShell installs in `C:\Users\<user>\.claude\skills\trycycle`, `C:\Users\<user>\.codex\skills\trycycle`, `C:\Users\<user>\.kimi\skills\trycycle`, and equivalent locations for any other agent-specific skill directories you know about
