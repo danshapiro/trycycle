@@ -188,14 +188,14 @@ After each edit round:
 3. Update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path` in the latest planning report.
 4. Run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
 5. Close that planning subagent for the completed round and clear any saved handle or `session_id` for it.
-6. If `## Plan verdict` is `READY`, continue to step 8 with the current `{IMPLEMENTATION_PLAN_PATH}`.
+6. If `## Plan verdict` is `READY`, continue to step 8 with the current `{IMPLEMENTATION_PLAN_PATH}`. **If the verdict is NOT `READY`, do NOT proceed to step 8 - continue to step 7 for another planning round.**
 7. If `## Plan verdict` is `REVISED`, repeat with a fresh planning subagent.
 8. Repeat up to 5 rounds.
 
-If the plan still is not judged ready after the 5th editor round:
+If the plan still is not judged ready after the 5th editor round: **STOP. Do NOT proceed to step 8.**
 1. Stop looping.
 2. Dispatch a subagent to review past subagent sessions and hypothesize why the loop is not converging.
-3. Present that report and the latest planning report to the user and await user instructions.
+3. Present that report and the latest planning report to the user and **await user instructions before taking any further action.**
 
 ## 8) Build test plan (subagent-owned)
 
