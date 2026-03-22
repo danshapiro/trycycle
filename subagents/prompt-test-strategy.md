@@ -30,16 +30,14 @@ The strategy must aim for high confidence that the product's observable behavior
 
 ### Sources of truth
 
-Identify every available source that informs what "correct" means for this task. Stack-rank them by reliability and state what each one covers and where it has gaps:
+Identify every available source that informs what "correct" means for this task. Stack-rank them by importance first, reliability second, and state what each one covers and where it has gaps:
 
+- The user's description of what they want and any documents they reference (the top priority — flag what's ambiguous, contradictory, or underspecified)
 - A running reference implementation (strongest for ports/rewrites — can compare outputs mechanically; state whether it's actually runnable on this machine)
-- Formal specifications, API docs, protocol RFCs, or design documents (strong — can derive test cases; may have gaps or ambiguities)
-- An existing test suite in the codebase (useful — captures known expectations; may itself be incomplete or wrong)
 - External documentation that can be fetched (helpful — API docs, library references, tutorials with expected behavior)
-- The user's description of what they want (always present — flag what's ambiguous or underspecified)
+- Internal documentation like specifications and documentation (strong — can derive test cases; but may only cover part of the work)
+- An existing test suite in the codebase (useful — captures known expectations; BUT may itself be incomplete or wrong)
 - Conventions visible in the existing codebase (weakest — inferred expectations, useful for consistency)
-
-If the strongest available source is the user's description alone, say so. That signals the strategy should lean toward broader automated coverage and reproducible artifacts, not human validation steps.
 
 ### Existing automated evidence
 
@@ -71,7 +69,7 @@ For each harness, state whether it exists already, what it would cost to build o
 
 ### Verification approach
 
-Based on the sources of truth and harnesses, describe what testing looks like for this task. Frame this as: what tests will drive the quality needed to accomplish the user's goals.
+Based on the sources of truth and harnesses, describe what testing looks like for this task. Frame this as: what tests will drive the quality needed to accomplish the user's goals. There should be at least one test that validates that what the user asked for, actually occurs. If the user asks for something to appear on screen; it should include a screen capture. If the user asked for something to happen with AI, that AI should be called. If this would be expensive or impractical, escalate to the user.
 
 - **User-behavior confidence**: What evidence would make us confident that a real user would observe correct behavior? Focus on the real product surface first: UI, CLI, HTTP responses, rendered files, or other user-visible outputs.
 - **Behavioral coverage**: What can the user do with this system, and how much of that action space should tests exercise through those real surfaces?
@@ -87,7 +85,7 @@ Based on the sources of truth and harnesses, describe what testing looks like fo
 
 State clearly how the later test plan should spend its effort:
 
-- Start with the highest-value existing automated checks that exercise real user-visible behavior through the actual UI, CLI, HTTP surface, or other outputs the user consumes.
+- Start with the highest-value checks that exercise real user-visible behavior through the actual UI, CLI, HTTP surface, or other outputs the user consumes. Prefer existing checks/harnesses if available, but do not be afraid to specify creating them.
 - If the problem statement or prior evidence already identifies automated checks that are red and need to go green, include them explicitly in the plan.
 - Reuse or extend existing multi-step scenario tests when they already cover realistic user journeys, and add new scenario or integration tests wherever important user behavior is still weakly covered or uncovered.
 - Use reference comparisons, regression tests, and boundary tests to deepen confidence where they buy meaningful signal.
