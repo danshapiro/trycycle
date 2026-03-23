@@ -79,7 +79,7 @@ Based on the sources of truth and harnesses, describe what testing looks like fo
 - **Regression safety**: Does the existing test suite protect what already works, or do we need characterization tests?
 - **Failure modes**: What happens when things go wrong, and how much matters here?
 - **Performance**: Assess how likely this change is to affect performance and how hard it is to measure. For most changes, a simple timing assertion ("operation completes in under Xms") catches catastrophic regressions cheaply — X should be generous enough that any violation is a severe bug, not noise. For performance-critical work where improvement is the goal, real measurement in a realistic environment is unavoidable — state what that environment is, how to deploy to it, and how to measure safely. Scale the approach to what the risk warrants.
-- **Visual/perceptual correctness**: If the change affects what the user sees, recommend the cheapest reproducible observation method that provides meaningful confidence (structured output > text assertions > DOM/state assertions > browser snapshot or screenshot comparison > vision model). Do not recommend human validation. If a browser artifact is needed, explicitly say so instead of leaving it ambiguous.
+- **Visual/perceptual correctness**: If the change affects what the user sees, you will almost certainly need a screenshot that you inspect. You might need video or even more expensive approaches, and it might be possible to know how it looks without rendering an image, e.g. a CLI output. Recommend the appropriate reproducible observation method that provides meaningful confidence. Do not recommend human validation. 
 
 ### Test plan emphasis
 
