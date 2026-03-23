@@ -22,7 +22,7 @@
 
 ---
 
-## Installing Trycycle
+## Getting Started
 
 ### If you are human
 
@@ -59,19 +59,6 @@ Trycycle asks any questions it needs, then handles the rest: worktree, plan, pla
 If you're already inside an isolated workspace such as a Conductor workspace and the current branch is already not the default branch, include the literal flag `--no-worktree` in your request to reuse that workspace instead of creating a nested git worktree. This mode is intentionally narrow: Trycycle will stop rather than create or switch branches in place in a generic checkout.
 
 Works for anything from small features to large refactors, best when you have a clear goal and a codebase Trycycle can read and test.
-
-## Model selection
-
-Trycycle does not assume a hard-coded "best" model. Subagents should stay on the caller's current model unless a local override is configured.
-
-In fallback-runner mode, `--model` is an exact backend override. If you pass it, you must identify a valid backend model name and spell it exactly. For stable local setup, prefer one-time local overrides instead:
-
-- `TRYCYCLE_CODEX_PROFILE`
-- `TRYCYCLE_CODEX_MODEL`
-- `TRYCYCLE_CLAUDE_MODEL`
-- `TRYCYCLE_KIMI_MODEL`
-
-If no explicit override is passed, the fallback runner consults those environment variables and otherwise leaves model selection to the backend CLI's own local default configuration.
 
 ## How it works
 
