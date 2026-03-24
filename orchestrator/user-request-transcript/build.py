@@ -7,6 +7,7 @@ import sys
 import claude_code
 import codex_cli
 import kimi_cli
+import opencode_cli
 from common import TranscriptError, choose_most_recent_match, render_transcript
 
 
@@ -14,6 +15,7 @@ ADAPTERS = {
     "claude-code": claude_code,
     "codex-cli": codex_cli,
     "kimi-cli": kimi_cli,
+    "opencode": opencode_cli,
 }
 
 
@@ -85,7 +87,10 @@ def main() -> None:
                 poll_ms=args.poll_ms,
                 search_root=args.search_root,
             )
-            chosen_path = choose_most_recent_match(matches)
+            if len(matches) == 1:
+                chosen_path = matches[0]
+            else:
+                chosen_path = choose_most_recent_match(matches)
 
         transcript = render_transcript(adapter.extract_transcript(chosen_path))
     except TranscriptError as exc:

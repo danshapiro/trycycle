@@ -800,5 +800,335 @@ class UserRequestTranscriptBuildTests(unittest.TestCase):
             )
 
 
+import sqlite3
+
+
+def _create_opencode_db(db_path: Path, sessions: list[dict]) -> None:
+    """Create a minimal OpenCode SQLite DB with the given session/message/part data."""
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("""
+        CREATE TABLE session (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            directory TEXT NOT NULL,
+            title TEXT NOT NULL,
+            version TEXT NOT NULL,
+            time_created INTEGER NOT NULL,
+            time_updated INTEGER NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE message (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            time_created INTEGER NOT NULL,
+            time_updated INTEGER NOT NULL,
+            data TEXT NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE part (
+            id TEXT PRIMARY KEY,
+            message_id TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            time_created INTEGER NOT NULL,
+            time_updated INTEGER NOT NULL,
+            data TEXT NOT NULL
+        )
+    """)
+    for session in sessions:
+        conn.execute(
+            "INSERT INTO session VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (session["id"], "proj1", session.get("directory", "/tmp"),
+             session.get("title", "test"), "1.3.0",
+             session.get("time_created", 1000), session.get("time_updated", 2000)),
+        )
+        for msg in session.get("messages", []):
+            conn.execute(
+                "INSERT INTO message VALUES (?, ?, ?, ?, ?)",
+                (msg["id"], session["id"], msg.get("time_created", 1000),
+                 msg.get("time_updated", 2000), json.dumps(msg["data"])),
+            )
+            for part in msg.get("parts", []):
+                conn.execute(
+                    "INSERT INTO part VALUES (?, ?, ?, ?, ?, ?)",
+                    (part["id"], msg["id"], session["id"],
+                     part.get("time_created", 1000), part.get("time_updated", 2000),
+                     json.dumps(part["data"])),
+                )
+    conn.commit()
+    conn.close()
+
+
+class OpenCodeTranscriptTests(UserRequestTranscriptBuildTests):
+    def test_opencode_canary_finds_correct_session(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            db_path = tmp_path / "opencode.db"
+            canary = "trycycle-canary-12345678901234567890"
+            _create_opencode_db(db_path, [
+                {
+                    "id": "ses_abc123",
+                    "directory": "/tmp",
+                    "time_created": 1000,
+                    "time_updated": 2000,
+                    "messages": [
+                        {
+                            "id": "msg_001",
+                            "data": {"role": "user"},
+                            "time_created": 1001,
+                            "time_updated": 1001,
+                            "parts": [
+                                {
+                                    "id": "prt_001",
+                                    "data": {"type": "text", "text": f"Build something {canary}"},
+                                    "time_created": 1001,
+                                    "time_updated": 1001,
+                                },
+                            ],
+                        },
+                        {
+                            "id": "msg_002",
+                            "data": {"role": "assistant"},
+                            "time_created": 1002,
+                            "time_updated": 1002,
+                            "parts": [
+                                {
+                                    "id": "prt_002",
+                                    "data": {"type": "text", "text": "I'll help you build that."},
+                                    "time_created": 1002,
+                                    "time_updated": 1002,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ])
+            result = self.run_builder(
+                "--cli", "opencode",
+                "--canary", canary,
+                "--search-root", str(tmp_path),
+                env={"HOME": str(tmp_path)},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            turns = json.loads(result.stdout)
+            self.assertEqual(len(turns), 2)
+            self.assertEqual(turns[0]["role"], "user")
+            self.assertIn(canary, turns[0]["text"])
+            self.assertEqual(turns[1]["role"], "assistant")
+            self.assertEqual(turns[1]["text"], "I'll help you build that.")
+
+    def test_opencode_multi_turn_transcript(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            db_path = tmp_path / "opencode.db"
+            canary = "trycycle-canary-multiturn-test"
+            _create_opencode_db(db_path, [
+                {
+                    "id": "ses_multi",
+                    "directory": "/tmp",
+                    "time_created": 1000,
+                    "time_updated": 2000,
+                    "messages": [
+                        {
+                            "id": "msg_001",
+                            "data": {"role": "user"},
+                            "time_created": 1001,
+                            "time_updated": 1001,
+                            "parts": [
+                                {
+                                    "id": "prt_001",
+                                    "data": {"type": "text", "text": f"user1 {canary}"},
+                                    "time_created": 1001,
+                                    "time_updated": 1001,
+                                },
+                            ],
+                        },
+                        {
+                            "id": "msg_002",
+                            "data": {"role": "assistant"},
+                            "time_created": 1002,
+                            "time_updated": 1002,
+                            "parts": [
+                                {
+                                    "id": "prt_002",
+                                    "data": {"type": "text", "text": "assistant1"},
+                                    "time_created": 1002,
+                                    "time_updated": 1002,
+                                },
+                            ],
+                        },
+                        {
+                            "id": "msg_003",
+                            "data": {"role": "user"},
+                            "time_created": 1003,
+                            "time_updated": 1003,
+                            "parts": [
+                                {
+                                    "id": "prt_003",
+                                    "data": {"type": "text", "text": "user2"},
+                                    "time_created": 1003,
+                                    "time_updated": 1003,
+                                },
+                            ],
+                        },
+                        {
+                            "id": "msg_004",
+                            "data": {"role": "assistant"},
+                            "time_created": 1004,
+                            "time_updated": 1004,
+                            "parts": [
+                                {
+                                    "id": "prt_004",
+                                    "data": {"type": "text", "text": "assistant2"},
+                                    "time_created": 1004,
+                                    "time_updated": 1004,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ])
+            result = self.run_builder(
+                "--cli", "opencode",
+                "--canary", canary,
+                "--search-root", str(tmp_path),
+                env={"HOME": str(tmp_path)},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            turns = json.loads(result.stdout)
+            self.assertEqual(len(turns), 4)
+            self.assertEqual(turns[0]["role"], "user")
+            self.assertEqual(turns[1]["role"], "assistant")
+            self.assertEqual(turns[2]["role"], "user")
+            self.assertEqual(turns[3]["role"], "assistant")
+
+    def test_opencode_transcript_skips_empty_and_non_text_parts(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            db_path = tmp_path / "opencode.db"
+            canary = "trycycle-canary-filter-test"
+            _create_opencode_db(db_path, [
+                {
+                    "id": "ses_filter",
+                    "directory": "/tmp",
+                    "time_created": 1000,
+                    "time_updated": 2000,
+                    "messages": [
+                        {
+                            "id": "msg_001",
+                            "data": {"role": "user"},
+                            "time_created": 1001,
+                            "time_updated": 1001,
+                            "parts": [
+                                {
+                                    "id": "prt_001",
+                                    "data": {"type": "text", "text": f"visible user {canary}"},
+                                    "time_created": 1001,
+                                    "time_updated": 1001,
+                                },
+                            ],
+                        },
+                        {
+                            "id": "msg_002",
+                            "data": {"role": "assistant"},
+                            "time_created": 1002,
+                            "time_updated": 1002,
+                            "parts": [
+                                {
+                                    "id": "prt_002",
+                                    "data": {"type": "tool_use", "name": "bash"},
+                                    "time_created": 1002,
+                                    "time_updated": 1002,
+                                },
+                                {
+                                    "id": "prt_003",
+                                    "data": {"type": "text", "text": "   "},
+                                    "time_created": 1003,
+                                    "time_updated": 1003,
+                                },
+                            ],
+                        },
+                        {
+                            "id": "msg_003",
+                            "data": {"role": "assistant"},
+                            "time_created": 1004,
+                            "time_updated": 1004,
+                            "parts": [
+                                {
+                                    "id": "prt_004",
+                                    "data": {"type": "text", "text": "visible reply"},
+                                    "time_created": 1004,
+                                    "time_updated": 1004,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ])
+            result = self.run_builder(
+                "--cli", "opencode",
+                "--canary", canary,
+                "--search-root", str(tmp_path),
+                env={"HOME": str(tmp_path)},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            turns = json.loads(result.stdout)
+            self.assertEqual(len(turns), 2)
+            self.assertEqual(turns[0]["role"], "user")
+            self.assertEqual(turns[1]["role"], "assistant")
+            self.assertEqual(turns[1]["text"], "visible reply")
+
+    def test_opencode_transcript_fails_gracefully_when_db_missing(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            result = self.run_builder(
+                "--cli", "opencode",
+                "--canary", "nonexistent-canary",
+                "--search-root", str(tmp_path),
+                env={"HOME": str(tmp_path)},
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("not found", result.stderr)
+
+    def test_opencode_canary_timeout_when_canary_not_in_session(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            db_path = tmp_path / "opencode.db"
+            _create_opencode_db(db_path, [
+                {
+                    "id": "ses_empty",
+                    "directory": "/tmp",
+                    "time_created": 1000,
+                    "time_updated": 2000,
+                    "messages": [
+                        {
+                            "id": "msg_001",
+                            "data": {"role": "user"},
+                            "time_created": 1001,
+                            "time_updated": 1001,
+                            "parts": [
+                                {
+                                    "id": "prt_001",
+                                    "data": {"type": "text", "text": "no canary here"},
+                                    "time_created": 1001,
+                                    "time_updated": 1001,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ])
+            result = self.run_builder(
+                "--cli", "opencode",
+                "--canary", "nonexistent-canary-xyz",
+                "--search-root", str(tmp_path),
+                "--timeout-ms", "500",
+                env={"HOME": str(tmp_path)},
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("canary", result.stderr.lower())
+
+
 if __name__ == "__main__":
     unittest.main()
