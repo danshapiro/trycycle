@@ -55,6 +55,12 @@ The transcript adapter should:
 
 The adapter's `find_matching_transcripts` returns the session's virtual path (using the session ID as the path stem) so it can be passed to `extract_transcript`. Since OpenCode uses SQLite rather than JSONL files, the adapter needs a slightly different interface: `find_matching_transcripts` returns `list[Path]` where each "path" is a synthetic marker that `extract_transcript` interprets as a session ID to query. This follows the existing adapter contract shape but uses the path's stem as the session identifier.
 
+**Important: two integration issues with synthetic paths.** Because these paths don't exist on disk:
+
+1. **`choose_most_recent_match` in `build.py` calls `path.stat()`**, which would raise `FileNotFoundError`. Fix: in `build.py`, skip `choose_most_recent_match` when exactly one match is returned (nothing to sort). This is safe for all adapters. The SQL query already orders by `time_created DESC`, so the adapter should `LIMIT 1` in the query to guarantee a single result.
+
+2. **DB path is lost between `find_matching_transcripts` and `extract_transcript`.** The `build.py` dispatcher passes `search_root` to `find_matching_transcripts` but only passes the chosen path to `extract_transcript`. For tests that redirect `--search-root` to a temp directory, `extract_transcript` would fail to find the DB at the default location. Fix: use a module-level `_last_resolved_db_path` variable in `opencode_cli.py`. `find_matching_transcripts` sets it after resolving the DB; `extract_transcript` reads it (falling back to `_resolve_db_path(None)` if unset).
+
 **Alternative considered and rejected:** Using `opencode export <sessionID>` as a subprocess. This is simpler but slower (spawns a full process), and the session ID is not known from an env var so it would require the same DB query to find it anyway. Cutting out the middleman is cleaner.
 
 ### OpenCode auto-detection in `run_phase.py` transcript CLI
@@ -81,7 +87,7 @@ OpenCode's `run` mode auto-denies `question`, `plan_enter`, and `plan_exit`. For
 
 **Tier 1 (preferred): Parse stdout JSON events.** Collect all events with `type: "text"` from the final assistant message (the last group of events before the final `step_finish` with `reason: "stop"`). Concatenate their `.part.text` values.
 
-**Tier 2 (fallback): Query SQLite.** If stdout parsing yields no text (e.g., due to incomplete event flushing), query the `part` table for the session, filtering for `type: "text"` parts in the last assistant message, ordered by `time_created`.
+**Tier 2 (deferred to live testing): Query SQLite.** If stdout parsing yields no text (e.g., due to incomplete event flushing), a fallback could query the `part` table for the session, filtering for `type: "text"` parts in the last assistant message, ordered by `time_created`. This is not implemented in the initial pass. The live integration test (Task 10) will reveal whether the JSON stream is reliably complete; if not, add the DB fallback as a follow-up.
 
 ### SKILL.md transcript-helper section: OpenCode uses canary-based lookup
 
@@ -101,7 +107,7 @@ The existing adapter contract in `build.py` expects each adapter to have:
 - `find_matching_transcripts(canary=..., timeout_ms=..., poll_ms=..., search_root=...) -> list[Path]`
 - `extract_transcript(path: Path) -> list[TranscriptTurn]`
 
-For OpenCode, `find_matching_transcripts` will search the SQLite DB for the canary in user message text parts and return synthetic `Path` objects (e.g., `Path(f"/opencode-session/{session_id}")`) that `extract_transcript` can parse back into a session ID for querying. This preserves the existing adapter contract without restructuring `build.py`.
+For OpenCode, `find_matching_transcripts` will search the SQLite DB for the canary in user message text parts and return synthetic `Path` objects (e.g., `Path(f"/opencode-session/{session_id}")`) that `extract_transcript` can parse back into a session ID for querying. This preserves the existing adapter contract without restructuring `build.py`. See the "Important: two integration issues with synthetic paths" note above for the `stat()` and DB-path-continuity fixes required.
 
 ---
 
@@ -110,8 +116,8 @@ For OpenCode, `find_matching_transcripts` will search the SQLite DB for the cana
 | Action | File | Responsibility |
 |--------|------|----------------|
 | Create | `orchestrator/user-request-transcript/opencode_cli.py` | OpenCode transcript adapter: SQLite-based canary search and transcript extraction |
-| Modify | `orchestrator/user-request-transcript/build.py` | Add `"opencode"` to ADAPTERS dict |
-| Modify | `orchestrator/subagent_runner.py` | Add `_probe_opencode`, `_opencode_command`, `_opencode_resume_command`, `_extract_opencode_reply_from_json`, `_extract_opencode_reply_from_db`, integrate into `_run_backend`, `_resume_backend`, `_detect_host_backend`, `_detect_backend_preferences`, `_probe_backends`, `_classify_run_result`, `build_parser` |
+| Modify | `orchestrator/user-request-transcript/build.py` | Add `"opencode"` to ADAPTERS dict; skip `choose_most_recent_match` for single-match results |
+| Modify | `orchestrator/subagent_runner.py` | Add `_probe_opencode`, `_opencode_command`, `_opencode_resume_command`, `_extract_opencode_reply_from_json`, `_extract_opencode_session_id_from_json`, integrate into `_run_backend`, `_resume_backend`, `_detect_host_backend`, `_detect_backend_preferences`, `_probe_backends`, `build_parser` |
 | Modify | `orchestrator/run_phase.py` | Add `"opencode"` to `_detect_transcript_cli` and `--transcript-cli` choices |
 | Modify | `SKILL.md` | Add OpenCode to transcript-helper section and backend-detection notes |
 | Modify | `README.md` | Add OpenCode install line, badge, and compatibility mention |
@@ -273,6 +279,10 @@ from common import TranscriptError, TranscriptTurn
 DEFAULT_DB_PATH = Path.home() / ".local" / "share" / "opencode" / "opencode.db"
 OPENCODE_DATA_DIR_ENV = "OPENCODE_DATA_DIR"
 
+# Module-level cache: set by find_matching_transcripts so extract_transcript
+# can locate the DB without receiving search_root through the adapter contract.
+_last_resolved_db_path: Path | None = None
+
 
 def _resolve_db_path(search_root: Path | None) -> Path:
     if search_root is not None:
@@ -309,7 +319,9 @@ def find_matching_transcripts(
     poll_ms: int,
     search_root: Path | None = None,
 ) -> list[Path]:
+    global _last_resolved_db_path
     db_path = _resolve_db_path(search_root)
+    _last_resolved_db_path = db_path
     deadline = time.monotonic() + (timeout_ms / 1000)
 
     while True:
@@ -324,6 +336,7 @@ def find_matching_transcripts(
                   AND json_extract(p.data, '$.type') = 'text'
                   AND json_extract(p.data, '$.text') LIKE ?
                 ORDER BY p.time_created DESC
+                LIMIT 1
                 """,
                 (f"%{canary}%",),
             ).fetchall()
@@ -344,7 +357,7 @@ def find_matching_transcripts(
 
 def extract_transcript(path: Path) -> list[TranscriptTurn]:
     session_id = path.name
-    db_path = _resolve_db_path(None)
+    db_path = _last_resolved_db_path if _last_resolved_db_path is not None else _resolve_db_path(None)
     conn = _connect(db_path)
     try:
         return _extract_session_transcript(conn, session_id)
@@ -420,9 +433,11 @@ def _extract_session_transcript(conn: sqlite3.Connection, session_id: str) -> li
     return selected_turns
 ```
 
-- [ ] **Step 4: Register the adapter in `build.py`**
+- [ ] **Step 4: Register the adapter in `build.py` and fix single-match handling**
 
-In `orchestrator/user-request-transcript/build.py`, add:
+In `orchestrator/user-request-transcript/build.py`:
+
+1. Add the import and ADAPTERS entry:
 ```python
 import opencode_cli
 
@@ -434,6 +449,20 @@ ADAPTERS = {
 }
 ```
 
+2. In `main()`, fix the canary branch to skip `choose_most_recent_match` when exactly one match is returned (avoids `stat()` on synthetic paths that don't exist on disk):
+```python
+        matches = adapter.find_matching_transcripts(
+            canary=args.canary,
+            timeout_ms=args.timeout_ms,
+            poll_ms=args.poll_ms,
+            search_root=args.search_root,
+        )
+        if len(matches) == 1:
+            chosen_path = matches[0]
+        else:
+            chosen_path = choose_most_recent_match(matches)
+```
+
 - [ ] **Step 5: Run the test to verify it passes**
 
 Run: `cd /home/user/code/trycycle/.worktrees/add-opencode-support && python3 -m pytest tests/test_user_request_transcript_build.py::OpenCodeTranscriptTests -v`
@@ -442,8 +471,9 @@ Expected: PASS
 - [ ] **Step 6: Refactor and verify**
 
 Verify the adapter handles edge cases:
-- Multiple sessions with the canary (should return the most recent)
+- Multiple sessions with the canary (the SQL `LIMIT 1` returns only the most recent, so `choose_most_recent_match` is never called on synthetic paths)
 - Sessions with no assistant reply (should still return user turns)
+- The `_last_resolved_db_path` cache is set correctly by `find_matching_transcripts` and used by `extract_transcript`
 - Empty text parts (should be excluded)
 
 Run: `cd /home/user/code/trycycle/.worktrees/add-opencode-support && python3 -m pytest tests/test_user_request_transcript_build.py -v`
