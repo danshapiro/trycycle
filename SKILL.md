@@ -50,9 +50,10 @@ When a phase wrapper call needs `{USER_REQUEST_TRANSCRIPT}`, `{INITIAL_REQUEST_A
 2. For Kimi CLI, always pass `--transcript-cli kimi-cli` on transcript-bearing wrapper calls and let direct session lookup run first.
 3. If the wrapper reports that a canary is required, run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` as a separate top-level command, capture stdout exactly as `{CANARY}`, then rerun the wrapper with `--canary "{CANARY}"`. For Kimi-hosted runs, keep `--transcript-cli kimi-cli` on the rerun as well.
 4. For Claude Code, always run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` as a separate top-level command first, capture stdout exactly as `{CANARY}`, then invoke the wrapper with `--transcript-cli claude-code --canary "{CANARY}"`.
+5. For OpenCode, always run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` as a separate top-level command first, capture stdout exactly as `{CANARY}`, then invoke the wrapper with `--transcript-cli opencode --canary "{CANARY}"`.
 
 The canary must be emitted by a separate top-level command so it reaches the live session transcript before lookup. Do not rely on shell-specific capture or assignment forms that may keep the canary out of visible command output; shells and host wrappers vary, and if the canary is not visibly emitted into the session transcript, lookup will fail. Build transcript placeholder values immediately before each phase wrapper call that uses them.
-Kimi support is explicit here because `host` and `auto` cannot reliably detect a Kimi host.
+Kimi and OpenCode support is explicit here because `host` and `auto` cannot reliably detect a Kimi host, and OpenCode requires canary-based lookup.
 
 When a step below references `{POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}`, use the corresponding review subagent's stdout exactly as the placeholder value.
 
@@ -66,8 +67,8 @@ When a step below references `{IMPLEMENTATION_BACKEND}`, use the resolved `dispa
 
 - **Use the same backend/model unless local configuration says otherwise, and do not switch subagents to a different "best" model on your own.**
   - In native mode, keep subagents on the same model you are currently using unless the user or local configuration overrides that.
-  - In fallback-runner mode, use `--backend host` by default so fresh subagents stay on the parent backend. When the host agent is Kimi, use `--backend kimi` explicitly.
-  - Prefer local overrides when present: `TRYCYCLE_CODEX_PROFILE`, `TRYCYCLE_CODEX_MODEL`, `TRYCYCLE_CLAUDE_MODEL`, and `TRYCYCLE_KIMI_MODEL`.
+  - In fallback-runner mode, use `--backend host` by default so fresh subagents stay on the parent backend. When the host agent is Kimi, use `--backend kimi` explicitly. When the host agent is OpenCode, `--backend host` works correctly because `OPENCODE=1` is detectable.
+  - Prefer local overrides when present: `TRYCYCLE_CODEX_PROFILE`, `TRYCYCLE_CODEX_MODEL`, `TRYCYCLE_CLAUDE_MODEL`, `TRYCYCLE_KIMI_MODEL`, and `TRYCYCLE_OPENCODE_MODEL`.
   - `--profile` is a Codex-only exact override for a local Codex profile name.
   - `--model` is an exact backend-specific override, not a discovery mechanism. Only pass it when you have identified a valid backend model name and can spell it exactly. Never guess or invent model names.
   - If no local override is configured and you can reliably identify your current model's exact backend name, pass that same model with `--model`. Otherwise omit `--model` and let the backend's local default apply.
