@@ -52,6 +52,8 @@ def _detect_transcript_cli(selected: str) -> str:
         return "codex-cli"
     if os.environ.get("CLAUDECODE"):
         return "claude-code"
+    if os.environ.get("OPENCODE"):
+        return "opencode"
     raise PhaseError("Could not detect transcript CLI. Pass --transcript-cli explicitly.")
 
 
@@ -284,7 +286,7 @@ def _add_prepare_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--transcript-cli",
-        choices=["auto", "codex-cli", "claude-code", "kimi-cli"],
+        choices=["auto", "codex-cli", "claude-code", "kimi-cli", "opencode"],
         default="auto",
         help="Transcript provider to use for transcript placeholders.",
     )
