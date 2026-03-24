@@ -14,13 +14,13 @@
 
 ### Use `--format json` for all runner invocations, not default format
 
-Empirical testing on OpenCode 1.3.0 confirms that **default format produces no stdout when piped** (non-TTY). Only `--format json` produces structured output. Each JSON line has a `type` field (`step_start`, `text`, `tool_use`, `step_finish`, `reasoning`) plus a `sessionID` field and a `part` object.
+Empirical testing on OpenCode 1.3.0 confirms that the **default format does produce clean stdout when piped** (non-TTY) — it outputs only the final assistant text, similar to Claude's `-p --output-format text` and Kimi's `--print --final-message-only`. However, default format does **not** include the session ID in its output. Since OpenCode auto-assigns session IDs (they cannot be pre-assigned), and the runner needs the session ID for resume support, we must use `--format json`.
 
-The runner must therefore always use `--format json` and parse the JSON event stream to:
-1. Extract the `sessionID` from the first event line (needed because OpenCode auto-assigns session IDs; they cannot be pre-assigned)
+Each JSON line has a `type` field (`step_start`, `text`, `tool_use`, `step_finish`, `reasoning`) plus a `sessionID` field and a `part` object. The runner parses the JSON event stream to:
+1. Extract the `sessionID` from the first event line (the primary reason we need JSON format)
 2. Collect all `type: "text"` events from the final assistant turn to assemble the reply text
 
-This is different from Claude (which uses `-p --output-format text` for clean stdout) and Kimi (which uses `--print --final-message-only`), but the parsing is straightforward and the JSON events are well-structured.
+The JSON parsing is straightforward and the events are well-structured.
 
 **Important caveat:** OpenCode may not flush all JSON events to stdout before the process exits. The runner must handle partial output gracefully. If the JSON stream is incomplete (no text events), the runner should fall back to querying the SQLite database for the final assistant text. This provides a reliable two-tier reply extraction strategy.
 
@@ -190,7 +190,7 @@ def _create_opencode_db(db_path: Path, sessions: list[dict]) -> None:
     conn.close()
 
 
-class OpenCodeTranscriptTests(unittest.TestCase):
+class OpenCodeTranscriptTests(UserRequestTranscriptBuildTests):
     def test_opencode_canary_finds_correct_session(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
@@ -234,7 +234,7 @@ class OpenCodeTranscriptTests(unittest.TestCase):
                     ],
                 },
             ])
-            result = self.run_transcript_builder(
+            result = self.run_builder(
                 "--cli", "opencode",
                 "--canary", canary,
                 "--search-root", str(tmp_path),
