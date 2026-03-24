@@ -1595,6 +1595,69 @@ class OpenCodeTests(SubagentRunnerTests):
             self.assertIn("anthropic/claude-opus-4-20250514", command)
 
 
+class OpenCodeExtractionUnitTests(unittest.TestCase):
+    """Unit tests for the pure JSON extraction functions."""
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "subagent_runner",
+            str(SUBAGENT_RUNNER),
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        cls._extract_session_id = staticmethod(mod._extract_opencode_session_id_from_json)
+        cls._extract_reply = staticmethod(mod._extract_opencode_reply_from_json)
+
+    def test_session_id_from_well_formed_json_events(self):
+        events = (
+            '{"type":"step_start","sessionID":"ses_abc123","part":{}}\n'
+            '{"type":"text","sessionID":"ses_abc123","part":{"text":"hello"}}\n'
+        )
+        self.assertEqual(self._extract_session_id(events), "ses_abc123")
+
+    def test_session_id_from_empty_string(self):
+        self.assertIsNone(self._extract_session_id(""))
+
+    def test_session_id_from_malformed_json(self):
+        self.assertIsNone(self._extract_session_id("not json\n{bad"))
+
+    def test_session_id_from_events_without_session_id(self):
+        events = '{"type":"step_start","part":{}}\n'
+        self.assertIsNone(self._extract_session_id(events))
+
+    def test_reply_from_single_step_events(self):
+        events = (
+            '{"type":"step_start","sessionID":"s1","part":{}}\n'
+            '{"type":"text","sessionID":"s1","part":{"text":"hello "}}\n'
+            '{"type":"text","sessionID":"s1","part":{"text":"world"}}\n'
+            '{"type":"step_finish","sessionID":"s1","part":{"reason":"stop"}}\n'
+        )
+        self.assertEqual(self._extract_reply(events), "hello world")
+
+    def test_reply_from_multi_step_events_returns_last_step_text(self):
+        events = (
+            '{"type":"step_start","sessionID":"s1","part":{}}\n'
+            '{"type":"text","sessionID":"s1","part":{"text":"tool call text"}}\n'
+            '{"type":"step_finish","sessionID":"s1","part":{"reason":"tool_use"}}\n'
+            '{"type":"step_start","sessionID":"s1","part":{}}\n'
+            '{"type":"text","sessionID":"s1","part":{"text":"final reply"}}\n'
+            '{"type":"step_finish","sessionID":"s1","part":{"reason":"stop"}}\n'
+        )
+        self.assertEqual(self._extract_reply(events), "final reply")
+
+    def test_reply_from_empty_string(self):
+        self.assertEqual(self._extract_reply(""), "")
+
+    def test_reply_from_events_with_no_text(self):
+        events = (
+            '{"type":"step_start","sessionID":"s1","part":{}}\n'
+            '{"type":"step_finish","sessionID":"s1","part":{"reason":"stop"}}\n'
+        )
+        self.assertEqual(self._extract_reply(events), "")
+
+
 @unittest.skipUnless(
     os.environ.get("TRYCYCLE_RUN_LIVE_OPENCODE_TESTS") == "1",
     "Live OpenCode tests require TRYCYCLE_RUN_LIVE_OPENCODE_TESTS=1",
