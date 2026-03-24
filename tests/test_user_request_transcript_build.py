@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -798,9 +799,6 @@ class UserRequestTranscriptBuildTests(unittest.TestCase):
                     ("assistant", "final visible reply"),
                 ],
             )
-
-
-import sqlite3
 
 
 def _create_opencode_db(db_path: Path, sessions: list[dict]) -> None:

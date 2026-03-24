@@ -220,13 +220,17 @@ class SubagentRunnerTests(unittest.TestCase):
                     "HOME": str(home_dir),
                     "KIMI_SHARE_DIR": str(share_root),
                     "FAKE_KIMI_LOG": str(log_path),
+                    "CLAUDECODE": "",
+                    "CODEX_THREAD_ID": "",
+                    "CODEX_HOME": "",
+                    "OPENCODE": "",
                 },
             )
 
             self.assertEqual(result.returncode, 0, result.stderr)
             payload = json.loads(result.stdout)
             self.assertEqual(payload["selected_backend"], "kimi")
-            self.assertEqual(payload["backend_order"], ["codex", "claude", "kimi"])
+            self.assertEqual(payload["backend_order"], ["codex", "claude", "kimi", "opencode"])
             self.assertTrue(payload["backends"]["kimi"]["available"])
             self.assertTrue(payload["backends"]["kimi"]["supports_resume"])
 
@@ -1336,7 +1340,23 @@ def _write_fake_opencode_binary(bin_dir: Path) -> Path:
     return opencode_path
 
 
-class OpenCodeTests(SubagentRunnerTests):
+class OpenCodeTests(unittest.TestCase):
+    def run_runner(
+        self,
+        *args: str,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        merged_env = os.environ.copy()
+        if env:
+            merged_env.update(env)
+        return subprocess.run(
+            [sys.executable, str(SUBAGENT_RUNNER), *args],
+            text=True,
+            capture_output=True,
+            check=False,
+            env=merged_env,
+        )
+
     def test_probe_selects_opencode_when_it_is_the_only_available_backend(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)

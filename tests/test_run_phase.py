@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -750,6 +751,123 @@ class RunPhaseTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 1)
             self.assertIn("canary is required", result.stderr)
+
+    def test_prepare_auto_detects_opencode_transcript_cli_when_opencode_env_set(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            workdir = tmp_path / "repo"
+            workdir.mkdir()
+            template_path = tmp_path / "template.md"
+            search_root = tmp_path / "opencode-data"
+            search_root.mkdir()
+            db_path = search_root / "opencode.db"
+            canary = "trycycle-canary-opencode-autodetect"
+            template_path.write_text(
+                "<task_input_json>{USER_REQUEST_TRANSCRIPT}</task_input_json>\n",
+                encoding="utf-8",
+            )
+            _write_opencode_db(
+                db_path,
+                session_id="ses_autodetect",
+                canary=canary,
+                assistant_reply="autodetected opencode reply",
+            )
+
+            result = self.run_phase(
+                "prepare",
+                "--phase",
+                "planning-initial",
+                "--template",
+                str(template_path),
+                "--workdir",
+                str(workdir),
+                "--transcript-placeholder",
+                "USER_REQUEST_TRANSCRIPT",
+                "--canary",
+                canary,
+                "--transcript-search-root",
+                str(search_root),
+                "--require-nonempty-tag",
+                "task_input_json",
+                env={
+                    "OPENCODE": "1",
+                    "CLAUDECODE": "",
+                    "CODEX_THREAD_ID": "",
+                    "CODEX_HOME": "",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "prepared")
+            prompt_path = Path(payload["prompt_path"])
+            prompt_text = prompt_path.read_text(encoding="utf-8")
+            self.assertIn("autodetected opencode reply", prompt_text)
+
+
+def _write_opencode_db(
+    db_path: Path,
+    *,
+    session_id: str,
+    canary: str,
+    assistant_reply: str,
+) -> None:
+    """Create a minimal OpenCode SQLite DB with one session containing a canary user message."""
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("""
+        CREATE TABLE session (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            directory TEXT NOT NULL,
+            title TEXT NOT NULL,
+            version TEXT NOT NULL,
+            time_created INTEGER NOT NULL,
+            time_updated INTEGER NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE message (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            time_created INTEGER NOT NULL,
+            time_updated INTEGER NOT NULL,
+            data TEXT NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE part (
+            id TEXT PRIMARY KEY,
+            message_id TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            time_created INTEGER NOT NULL,
+            time_updated INTEGER NOT NULL,
+            data TEXT NOT NULL
+        )
+    """)
+    conn.execute(
+        "INSERT INTO session VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (session_id, "proj1", "/tmp", "test", "1.3.0", 1000, 2000),
+    )
+    conn.execute(
+        "INSERT INTO message VALUES (?, ?, ?, ?, ?)",
+        ("msg_001", session_id, 1001, 1001, json.dumps({"role": "user"})),
+    )
+    conn.execute(
+        "INSERT INTO part VALUES (?, ?, ?, ?, ?, ?)",
+        ("prt_001", "msg_001", session_id, 1001, 1001,
+         json.dumps({"type": "text", "text": f"Request with {canary}"})),
+    )
+    conn.execute(
+        "INSERT INTO message VALUES (?, ?, ?, ?, ?)",
+        ("msg_002", session_id, 1002, 1002, json.dumps({"role": "assistant"})),
+    )
+    conn.execute(
+        "INSERT INTO part VALUES (?, ?, ?, ?, ?, ?)",
+        ("prt_002", "msg_002", session_id, 1002, 1002,
+         json.dumps({"type": "text", "text": assistant_reply})),
+    )
+    conn.commit()
+    conn.close()
 
 
 if __name__ == "__main__":
