@@ -818,6 +818,107 @@ def _kimi_resume_command(
     return command
 
 
+def _extract_opencode_session_id_from_json(stdout: str) -> str | None:
+    """Extract the sessionID from the first JSON event line."""
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        session_id = event.get("sessionID")
+        if session_id:
+            return session_id
+    return None
+
+
+def _extract_opencode_reply_from_json(stdout: str) -> str:
+    """Extract reply text from JSON event stream.
+
+    Collects all 'text' type events from the final assistant step
+    (between the last step_start and the final step_finish with reason 'stop').
+    """
+    text_parts: list[str] = []
+    in_current_step = False
+
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        event_type = event.get("type")
+        if event_type == "step_start":
+            # New step: reset collected text
+            text_parts = []
+            in_current_step = True
+        elif event_type == "text" and in_current_step:
+            part = event.get("part", {})
+            text = part.get("text", "")
+            if text:
+                text_parts.append(text)
+        elif event_type == "step_finish":
+            part = event.get("part", {})
+            if part.get("reason") == "stop":
+                # This is the final stop; text_parts has the reply
+                break
+            # Tool-call step finish; text will be reset on next step_start
+
+    return "".join(text_parts)
+
+
+def _opencode_command(
+    *,
+    binary: str,
+    workdir: Path,
+    effort: str | None,
+    model: str | None,
+) -> tuple[list[str], None]:
+    command = [
+        binary,
+        "run",
+        "--dir",
+        str(workdir),
+        "--format",
+        "json",
+    ]
+    if model:
+        command.extend(["--model", model])
+    if effort:
+        command.extend(["--variant", effort])
+    return command, None
+
+
+def _opencode_resume_command(
+    *,
+    binary: str,
+    session_id: str,
+    workdir: Path,
+    effort: str | None,
+    model: str | None,
+) -> list[str]:
+    command = [
+        binary,
+        "run",
+        "--session",
+        session_id,
+        "--dir",
+        str(workdir),
+        "--format",
+        "json",
+    ]
+    if model:
+        command.extend(["--model", model])
+    if effort:
+        command.extend(["--variant", effort])
+    return command
+
+
 def _copy_if_needed(source: Path, target: Path) -> None:
     if source.resolve() == target.resolve():
         return
@@ -861,6 +962,14 @@ def _run_backend(
         cwd = workdir
     elif backend == "kimi":
         command, session_id = _kimi_command(
+            binary=binary,
+            workdir=workdir,
+            effort=effort,
+            model=model,
+        )
+        cwd = workdir
+    elif backend == "opencode":
+        command, session_id = _opencode_command(
             binary=binary,
             workdir=workdir,
             effort=effort,
@@ -945,7 +1054,12 @@ def _run_backend(
     stdout_path.write_text(result.stdout or "", encoding="utf-8")
     stderr_path.write_text(result.stderr or "", encoding="utf-8")
 
-    if backend in {"claude", "kimi"}:
+    if backend == "opencode":
+        reply_text = _extract_opencode_reply_from_json(result.stdout or "")
+        reply_path.write_text(reply_text, encoding="utf-8")
+        if session_id is None:
+            session_id = _extract_opencode_session_id_from_json(result.stdout or "")
+    elif backend in {"claude", "kimi"}:
         reply_text = result.stdout or ""
         reply_path.write_text(reply_text, encoding="utf-8")
     else:
@@ -1018,6 +1132,15 @@ def _resume_backend(
         cwd = workdir
     elif backend == "kimi":
         command = _kimi_resume_command(
+            binary=binary,
+            session_id=session_id,
+            workdir=workdir,
+            effort=effort,
+            model=model,
+        )
+        cwd = workdir
+    elif backend == "opencode":
+        command = _opencode_resume_command(
             binary=binary,
             session_id=session_id,
             workdir=workdir,
@@ -1106,7 +1229,10 @@ def _resume_backend(
     stdout_path.write_text(result.stdout or "", encoding="utf-8")
     stderr_path.write_text(result.stderr or "", encoding="utf-8")
 
-    if backend in {"claude", "kimi"}:
+    if backend == "opencode":
+        reply_text = _extract_opencode_reply_from_json(result.stdout or "")
+        reply_path.write_text(reply_text, encoding="utf-8")
+    elif backend in {"claude", "kimi"}:
         reply_text = result.stdout or ""
         reply_path.write_text(reply_text, encoding="utf-8")
     else:
@@ -1498,19 +1624,19 @@ def _command_resume(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Safe fallback runner for trycycle subagent dispatch via Codex, Claude, or Kimi.",
+        description="Safe fallback runner for trycycle subagent dispatch via Codex, Claude, Kimi, or OpenCode.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     probe_parser = subparsers.add_parser(
         "probe",
-        help="Detect supported Codex, Claude, and Kimi backends.",
+        help="Detect supported Codex, Claude, Kimi, and OpenCode backends.",
     )
     probe_parser.set_defaults(func=_command_probe)
 
     run_parser = subparsers.add_parser(
         "run",
-        help="Run a subagent prompt through Codex, Claude, or Kimi without shell quoting.",
+        help="Run a subagent prompt through Codex, Claude, Kimi, or OpenCode without shell quoting.",
     )
     run_parser.add_argument(
         "--phase",
@@ -1533,7 +1659,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument(
         "--backend",
-        choices=["auto", "host", "codex", "claude", "kimi"],
+        choices=["auto", "host", "codex", "claude", "kimi", "opencode"],
         default="auto",
         help="Backend selection policy. Use 'host' to stay on the parent backend.",
     )
@@ -1593,7 +1719,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     resume_parser.add_argument(
         "--backend",
-        choices=["auto", "host", "codex", "claude", "kimi"],
+        choices=["auto", "host", "codex", "claude", "kimi", "opencode"],
         default="auto",
         help="Backend selection policy. Use 'host' to stay on the parent backend.",
     )

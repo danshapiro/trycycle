@@ -1337,6 +1337,33 @@ def _write_fake_opencode_binary(bin_dir: Path) -> Path:
 
 
 class OpenCodeTests(SubagentRunnerTests):
+    def test_probe_selects_opencode_when_it_is_the_only_available_backend(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            _write_fake_opencode_binary(bin_dir)
+
+            result = self.run_runner(
+                "probe",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "CLAUDECODE": "",
+                    "CODEX_THREAD_ID": "",
+                    "CODEX_HOME": "",
+                    "OPENCODE": "",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["selected_backend"], "opencode")
+            self.assertTrue(payload["backends"]["opencode"]["available"])
+            self.assertTrue(payload["backends"]["opencode"]["supports_resume"])
+
     def test_probe_detects_opencode_host_backend(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
@@ -1362,6 +1389,262 @@ class OpenCodeTests(SubagentRunnerTests):
             payload = json.loads(result.stdout)
             self.assertEqual(payload["host_backend"], "opencode")
             self.assertEqual(payload["selected_backend"], "opencode")
+
+    def test_run_with_opencode_backend_returns_ok_with_json_reply(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            workdir = tmp_path / "work"
+            artifacts_dir = tmp_path / "artifacts"
+            prompt_path = tmp_path / "prompt.txt"
+            log_path = tmp_path / "opencode-log.jsonl"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            workdir.mkdir()
+            prompt_path.write_text("Test prompt for opencode\n", encoding="utf-8")
+            _write_fake_opencode_binary(bin_dir)
+
+            result = self.run_runner(
+                "run",
+                "--phase", "smoke",
+                "--prompt-file", str(prompt_path),
+                "--workdir", str(workdir),
+                "--artifacts-dir", str(artifacts_dir),
+                "--backend", "opencode",
+                "--model", "anthropic/claude-sonnet-4-20250514",
+                "--effort", "high",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "FAKE_OPENCODE_LOG": str(log_path),
+                    "FAKE_OPENCODE_MODE": "success",
+                    "FAKE_OPENCODE_REPLY": "opencode test reply",
+                    "FAKE_OPENCODE_SESSION_ID": "ses_test_abc123",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "ok")
+            self.assertEqual(payload["backend"], "opencode")
+            self.assertEqual(payload["session_id"], "ses_test_abc123")
+            reply_path = Path(payload["reply_path"])
+            self.assertEqual(reply_path.read_text(encoding="utf-8"), "opencode test reply")
+            log_records = _read_jsonl(log_path)
+            argv = log_records[-1]["argv"]
+            self.assertIn("run", argv)
+            self.assertIn("--format", argv)
+            self.assertIn("json", argv)
+            self.assertIn("--dir", argv)
+            self.assertIn(str(workdir), argv)
+            self.assertIn("--model", argv)
+            self.assertIn("anthropic/claude-sonnet-4-20250514", argv)
+            self.assertIn("--variant", argv)
+            self.assertIn("high", argv)
+
+    def test_resume_with_opencode_backend_returns_ok(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            workdir = tmp_path / "work"
+            artifacts_dir = tmp_path / "artifacts"
+            prompt_path = tmp_path / "prompt.txt"
+            log_path = tmp_path / "opencode-log.jsonl"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            workdir.mkdir()
+            prompt_path.write_text("Resume prompt\n", encoding="utf-8")
+            _write_fake_opencode_binary(bin_dir)
+
+            result = self.run_runner(
+                "resume",
+                "--phase", "execute",
+                "--session-id", "ses_existing_session",
+                "--prompt-file", str(prompt_path),
+                "--workdir", str(workdir),
+                "--artifacts-dir", str(artifacts_dir),
+                "--backend", "opencode",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "FAKE_OPENCODE_LOG": str(log_path),
+                    "FAKE_OPENCODE_MODE": "success",
+                    "FAKE_OPENCODE_REPLY": "resumed reply text",
+                    "FAKE_OPENCODE_SESSION_ID": "ses_existing_session",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "ok")
+            self.assertEqual(payload["backend"], "opencode")
+            self.assertEqual(payload["session_id"], "ses_existing_session")
+            reply_path = Path(payload["reply_path"])
+            self.assertEqual(reply_path.read_text(encoding="utf-8"), "resumed reply text")
+            log_records = _read_jsonl(log_path)
+            argv = log_records[-1]["argv"]
+            self.assertIn("--session", argv)
+            self.assertIn("ses_existing_session", argv)
+
+    def test_run_with_opencode_backend_escalates_on_failure(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            workdir = tmp_path / "work"
+            artifacts_dir = tmp_path / "artifacts"
+            prompt_path = tmp_path / "prompt.txt"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            workdir.mkdir()
+            prompt_path.write_text("failing prompt\n", encoding="utf-8")
+            _write_fake_opencode_binary(bin_dir)
+
+            result = self.run_runner(
+                "run",
+                "--phase", "smoke",
+                "--prompt-file", str(prompt_path),
+                "--workdir", str(workdir),
+                "--artifacts-dir", str(artifacts_dir),
+                "--backend", "opencode",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "FAKE_OPENCODE_MODE": "failure",
+                },
+            )
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "escalate_to_user")
+
+    def test_run_with_host_backend_uses_opencode_when_opencode_is_host(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            workdir = tmp_path / "work"
+            artifacts_dir = tmp_path / "artifacts"
+            prompt_path = tmp_path / "prompt.txt"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            workdir.mkdir()
+            prompt_path.write_text("host backend dry run\n", encoding="utf-8")
+            fake_opencode = _write_fake_opencode_binary(bin_dir)
+
+            result = self.run_runner(
+                "run",
+                "--phase", "smoke",
+                "--prompt-file", str(prompt_path),
+                "--workdir", str(workdir),
+                "--artifacts-dir", str(artifacts_dir),
+                "--backend", "host",
+                "--dry-run",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "OPENCODE": "1",
+                    "CLAUDECODE": "",
+                    "CODEX_THREAD_ID": "",
+                    "CODEX_HOME": "",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "ok")
+            self.assertEqual(payload["backend"], "opencode")
+            self.assertEqual(payload["process"]["command"][0], str(fake_opencode))
+
+    def test_run_with_opencode_model_override_from_env(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            workdir = tmp_path / "work"
+            artifacts_dir = tmp_path / "artifacts"
+            prompt_path = tmp_path / "prompt.txt"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            workdir.mkdir()
+            prompt_path.write_text("model override test\n", encoding="utf-8")
+            _write_fake_opencode_binary(bin_dir)
+
+            result = self.run_runner(
+                "run",
+                "--phase", "smoke",
+                "--prompt-file", str(prompt_path),
+                "--workdir", str(workdir),
+                "--artifacts-dir", str(artifacts_dir),
+                "--backend", "opencode",
+                "--dry-run",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "TRYCYCLE_OPENCODE_MODEL": "anthropic/claude-opus-4-20250514",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "ok")
+            command = payload["process"]["command"]
+            self.assertIn("--model", command)
+            self.assertIn("anthropic/claude-opus-4-20250514", command)
+
+
+@unittest.skipUnless(
+    os.environ.get("TRYCYCLE_RUN_LIVE_OPENCODE_TESTS") == "1",
+    "Live OpenCode tests require TRYCYCLE_RUN_LIVE_OPENCODE_TESTS=1",
+)
+class LiveOpenCodeTests(SubagentRunnerTests):
+    def test_live_opencode_run_and_resume(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            workdir = tmp_path / "work"
+            artifacts_dir_run = tmp_path / "artifacts_run"
+            artifacts_dir_resume = tmp_path / "artifacts_resume"
+            prompt_path = tmp_path / "prompt.txt"
+            resume_prompt_path = tmp_path / "resume_prompt.txt"
+            workdir.mkdir()
+            prompt_path.write_text("Say exactly: TRYCYCLE_OPENCODE_LIVE_TEST\n", encoding="utf-8")
+
+            # Run
+            result = self.run_runner(
+                "run",
+                "--phase", "live-smoke",
+                "--prompt-file", str(prompt_path),
+                "--workdir", str(workdir),
+                "--artifacts-dir", str(artifacts_dir_run),
+                "--backend", "opencode",
+                "--timeout-seconds", "120",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "ok")
+            self.assertEqual(payload["backend"], "opencode")
+            self.assertTrue(payload["session_id"])
+            self.assertIn("TRYCYCLE_OPENCODE_LIVE_TEST", Path(payload["reply_path"]).read_text(encoding="utf-8"))
+
+            # Resume
+            session_id = payload["session_id"]
+            resume_prompt_path.write_text("What was my previous message?\n", encoding="utf-8")
+            resume_result = self.run_runner(
+                "resume",
+                "--phase", "live-smoke",
+                "--session-id", session_id,
+                "--prompt-file", str(resume_prompt_path),
+                "--workdir", str(workdir),
+                "--artifacts-dir", str(artifacts_dir_resume),
+                "--backend", "opencode",
+                "--timeout-seconds", "120",
+            )
+            self.assertEqual(resume_result.returncode, 0, resume_result.stderr)
+            resume_payload = json.loads(resume_result.stdout)
+            self.assertEqual(resume_payload["status"], "ok")
+            self.assertEqual(resume_payload["session_id"], session_id)
 
 
 if __name__ == "__main__":
