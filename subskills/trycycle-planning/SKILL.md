@@ -150,4 +150,4 @@ git commit -m "feat: add specific feature"
 - If the problem statement names automated checks that are red and must go green, include them explicitly in the plan
 - Do not weaken, delete, or dilute valid tests to obtain a passing result — fix the code instead
 - Reference relevant skills with @ syntax
-- DRY, YAGNI, TDD, frequent commits
+- DRY, YAGNI, Red/Green/Refactor TDD, frequent commits
