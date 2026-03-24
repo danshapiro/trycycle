@@ -1,6 +1,6 @@
 <!-- GitHub repo settings (set manually in Settings > General):
   Description: A skill that plans, strengthens, and reviews your code -- automatically.
-  Topics: claude-code, codex-cli, kimi-cli, ai-coding, code-review, autonomous-agents, ai-skill, hill-climbing
+  Topics: claude-code, codex-cli, kimi-cli, opencode, ai-coding, code-review, autonomous-agents, ai-skill, hill-climbing
   Social preview: upload assets/social-preview.png
 -->
 
@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <em>A skill for Claude Code, Codex CLI, and Kimi CLI that plans, strengthens, and reviews your code -- automatically.</em>
+  <em>A skill for Claude Code, Codex CLI, Kimi CLI, and OpenCode that plans, strengthens, and reviews your code -- automatically.</em>
 </p>
 
 <p align="center">
@@ -18,6 +18,7 @@
   <a href="https://github.com/danshapiro/trycycle/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen" alt="PRs Welcome" /></a>
   <a href="https://github.com/anthropics/claude-code"><img src="https://img.shields.io/badge/built%20for-Claude%20Code-6B4FBB?logo=anthropic&logoColor=white" alt="Built for Claude Code" /></a>
   <a href="https://github.com/openai/codex"><img src="https://img.shields.io/badge/works%20with-Codex%20CLI-412991?logo=openai&logoColor=white" alt="Works with Codex CLI" /></a>
+  <a href="https://github.com/anomalyco/opencode"><img src="https://img.shields.io/badge/works%20with-OpenCode-FF6B35" alt="Works with OpenCode" /></a>
 </p>
 
 ---
@@ -26,7 +27,7 @@
 
 ### If you are human
 
-Tell your favorite coding agent (Claude Code, Codex CLI, Kimi CLI, etc.):
+Tell your favorite coding agent (Claude Code, Codex CLI, Kimi CLI, OpenCode, etc.):
 
 ```
 Read https://raw.githubusercontent.com/danshapiro/trycycle/main/README.md. Follow the installation instructions there.
@@ -39,6 +40,9 @@ Use this instead of a standard installation, or it won't work. Clone into your s
 - **Claude Code:** `git clone https://github.com/danshapiro/trycycle.git ~/.claude/skills/trycycle`
 - **Codex CLI:** `git clone https://github.com/danshapiro/trycycle.git ~/.codex/skills/trycycle`
 - **Kimi CLI:** `git clone https://github.com/danshapiro/trycycle.git ~/.kimi/skills/trycycle`
+- **OpenCode:** `git clone https://github.com/danshapiro/trycycle.git ~/.config/opencode/skills/trycycle`
+
+> **Note:** OpenCode also discovers skills installed at `~/.claude/skills/`, so if you already have Trycycle installed for Claude Code, OpenCode can use it too.
 
 Trycycle requires `python3` at runtime. Make sure it is installed and on your `PATH`.
 
