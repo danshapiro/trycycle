@@ -1260,5 +1260,109 @@ class SubagentRunnerTests(unittest.TestCase):
             self.assertNotIn("kimi exited with code 0", payload["message"])
 
 
+def _write_fake_opencode_binary(bin_dir: Path) -> Path:
+    opencode_path = bin_dir / "opencode"
+    opencode_path.write_text(
+        textwrap.dedent(
+            f"""\
+            #!{sys.executable}
+            import json
+            import os
+            import sys
+
+            def read_flag_value(flag):
+                if flag not in sys.argv:
+                    return None
+                index = sys.argv.index(flag)
+                if index + 1 >= len(sys.argv):
+                    return None
+                return sys.argv[index + 1]
+
+            def append_log():
+                log_path = os.environ.get("FAKE_OPENCODE_LOG")
+                if not log_path:
+                    return
+                with open(log_path, "a", encoding="utf-8") as handle:
+                    handle.write(json.dumps({{"argv": sys.argv[1:]}}) + "\\n")
+
+            append_log()
+
+            if sys.argv[1:] == ["run", "--help"]:
+                sys.stdout.write(
+                    "opencode run [message..]\\n"
+                    "run opencode with a message\\n"
+                    "-s, --session\\n"
+                    "-m, --model\\n"
+                    "--dir\\n"
+                    "--format\\n"
+                    "--variant\\n"
+                )
+                raise SystemExit(0)
+
+            if "--help" in sys.argv or "-h" in sys.argv:
+                sys.stdout.write("opencode\\n--version\\n")
+                raise SystemExit(0)
+
+            # Simulate run mode
+            session_id = read_flag_value("--session") or os.environ.get("FAKE_OPENCODE_SESSION_ID", "ses_fake_test_123")
+            prompt_text = sys.stdin.read()
+            mode = os.environ.get("FAKE_OPENCODE_MODE", "success")
+            reply_text = os.environ.get("FAKE_OPENCODE_REPLY", "fake opencode reply")
+            output_format = read_flag_value("--format") or "default"
+
+            if mode == "failure":
+                sys.stderr.write("Error: something went wrong\\n")
+                raise SystemExit(1)
+
+            if output_format == "json":
+                msg_id = "msg_fake_001"
+                # Emit JSON events
+                events = [
+                    {{"type": "step_start", "timestamp": 1000, "sessionID": session_id, "part": {{"id": "prt_001", "sessionID": session_id, "messageID": msg_id, "type": "step-start"}}}},
+                    {{"type": "text", "timestamp": 1001, "sessionID": session_id, "part": {{"id": "prt_002", "sessionID": session_id, "messageID": msg_id, "type": "text", "text": reply_text, "time": {{"start": 1001, "end": 1001}}}}}},
+                    {{"type": "step_finish", "timestamp": 1002, "sessionID": session_id, "part": {{"id": "prt_003", "sessionID": session_id, "messageID": msg_id, "type": "step-finish", "reason": "stop"}}}},
+                ]
+                for event in events:
+                    sys.stdout.write(json.dumps(event) + "\\n")
+            else:
+                sys.stdout.write(reply_text)
+
+            raise SystemExit(0)
+            """
+        ),
+        encoding="utf-8",
+    )
+    opencode_path.chmod(0o755)
+    return opencode_path
+
+
+class OpenCodeTests(SubagentRunnerTests):
+    def test_probe_detects_opencode_host_backend(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            _write_fake_opencode_binary(bin_dir)
+
+            result = self.run_runner(
+                "probe",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "OPENCODE": "1",
+                    "CLAUDECODE": "",
+                    "CODEX_THREAD_ID": "",
+                    "CODEX_HOME": "",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["host_backend"], "opencode")
+            self.assertEqual(payload["selected_backend"], "opencode")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -26,6 +26,7 @@ MODEL_OVERRIDE_ENV_BY_BACKEND = {
     "codex": "TRYCYCLE_CODEX_MODEL",
     "claude": "TRYCYCLE_CLAUDE_MODEL",
     "kimi": "TRYCYCLE_KIMI_MODEL",
+    "opencode": "TRYCYCLE_OPENCODE_MODEL",
 }
 
 
@@ -210,21 +211,58 @@ def _probe_kimi(binary: str) -> dict[str, Any]:
     }
 
 
+def _probe_opencode(binary: str) -> dict[str, Any]:
+    path = _resolve_binary(binary)
+    if path is None:
+        return {
+            "available": False,
+            "binary": binary,
+            "reason": "binary not found on PATH",
+        }
+
+    ok, output = _run_probe([path, "run", "--help"])
+    if not ok:
+        return {
+            "available": False,
+            "binary": path,
+            "reason": output,
+        }
+
+    required_tokens = ["--session", "--model", "--dir", "--format"]
+    missing = [token for token in required_tokens if token not in output]
+    if missing:
+        return {
+            "available": False,
+            "binary": path,
+            "reason": f"missing required help tokens: {', '.join(missing)}",
+        }
+
+    return {
+        "available": True,
+        "binary": path,
+        "supports_resume": True,
+    }
+
+
 def _detect_host_backend() -> str | None:
     if os.environ.get("CODEX_THREAD_ID") or os.environ.get("CODEX_HOME"):
         return "codex"
     if os.environ.get("CLAUDECODE"):
         return "claude"
+    if os.environ.get("OPENCODE"):
+        return "opencode"
     return None
 
 
 def _detect_backend_preferences() -> list[str]:
     host_backend = _detect_host_backend()
     if host_backend == "codex":
-        return ["codex", "claude", "kimi"]
+        return ["codex", "claude", "kimi", "opencode"]
     if host_backend == "claude":
-        return ["claude", "codex", "kimi"]
-    return ["codex", "claude", "kimi"]
+        return ["claude", "codex", "kimi", "opencode"]
+    if host_backend == "opencode":
+        return ["opencode", "codex", "claude", "kimi"]
+    return ["codex", "claude", "kimi", "opencode"]
 
 
 def _probe_backends() -> dict[str, Any]:
@@ -232,6 +270,7 @@ def _probe_backends() -> dict[str, Any]:
         "codex": _probe_codex("codex"),
         "claude": _probe_claude("claude"),
         "kimi": _probe_kimi("kimi"),
+        "opencode": _probe_opencode("opencode"),
     }
 
     preferred_order = _detect_backend_preferences()
