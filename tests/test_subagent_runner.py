@@ -1263,6 +1263,59 @@ class SubagentRunnerTests(unittest.TestCase):
             self.assertIn(stdout_text.strip().splitlines()[0], payload["message"])
             self.assertNotIn("kimi exited with code 0", payload["message"])
 
+    @unittest.skipUnless(
+        os.environ.get("TRYCYCLE_RUN_LIVE_OPENCODE_TESTS") == "1",
+        "Live OpenCode tests require TRYCYCLE_RUN_LIVE_OPENCODE_TESTS=1",
+    )
+    def test_live_opencode_run_and_resume(self):
+        if shutil.which("opencode") is None:
+            self.skipTest("opencode binary not available")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            workdir = tmp_path / "work"
+            artifacts_dir_run = tmp_path / "artifacts_run"
+            artifacts_dir_resume = tmp_path / "artifacts_resume"
+            prompt_path = tmp_path / "prompt.txt"
+            resume_prompt_path = tmp_path / "resume_prompt.txt"
+            workdir.mkdir()
+            prompt_path.write_text("Say exactly: TRYCYCLE_OPENCODE_LIVE_TEST\n", encoding="utf-8")
+
+            # Run
+            result = self.run_runner(
+                "run",
+                "--phase", "live-smoke",
+                "--prompt-file", str(prompt_path),
+                "--workdir", str(workdir),
+                "--artifacts-dir", str(artifacts_dir_run),
+                "--backend", "opencode",
+                "--timeout-seconds", "120",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "ok")
+            self.assertEqual(payload["backend"], "opencode")
+            self.assertTrue(payload["session_id"])
+            self.assertIn("TRYCYCLE_OPENCODE_LIVE_TEST", Path(payload["reply_path"]).read_text(encoding="utf-8"))
+
+            # Resume
+            session_id = payload["session_id"]
+            resume_prompt_path.write_text("What was my previous message?\n", encoding="utf-8")
+            resume_result = self.run_runner(
+                "resume",
+                "--phase", "live-smoke",
+                "--session-id", session_id,
+                "--prompt-file", str(resume_prompt_path),
+                "--workdir", str(workdir),
+                "--artifacts-dir", str(artifacts_dir_resume),
+                "--backend", "opencode",
+                "--timeout-seconds", "120",
+            )
+            self.assertEqual(resume_result.returncode, 0, resume_result.stderr)
+            resume_payload = json.loads(resume_result.stdout)
+            self.assertEqual(resume_payload["status"], "ok")
+            self.assertEqual(resume_payload["session_id"], session_id)
+
 
 def _write_fake_opencode_binary(bin_dir: Path) -> Path:
     opencode_path = bin_dir / "opencode"
@@ -1676,58 +1729,6 @@ class OpenCodeExtractionUnitTests(unittest.TestCase):
             '{"type":"step_finish","sessionID":"s1","part":{"reason":"stop"}}\n'
         )
         self.assertEqual(self._extract_reply(events), "")
-
-
-@unittest.skipUnless(
-    os.environ.get("TRYCYCLE_RUN_LIVE_OPENCODE_TESTS") == "1",
-    "Live OpenCode tests require TRYCYCLE_RUN_LIVE_OPENCODE_TESTS=1",
-)
-class LiveOpenCodeTests(SubagentRunnerTests):
-    def test_live_opencode_run_and_resume(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmp_path = Path(tmpdir)
-            workdir = tmp_path / "work"
-            artifacts_dir_run = tmp_path / "artifacts_run"
-            artifacts_dir_resume = tmp_path / "artifacts_resume"
-            prompt_path = tmp_path / "prompt.txt"
-            resume_prompt_path = tmp_path / "resume_prompt.txt"
-            workdir.mkdir()
-            prompt_path.write_text("Say exactly: TRYCYCLE_OPENCODE_LIVE_TEST\n", encoding="utf-8")
-
-            # Run
-            result = self.run_runner(
-                "run",
-                "--phase", "live-smoke",
-                "--prompt-file", str(prompt_path),
-                "--workdir", str(workdir),
-                "--artifacts-dir", str(artifacts_dir_run),
-                "--backend", "opencode",
-                "--timeout-seconds", "120",
-            )
-            self.assertEqual(result.returncode, 0, result.stderr)
-            payload = json.loads(result.stdout)
-            self.assertEqual(payload["status"], "ok")
-            self.assertEqual(payload["backend"], "opencode")
-            self.assertTrue(payload["session_id"])
-            self.assertIn("TRYCYCLE_OPENCODE_LIVE_TEST", Path(payload["reply_path"]).read_text(encoding="utf-8"))
-
-            # Resume
-            session_id = payload["session_id"]
-            resume_prompt_path.write_text("What was my previous message?\n", encoding="utf-8")
-            resume_result = self.run_runner(
-                "resume",
-                "--phase", "live-smoke",
-                "--session-id", session_id,
-                "--prompt-file", str(resume_prompt_path),
-                "--workdir", str(workdir),
-                "--artifacts-dir", str(artifacts_dir_resume),
-                "--backend", "opencode",
-                "--timeout-seconds", "120",
-            )
-            self.assertEqual(resume_result.returncode, 0, resume_result.stderr)
-            resume_payload = json.loads(resume_result.stdout)
-            self.assertEqual(resume_payload["status"], "ok")
-            self.assertEqual(resume_payload["session_id"], session_id)
 
 
 if __name__ == "__main__":
