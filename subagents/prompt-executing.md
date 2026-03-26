@@ -22,6 +22,8 @@ Work in the implementation workspace at `{WORKTREE_PATH}`.
 </post_implementation_review_findings_verbatim>
 {{/if}}
 
+A skipped test should be treated as a failed test. Root cause and fix the reason it was skipped if possible. If the test cannot be made to run and pass without weakening it, then halt, postmortem, and escalate to the user.
+
 Implement using TDD: for each feature or component, first establish the red state with the highest-priority automated check or checks from the test plan. Reuse or extend high-value existing tests when they already cover the behavior; when coverage is missing, write the new failing test or tests first. If the test plan specifies harnesses to build, build those first.
 
 {{#if POST_IMPLEMENTATION_REVIEW_FINDINGS_VERBATIM}}Fix the implementation against the attached review report directly.{{/if}}
