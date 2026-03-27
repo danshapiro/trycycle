@@ -85,18 +85,6 @@ When a step below references `{IMPLEMENTATION_BACKEND}`, use the resolved `dispa
 
 Example: if the user says "We're almost there, don't start over," relay that instruction.
 
-## Subagent wait discipline
-
-When a step below tells you to wait for a subagent, use this exact timing policy:
-
-- Wait `30 minutes` before intervening in `test-strategy`, `planning-initial`, each `planning-edit`, `test-plan`, each `post-implementation-review`, and any loop-diagnosis subagent.
-- Wait `60 minutes` before intervening in the initial `executing` run and each implementation-fix round.
-- Until the full stage-specific wait time has elapsed, do not send follow-up messages, do not cancel or restart the subagent, do not ask the user whether to intervene, and do not take any other action because it seems slow. Passive status checks are allowed no more than once every 5 minutes.
-- If the subagent finishes before the full wait time has elapsed, continue normally.
-- If the full wait time elapses and the subagent is still running, terminate that subagent or runner session immediately and retry the same phase from the latest canonical prompt/artifacts. Then wait the full stage-specific time again for the retry.
-- For an implementation retry, create a fresh implementation subagent or runner session and replace the saved implementation handle. In fallback-runner mode, also replace the saved `session_id` and `{IMPLEMENTATION_BACKEND}` with the fresh dispatch values.
-- Do not let a single attempt run past its stage wait window. Wait the full window, then kill and retry.
-
 ## 1) Version check
 
 Run `python3 <skill-directory>/check-update.py` (where `<skill-directory>` is the directory containing this SKILL.md). If an update is available, tell the user and ask if they'd like to update before continuing. If they say yes, run `git -C <skill-directory> pull` and then re-read this skill file.
@@ -125,9 +113,9 @@ Otherwise, dispatch a subagent to analyze the task and the codebase and propose 
 
 Immediately before dispatch, prepare the `test-strategy` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-test-strategy.md`, `--transcript-placeholder INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION`, and `--require-nonempty-tag context`.
 
-After dispatch, follow the subagent wait discipline above before taking any further action on that subagent.
+Monitor by checking every 5 minutes until 30 minutes have passed. Then, and only then, kill it and retry.
 
-When the subagent returns a proposed strategy, present it to the user verbatim and ask for explicit approval or edits. Then close that completed test-strategy subagent and clear any saved handle or `session_id` for it. Do not proceed unless the user explicitly accepts it or provides changes. Silence, implied approval, or the subagent's own recommendation does not count as agreement. The strategy and any later test plan must not rely on manual QA or human validation; prefer reproducible artifacts such as browser snapshots when visual evidence is needed. Put the strongest weight on high-value automated checks that verify real user-visible behavior through the actual UI, CLI, HTTP surface, or other outputs the user consumes, rather than tests that only show the implementation is internally self-consistent. Prefer reusing or extending those checks when they already exist, and add new tests wherever the existing suite leaves meaningful gaps in coverage, fidelity, or diagnosis. If the problem statement or prior investigation already identifies automated checks that are red and must go green, the strategy and any later test plan must include them explicitly. If the user requests changes or redirects the approach, rerun the same `test-strategy` phase wrapper command immediately before redispatching and present the revised strategy verbatim. Repeat until the user explicitly approves a strategy.
+When the subagent returns a proposed strategy, present it to the user verbatim and ask for explicit approval or edits. Then close that completed test-strategy subagent and clear any saved handle or `session_id` for it. Do not proceed unless the user explicitly accepts it or provides changes. Silence, implied approval, or the subagent's own recommendation does not count as agreement. The strategy and any later test plan must not rely on manual QA or human validation; prefer reproducible artifacts such as browser snapshots when visual evidence is needed. Put the strongest weight on high-value automated checks that verify real user-visible behavior through the actual UI, CLI, HTTP surface, or other outputs the user consumes, rather than tests that only show the implementation is internally self-consistent. Prefer reusing or extending those checks when they already exist, and add new tests wherever the existing suite leaves meaningful gaps in coverage, fidelity, or diagnosis. If the problem statement or prior investigation already identifies automated checks that are red and must go green, the strategy and any later test plan must include them explicitly. If the user requests changes or redirects the approach, rerun the same `test-strategy` phase wrapper command immediately before redispatching. Monitor by checking every 5 minutes until 30 minutes have passed. Then, and only then, kill it and retry. Present the revised strategy verbatim. Repeat until the user explicitly approves a strategy.
 
 The agreed testing strategy is used in step 7.
 
@@ -179,13 +167,13 @@ Spawn a fresh planning subagent for each planning round.
 
 Immediately before dispatch, prepare the `planning-initial` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-initial.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, and `--require-nonempty-tag task_input_json`.
 
-After dispatch, follow the subagent wait discipline above before taking any further action on that subagent.
+Monitor by checking every 5 minutes until 30 minutes have passed. Then, and only then, kill it and retry.
 
 Wait for the planning subagent to return either:
 - a planning report containing `## Plan verdict`, `## Plan path`, `## Commit`, and `## Changed files`
 - or a report beginning with `USER DECISION REQUIRED:`
 
-If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either a planning report or another `USER DECISION REQUIRED:` report.
+If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either a planning report or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 30 minutes have passed. Then, and only then, kill it and retry.
 
 If a planning report was returned, update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path`, then run the workspace hygiene gate checks, verify the latest commit hash plus changed-file list match the planning subagent's report, confirm the plan file exists at `{IMPLEMENTATION_PLAN_PATH}`, then close that planning subagent and clear any saved handle or `session_id` for it.
 
@@ -197,11 +185,11 @@ The plan editor is stateless: each round is a fresh first-look pass with only th
 
 Immediately before each edit dispatch, prepare the `planning-edit` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-edit.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, and `--require-nonempty-tag task_input_json`, then dispatch a fresh planning subagent with the returned `prompt_path`.
 
-After dispatch, follow the subagent wait discipline above before taking any further action on that subagent.
+Monitor by checking every 5 minutes until 30 minutes have passed. Then, and only then, kill it and retry.
 
 After each edit round:
 1. Wait for the planning subagent to return either an updated planning report containing `## Plan verdict`, `## Plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
-2. If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either an updated planning report or another `USER DECISION REQUIRED:` report.
+2. If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either an updated planning report or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 30 minutes have passed. Then, and only then, kill it and retry.
 3. Update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path` in the latest planning report.
 4. Run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
 5. Close that planning subagent for the completed round and clear any saved handle or `session_id` for it.
@@ -211,7 +199,7 @@ After each edit round:
 
 If the plan still is not judged ready after the 5th editor round: **STOP. Do NOT proceed to step 8.**
 1. Stop looping.
-2. Dispatch a subagent to review past subagent sessions and hypothesize why the loop is not converging.
+2. Dispatch a subagent to review past subagent sessions and hypothesize why the loop is not converging. Monitor by checking every 5 minutes until 30 minutes have passed. Then, and only then, kill it and retry.
 3. Present that report and the latest planning report to the user and **await user instructions before taking any further action.**
 
 ## 8) Build test plan (subagent-owned)
@@ -220,13 +208,13 @@ Now that the implementation plan has passed the plan-editor loop and is finalize
 
 Immediately before dispatch, prepare the `test-plan` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-test-plan.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--transcript-placeholder FULL_CONVERSATION_VERBATIM`, and `--require-nonempty-tag conversation`.
 
-After dispatch, follow the subagent wait discipline above before taking any further action on that subagent.
+Monitor by checking every 5 minutes until 30 minutes have passed. Then, and only then, kill it and retry.
 
 When the subagent returns:
 
 1. Update `{TEST_PLAN_PATH}` from `## Test plan path` in the latest test-plan report.
 2. If the test-plan report includes `## Strategy changes requiring user approval`, present that section to the user verbatim.
-3. If the user requests changes or redirects the approach, close that completed test-plan subagent and clear any saved handle or `session_id` for it, rerun the same `test-plan` phase wrapper command immediately before redispatching, update `{TEST_PLAN_PATH}` from the latest test-plan report, and repeat until the user explicitly approves or the report no longer includes that section.
+3. If the user requests changes or redirects the approach, close that completed test-plan subagent and clear any saved handle or `session_id` for it, then rerun the same `test-plan` phase wrapper command immediately before redispatching. Monitor by checking every 5 minutes until 30 minutes have passed. Then, and only then, kill it and retry. Update `{TEST_PLAN_PATH}` from the latest test-plan report. Repeat until the user explicitly approves or the report no longer includes that section.
 4. Do not proceed until the current test-plan report either has no `## Strategy changes requiring user approval` section or the user has explicitly approved it.
 5. Run the workspace hygiene gate checks, verify the latest commit hash plus changed-file list match the test-plan subagent's report, and verify the test plan file exists at `{TEST_PLAN_PATH}`.
 6. Close the completed test-plan subagent for the approved report and clear any saved handle or `session_id` for it.
@@ -250,9 +238,10 @@ The implementation subagent stays in execute mode until the plan is complete, th
 
 Immediately before dispatch, prepare the `executing` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, and `--set WORKTREE_PATH={WORKTREE_PATH}`, then dispatch the implementation subagent with the returned `prompt_path`.
 
-After dispatch, follow the subagent wait discipline above before taking any further action on that subagent.
-
 In fallback-runner mode, record the returned `dispatch.backend` as `{IMPLEMENTATION_BACKEND}` alongside the saved `session_id`.
+
+Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+If you kill and retry this implementation round, create a fresh implementation subagent or runner session and replace the saved implementation handle. In fallback-runner mode, also replace the saved `session_id` and `{IMPLEMENTATION_BACKEND}` with the fresh dispatch values.
 
 Do not proceed to post-implementation review until the implementation subagent has returned an implementation report.
 
@@ -264,7 +253,7 @@ After execution completes, deploy a new reviewer with no prior context and give 
 
 Immediately before dispatch, prepare the `post-implementation-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-post-impl-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, and `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, then dispatch a review subagent with the returned `prompt_path`.
 
-After dispatch, follow the subagent wait discipline above before taking any further action on that subagent.
+Monitor by checking every 5 minutes until 30 minutes have passed. Then, and only then, kill it and retry.
 
 Use the review subagent's output as the fix-loop input. As soon as you have captured the reviewer's stdout or decided the review loop is done, close that completed review subagent and clear any saved handle or `session_id` for it.
 
@@ -287,7 +276,8 @@ If extraction fails, stop and surface the review reply plus the extractor failur
 When another fix round is needed:
 1. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>`, and `--ignore-tag-for-placeholders post_implementation_review_observations_json`.
 2. In native mode, resume the same implementation subagent and send the exact returned `prompt_path` contents verbatim. In fallback-runner mode, resume the implementation session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using the saved `session_id`, `--backend {IMPLEMENTATION_BACKEND}`, and the wrapper-prepared `prompt_path`.
-3. After dispatch, follow the subagent wait discipline above before taking any further action on that subagent.
+3. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+4. If you kill and retry this implementation round, create a fresh implementation subagent or runner session and replace the saved implementation handle. In fallback-runner mode, also replace the saved `session_id` and `{IMPLEMENTATION_BACKEND}` with the fresh dispatch values.
 
 After each implementation-subagent fix round, run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next fresh review round.
 
@@ -297,7 +287,7 @@ Stop when either condition is met:
 
 If the latest extracted review-observations artifact still reports `blocking_issue_count > 0` after the 8th review:
 1. Stop looping.
-2. Dispatch a subagent to review past subagent sessions and hypothesize why the loop is not converging.
+2. Dispatch a subagent to review past subagent sessions and hypothesize why the loop is not converging. Monitor by checking every 5 minutes until 30 minutes have passed. Then, and only then, kill it and retry.
 3. Present that report and the latest review output to the user and await user instructions.
 
 ## 11) Finish
