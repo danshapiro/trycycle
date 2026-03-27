@@ -355,8 +355,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument(
         "--timeout-seconds",
         type=int,
-        default=60 * 60,
-        help="Runner timeout forwarded to subagent_runner.py.",
+        help="Override the runner timeout in seconds. If omitted, subagent_runner.py phase defaults apply.",
     )
     run_parser.add_argument(
         "--dry-run",

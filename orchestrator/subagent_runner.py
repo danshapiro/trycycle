@@ -18,6 +18,7 @@ import uuid
 
 
 DEFAULT_TIMEOUT_SECONDS = 60 * 60
+EXECUTING_TIMEOUT_SECONDS = 3 * 60 * 60
 CODEX_HOME_ENV = "CODEX_HOME"
 DEFAULT_CODEX_SESSIONS_ROOT = Path.home() / ".codex" / "sessions"
 KIMI_SHARE_DIR_ENV = "KIMI_SHARE_DIR"
@@ -82,6 +83,18 @@ def _read_nonempty_env(name: str) -> str | None:
         return None
     stripped = value.strip()
     return stripped or None
+
+
+def _default_timeout_seconds_for_phase(phase: str) -> int:
+    if phase == "executing":
+        return EXECUTING_TIMEOUT_SECONDS
+    return DEFAULT_TIMEOUT_SECONDS
+
+
+def _resolve_timeout_seconds(phase: str, explicit_timeout_seconds: int | None) -> int:
+    if explicit_timeout_seconds is not None:
+        return explicit_timeout_seconds
+    return _default_timeout_seconds_for_phase(phase)
 
 
 def _append_event(path: Path, *, severity: str, event: str, **fields: Any) -> None:
@@ -1444,6 +1457,8 @@ def _command_run(args: argparse.Namespace) -> int:
     else:
         resolved_profile, profile_source = None, None
 
+    timeout_seconds = _resolve_timeout_seconds(args.phase, args.timeout_seconds)
+
     _append_event(
         events_path,
         severity="INFO",
@@ -1455,6 +1470,7 @@ def _command_run(args: argparse.Namespace) -> int:
         model_source=model_source,
         profile=resolved_profile,
         profile_source=profile_source,
+        timeout_seconds=timeout_seconds,
     )
 
     run_result = _run_backend(
@@ -1468,7 +1484,7 @@ def _command_run(args: argparse.Namespace) -> int:
         effort=args.effort,
         model=resolved_model,
         profile=resolved_profile,
-        timeout_seconds=args.timeout_seconds,
+        timeout_seconds=timeout_seconds,
         dry_run=args.dry_run,
         events_path=events_path,
     )
@@ -1476,7 +1492,7 @@ def _command_run(args: argparse.Namespace) -> int:
     status, message = _classify_run_result(
         backend=backend,
         run_result=run_result,
-        timeout_seconds=args.timeout_seconds,
+        timeout_seconds=timeout_seconds,
         success_message="Subagent completed successfully.",
         workdir=workdir,
     )
@@ -1508,6 +1524,7 @@ def _command_run(args: argparse.Namespace) -> int:
             "exit_code": run_result["exit_code"],
             "timed_out": run_result["timed_out"],
             "dry_run": run_result["dry_run"],
+            "timeout_seconds": timeout_seconds,
         },
         "selection": {
             "model": resolved_model,
@@ -1630,6 +1647,8 @@ def _command_resume(args: argparse.Namespace) -> int:
     else:
         resolved_profile, profile_source = None, None
 
+    timeout_seconds = _resolve_timeout_seconds(args.phase, args.timeout_seconds)
+
     _append_event(
         events_path,
         severity="INFO",
@@ -1642,6 +1661,7 @@ def _command_resume(args: argparse.Namespace) -> int:
         model_source=model_source,
         profile=resolved_profile,
         profile_source=profile_source,
+        timeout_seconds=timeout_seconds,
     )
 
     run_result = _resume_backend(
@@ -1656,7 +1676,7 @@ def _command_resume(args: argparse.Namespace) -> int:
         effort=args.effort,
         model=resolved_model,
         profile=resolved_profile,
-        timeout_seconds=args.timeout_seconds,
+        timeout_seconds=timeout_seconds,
         dry_run=args.dry_run,
         events_path=events_path,
     )
@@ -1664,7 +1684,7 @@ def _command_resume(args: argparse.Namespace) -> int:
     status, message = _classify_run_result(
         backend=backend,
         run_result=run_result,
-        timeout_seconds=args.timeout_seconds,
+        timeout_seconds=timeout_seconds,
         success_message="Subagent resumed successfully.",
         workdir=workdir,
     )
@@ -1697,6 +1717,7 @@ def _command_resume(args: argparse.Namespace) -> int:
             "exit_code": run_result["exit_code"],
             "timed_out": run_result["timed_out"],
             "dry_run": run_result["dry_run"],
+            "timeout_seconds": timeout_seconds,
         },
         "selection": {
             "model": resolved_model,
@@ -1770,8 +1791,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument(
         "--timeout-seconds",
         type=int,
-        default=DEFAULT_TIMEOUT_SECONDS,
-        help="Hard timeout for the backend process.",
+        help="Override the hard timeout for the backend process. If omitted, trycycle phase defaults apply.",
     )
     run_parser.add_argument(
         "--dry-run",
@@ -1830,8 +1850,7 @@ def build_parser() -> argparse.ArgumentParser:
     resume_parser.add_argument(
         "--timeout-seconds",
         type=int,
-        default=DEFAULT_TIMEOUT_SECONDS,
-        help="Hard timeout for the backend process.",
+        help="Override the hard timeout for the backend process. If omitted, trycycle phase defaults apply.",
     )
     resume_parser.add_argument(
         "--dry-run",
