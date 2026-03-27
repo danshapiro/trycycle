@@ -20,7 +20,7 @@ Review for:
 - Missing or incorrect tests
 - Any mismatch between implementation and intended behavior
 - Doing things the right way, without taking shortcuts
-- Skipped tests — any test that was skipped rather than executed is a blocking issue; tests that were weakened, deleted, or had assertions loosened to pass are also blocking
+- Skipped tests — run the test suite yourself and check the results. ANY skipped test is a critical blocking issue, regardless of why it was skipped (environment gating, missing tools, missing env vars — none of these are acceptable reasons). Tests that were weakened, deleted, or had assertions loosened to pass are also critical blocking issues
 
 Output format:
 1. `## Review verdict` — `BLOCKING_ISSUES` if any critical or major issues remain, otherwise `NO_BLOCKING_ISSUES`.
