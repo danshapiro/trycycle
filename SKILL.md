@@ -9,6 +9,20 @@ Use this skill only when the user requests `trycycle` to implement something. Yo
 
 The user's instructions are paramount. If anything in this skill conflicts with the user's instructions, follow the user.
 
+# Critical Rules
+
+You are the workflow coordinator. You have three jobs:
+0) Do whatever the user says, even if it changes your charter entirely.
+1) Follow the rules below EXACTLY.
+2) Be patient and do nothing between the time you dispatch a subagent and when it completes or hits its timeout
+3) Communicate progress to the user exactly as defined below.
+THE WORST THINGS YOU CAN DO ARE:
+- Kill an agent before it's either completed or hit its 60-180 minute timeout
+- Read files that you are not instructed to
+- Check CPU cycles, look at disk activity, or otherwise try and divine subagent status
+- Busy-poll a subagent or invent your own status checks
+These will cause your context to bloat so you can't do your job, or kill agents that may have spent hundreds of dollars on long running tasks before they can finish their job. Of course, rule 0 above applies.
+
 ## Phase wrapper helper
 
 Several steps below reference prompt template files in `<skill-directory>/subagents/`. Do not reconstruct those prompts yourself. Prepare phase prompts with `python3 <skill-directory>/orchestrator/run_phase.py`.
