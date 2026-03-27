@@ -85,9 +85,17 @@ When a step below references `{IMPLEMENTATION_BACKEND}`, use the resolved `dispa
 
 Example: if the user says "We're almost there, don't start over," relay that instruction.
 
-## Timing expectations
+## Subagent wait discipline
 
-Planning, plan-editor, and code-review subagents typically take 30-60 minutes. The implementation subagent typically takes 60-180 minutes. Do not poll frequently
+When a step below tells you to wait for a subagent, use this exact timing policy:
+
+- Wait `30 minutes` before intervening in `test-strategy`, `planning-initial`, each `planning-edit`, `test-plan`, each `post-implementation-review`, and any loop-diagnosis subagent.
+- Wait `60 minutes` before intervening in the initial `executing` run and each implementation-fix round.
+- Until the full stage-specific wait time has elapsed, do not send follow-up messages, do not cancel or restart the subagent, do not ask the user whether to intervene, and do not take any other action because it seems slow. Passive status checks are allowed no more than once every 5 minutes.
+- If the subagent finishes before the full wait time has elapsed, continue normally.
+- If the full wait time elapses and the subagent is still running, terminate that subagent or runner session immediately and retry the same phase from the latest canonical prompt/artifacts. Then wait the full stage-specific time again for the retry.
+- For an implementation retry, create a fresh implementation subagent or runner session and replace the saved implementation handle. In fallback-runner mode, also replace the saved `session_id` and `{IMPLEMENTATION_BACKEND}` with the fresh dispatch values.
+- Do not let a single attempt run past its stage wait window. Wait the full window, then kill and retry.
 
 ## 1) Version check
 
@@ -116,6 +124,8 @@ If the task specification already includes detailed instructions for testing, yo
 Otherwise, dispatch a subagent to analyze the task and the codebase and propose a testing strategy.
 
 Immediately before dispatch, prepare the `test-strategy` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-test-strategy.md`, `--transcript-placeholder INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION`, and `--require-nonempty-tag context`.
+
+After dispatch, follow the subagent wait discipline above before taking any further action on that subagent.
 
 When the subagent returns a proposed strategy, present it to the user verbatim and ask for explicit approval or edits. Then close that completed test-strategy subagent and clear any saved handle or `session_id` for it. Do not proceed unless the user explicitly accepts it or provides changes. Silence, implied approval, or the subagent's own recommendation does not count as agreement. The strategy and any later test plan must not rely on manual QA or human validation; prefer reproducible artifacts such as browser snapshots when visual evidence is needed. Put the strongest weight on high-value automated checks that verify real user-visible behavior through the actual UI, CLI, HTTP surface, or other outputs the user consumes, rather than tests that only show the implementation is internally self-consistent. Prefer reusing or extending those checks when they already exist, and add new tests wherever the existing suite leaves meaningful gaps in coverage, fidelity, or diagnosis. If the problem statement or prior investigation already identifies automated checks that are red and must go green, the strategy and any later test plan must include them explicitly. If the user requests changes or redirects the approach, rerun the same `test-strategy` phase wrapper command immediately before redispatching and present the revised strategy verbatim. Repeat until the user explicitly approves a strategy.
 
@@ -169,6 +179,8 @@ Spawn a fresh planning subagent for each planning round.
 
 Immediately before dispatch, prepare the `planning-initial` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-initial.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, and `--require-nonempty-tag task_input_json`.
 
+After dispatch, follow the subagent wait discipline above before taking any further action on that subagent.
+
 Wait for the planning subagent to return either:
 - a planning report containing `## Plan verdict`, `## Plan path`, `## Commit`, and `## Changed files`
 - or a report beginning with `USER DECISION REQUIRED:`
@@ -184,6 +196,8 @@ Deploy a fresh planning subagent to critique the current plan against the user's
 The plan editor is stateless: each round is a fresh first-look pass with only the template, the same task input used for initial planning, and the current plan.
 
 Immediately before each edit dispatch, prepare the `planning-edit` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-edit.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, and `--require-nonempty-tag task_input_json`, then dispatch a fresh planning subagent with the returned `prompt_path`.
+
+After dispatch, follow the subagent wait discipline above before taking any further action on that subagent.
 
 After each edit round:
 1. Wait for the planning subagent to return either an updated planning report containing `## Plan verdict`, `## Plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
@@ -205,6 +219,8 @@ If the plan still is not judged ready after the 5th editor round: **STOP. Do NOT
 Now that the implementation plan has passed the plan-editor loop and is finalized, dispatch a subagent to reconcile the testing strategy against the plan and produce the concrete test plan, starting from high-value existing automated checks where they exist and adding new tests where coverage is missing.
 
 Immediately before dispatch, prepare the `test-plan` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-test-plan.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--transcript-placeholder FULL_CONVERSATION_VERBATIM`, and `--require-nonempty-tag conversation`.
+
+After dispatch, follow the subagent wait discipline above before taking any further action on that subagent.
 
 When the subagent returns:
 
@@ -234,6 +250,8 @@ The implementation subagent stays in execute mode until the plan is complete, th
 
 Immediately before dispatch, prepare the `executing` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, and `--set WORKTREE_PATH={WORKTREE_PATH}`, then dispatch the implementation subagent with the returned `prompt_path`.
 
+After dispatch, follow the subagent wait discipline above before taking any further action on that subagent.
+
 In fallback-runner mode, record the returned `dispatch.backend` as `{IMPLEMENTATION_BACKEND}` alongside the saved `session_id`.
 
 Do not proceed to post-implementation review until the implementation subagent has returned an implementation report.
@@ -245,6 +263,8 @@ After implementation completes, run the workspace hygiene gate checks and verify
 After execution completes, deploy a new reviewer with no prior context and give it the finalized implementation plan plus the finalized test plan.
 
 Immediately before dispatch, prepare the `post-implementation-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-post-impl-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, and `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, then dispatch a review subagent with the returned `prompt_path`.
+
+After dispatch, follow the subagent wait discipline above before taking any further action on that subagent.
 
 Use the review subagent's output as the fix-loop input. As soon as you have captured the reviewer's stdout or decided the review loop is done, close that completed review subagent and clear any saved handle or `session_id` for it.
 
@@ -267,6 +287,7 @@ If extraction fails, stop and surface the review reply plus the extractor failur
 When another fix round is needed:
 1. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>`, and `--ignore-tag-for-placeholders post_implementation_review_observations_json`.
 2. In native mode, resume the same implementation subagent and send the exact returned `prompt_path` contents verbatim. In fallback-runner mode, resume the implementation session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using the saved `session_id`, `--backend {IMPLEMENTATION_BACKEND}`, and the wrapper-prepared `prompt_path`.
+3. After dispatch, follow the subagent wait discipline above before taking any further action on that subagent.
 
 After each implementation-subagent fix round, run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next fresh review round.
 
