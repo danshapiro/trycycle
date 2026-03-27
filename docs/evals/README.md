@@ -75,6 +75,24 @@ Pass only if:
 
 Why this input is the right baseline: the origin note assumed `98f944fd` was execution-ready and any changes were over-review. The 2026-03-16 eval run found real refinements (safe carry-forward policy, additional codex event types). `9692dfd6` incorporates those, making it genuinely execution-ready.
 
+### Upload Conversion + Org Auth + Sentry Regressions (threshold)
+
+Origin note: [2026-03-18-upload-conversion-org-auth-sentry-threshold.md](./2026-03-18-upload-conversion-org-auth-sentry-threshold.md)
+
+- Source repo: `/home/user/code/DirectorDeck`
+- Input plan commit: `26e69181` (5th review revision, subsequently executed successfully)
+- Input plan path: `docs/plans/2026-03-18-fix-upload-conversion-and-org-auth-sentry-regressions.md`
+- Session artifact: `/home/user/.claude/projects/-home-user-code-DirectorDeck--worktrees-trycycle-2w-upload-failure/3e24056a-e238-4822-9de2-241d8b100e4a.jsonl`
+
+Mode: single review turn.
+
+Pass only if:
+- verdict is `READY`
+- there are no file edits
+- there is no new commit
+
+Why this input is the right baseline: the plan went through 5 review rounds with substantive architectural corrections (thumbnail validation approach, error typing, test contract hardening, test runner commands). It was then executed successfully on branch `trycycle-2w-upload-failure`. Unlike the existing single-concern threshold cases, this is a multi-concern plan (~1054 lines) covering two independent bug fixes across different subsystems plus an operational task, with ~200+ lines of inline test code — testing the reviewer's ability to leave a complex but correct compound plan alone.
+
 ## Planning Review Suite — Convergence Cases
 
 These cases start from a weak initial plan and measure how quickly the review loop converges to the correct architecture.
@@ -121,9 +139,10 @@ Use this when the target behavior is:
 
 ## What Each Case Catches
 
-- DirectorDeck (threshold): over-review of an already execution-ready plan.
+- DirectorDeck provider errors (threshold): over-review of an already execution-ready plan.
 - Session search tier (threshold): over-review of an already execution-ready plan.
 - Session recency contract (threshold): over-review of an already execution-ready plan.
+- Upload conversion + org auth (threshold): over-review of a multi-concern compound plan with heavy inline code — catches cosmetic rewriting of test mocks, task repartitioning of independent subsystems, and template normalization of mixed operational/code structure.
 - Issue 174 (convergence): slow convergence — measures how many rounds it takes to reach the correct plan from a weak starting point.
 - Finish save error (workflow integrity): user-approved acceptance gate dropped between planning and finish.
 
