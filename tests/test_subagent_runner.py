@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -1373,12 +1374,18 @@ def _write_fake_opencode_binary(bin_dir: Path) -> Path:
 
             if output_format == "json":
                 msg_id = "msg_fake_001"
-                # Emit JSON events
-                events = [
-                    {{"type": "step_start", "timestamp": 1000, "sessionID": session_id, "part": {{"id": "prt_001", "sessionID": session_id, "messageID": msg_id, "type": "step-start"}}}},
-                    {{"type": "text", "timestamp": 1001, "sessionID": session_id, "part": {{"id": "prt_002", "sessionID": session_id, "messageID": msg_id, "type": "text", "text": reply_text, "time": {{"start": 1001, "end": 1001}}}}}},
-                    {{"type": "step_finish", "timestamp": 1002, "sessionID": session_id, "part": {{"id": "prt_003", "sessionID": session_id, "messageID": msg_id, "type": "step-finish", "reason": "stop"}}}},
-                ]
+                if mode == "partial_json":
+                    # Simulate incomplete flush: only emit step_start
+                    events = [
+                        {{"type": "step_start", "timestamp": 1000, "sessionID": session_id, "part": {{"id": "prt_001", "sessionID": session_id, "messageID": msg_id, "type": "step-start"}}}},
+                    ]
+                else:
+                    # Emit complete JSON events
+                    events = [
+                        {{"type": "step_start", "timestamp": 1000, "sessionID": session_id, "part": {{"id": "prt_001", "sessionID": session_id, "messageID": msg_id, "type": "step-start"}}}},
+                        {{"type": "text", "timestamp": 1001, "sessionID": session_id, "part": {{"id": "prt_002", "sessionID": session_id, "messageID": msg_id, "type": "text", "text": reply_text, "time": {{"start": 1001, "end": 1001}}}}}},
+                        {{"type": "step_finish", "timestamp": 1002, "sessionID": session_id, "part": {{"id": "prt_003", "sessionID": session_id, "messageID": msg_id, "type": "step-finish", "reason": "stop"}}}},
+                    ]
                 for event in events:
                     sys.stdout.write(json.dumps(event) + "\\n")
             else:
@@ -1667,6 +1674,55 @@ class OpenCodeTests(unittest.TestCase):
             self.assertIn("--model", command)
             self.assertIn("anthropic/claude-opus-4-20250514", command)
 
+    def test_run_with_opencode_backend_falls_back_to_db_when_json_stream_incomplete(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            workdir = tmp_path / "work"
+            artifacts_dir = tmp_path / "artifacts"
+            prompt_path = tmp_path / "prompt.txt"
+            log_path = tmp_path / "opencode-log.jsonl"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            workdir.mkdir()
+            prompt_path.write_text("Test prompt with partial JSON\n", encoding="utf-8")
+            _write_fake_opencode_binary(bin_dir)
+
+            # Create the OpenCode SQLite DB with the reply at home_dir
+            # (simulating ~/.local/share/opencode/opencode.db)
+            db_dir = home_dir / ".local" / "share" / "opencode"
+            db_dir.mkdir(parents=True)
+            db_path = db_dir / "opencode.db"
+            _create_opencode_session_db(db_path, "ses_partial_test", [
+                {"role": "user", "text": "Test prompt with partial JSON"},
+                {"role": "assistant", "text": "reply from database fallback"},
+            ])
+
+            result = self.run_runner(
+                "run",
+                "--phase", "smoke",
+                "--prompt-file", str(prompt_path),
+                "--workdir", str(workdir),
+                "--artifacts-dir", str(artifacts_dir),
+                "--backend", "opencode",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "FAKE_OPENCODE_LOG": str(log_path),
+                    "FAKE_OPENCODE_MODE": "partial_json",
+                    "FAKE_OPENCODE_SESSION_ID": "ses_partial_test",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "ok")
+            self.assertEqual(payload["backend"], "opencode")
+            self.assertEqual(payload["session_id"], "ses_partial_test")
+            reply_path = Path(payload["reply_path"])
+            self.assertEqual(reply_path.read_text(encoding="utf-8"), "reply from database fallback")
+
 
 class OpenCodeExtractionUnitTests(unittest.TestCase):
     """Unit tests for the pure JSON extraction functions."""
@@ -1682,6 +1738,7 @@ class OpenCodeExtractionUnitTests(unittest.TestCase):
         spec.loader.exec_module(mod)
         cls._extract_session_id = staticmethod(mod._extract_opencode_session_id_from_json)
         cls._extract_reply = staticmethod(mod._extract_opencode_reply_from_json)
+        cls._extract_reply_from_db = staticmethod(mod._extract_opencode_reply_from_db)
 
     def test_session_id_from_well_formed_json_events(self):
         events = (
@@ -1729,6 +1786,96 @@ class OpenCodeExtractionUnitTests(unittest.TestCase):
             '{"type":"step_finish","sessionID":"s1","part":{"reason":"stop"}}\n'
         )
         self.assertEqual(self._extract_reply(events), "")
+
+    def test_reply_from_db_returns_last_assistant_text(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "opencode.db"
+            _create_opencode_session_db(db_path, "ses_db_test", [
+                {"role": "user", "text": "hello"},
+                {"role": "assistant", "text": "I can help with that."},
+            ])
+            reply = self._extract_reply_from_db("ses_db_test", db_path)
+            self.assertEqual(reply, "I can help with that.")
+
+    def test_reply_from_db_returns_empty_when_no_assistant_parts(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "opencode.db"
+            _create_opencode_session_db(db_path, "ses_no_asst", [
+                {"role": "user", "text": "hello"},
+            ])
+            reply = self._extract_reply_from_db("ses_no_asst", db_path)
+            self.assertEqual(reply, "")
+
+    def test_reply_from_db_returns_empty_when_db_missing(self):
+        reply = self._extract_reply_from_db("ses_missing", Path("/nonexistent/opencode.db"))
+        self.assertEqual(reply, "")
+
+    def test_reply_from_db_returns_last_assistant_text_from_multi_turn(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "opencode.db"
+            _create_opencode_session_db(db_path, "ses_multi", [
+                {"role": "user", "text": "first question"},
+                {"role": "assistant", "text": "first answer"},
+                {"role": "user", "text": "second question"},
+                {"role": "assistant", "text": "second answer"},
+            ])
+            reply = self._extract_reply_from_db("ses_multi", db_path)
+            self.assertEqual(reply, "second answer")
+
+
+def _create_opencode_session_db(db_path: Path, session_id: str, messages: list[dict]) -> None:
+    """Create a minimal OpenCode SQLite DB for testing reply extraction from DB."""
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS session (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            directory TEXT NOT NULL,
+            title TEXT NOT NULL,
+            version TEXT NOT NULL,
+            time_created INTEGER NOT NULL,
+            time_updated INTEGER NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS message (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            time_created INTEGER NOT NULL,
+            time_updated INTEGER NOT NULL,
+            data TEXT NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS part (
+            id TEXT PRIMARY KEY,
+            message_id TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            time_created INTEGER NOT NULL,
+            time_updated INTEGER NOT NULL,
+            data TEXT NOT NULL
+        )
+    """)
+    conn.execute(
+        "INSERT INTO session VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (session_id, "proj1", "/tmp", "test", "1.3.0", 1000, 2000),
+    )
+    for i, msg in enumerate(messages):
+        msg_id = f"msg_{i:03d}"
+        msg_time = 1000 + i * 100
+        conn.execute(
+            "INSERT INTO message VALUES (?, ?, ?, ?, ?)",
+            (msg_id, session_id, msg_time, msg_time,
+             json.dumps({"role": msg["role"]})),
+        )
+        part_id = f"prt_{i:03d}"
+        conn.execute(
+            "INSERT INTO part VALUES (?, ?, ?, ?, ?, ?)",
+            (part_id, msg_id, session_id, msg_time, msg_time,
+             json.dumps({"type": "text", "text": msg["text"]})),
+        )
+    conn.commit()
+    conn.close()
 
 
 if __name__ == "__main__":

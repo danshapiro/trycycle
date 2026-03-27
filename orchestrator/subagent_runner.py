@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -872,6 +873,90 @@ def _extract_opencode_reply_from_json(stdout: str) -> str:
     return "".join(text_parts)
 
 
+OPENCODE_DEFAULT_DB_PATH = Path.home() / ".local" / "share" / "opencode" / "opencode.db"
+
+
+def _resolve_opencode_db_path() -> Path | None:
+    """Locate the OpenCode SQLite database."""
+    data_dir = os.environ.get("OPENCODE_DATA_DIR")
+    if data_dir:
+        db_path = Path(data_dir) / "opencode.db"
+        if db_path.exists():
+            return db_path
+    if OPENCODE_DEFAULT_DB_PATH.exists():
+        return OPENCODE_DEFAULT_DB_PATH
+    return None
+
+
+def _extract_opencode_reply_from_db(session_id: str, db_path: Path | None = None) -> str:
+    """Tier 2 fallback: extract the last assistant text reply from the OpenCode SQLite DB.
+
+    Used when the JSON event stream from stdout is incomplete (e.g., OpenCode
+    does not flush all events before exiting).
+    """
+    if db_path is None:
+        db_path = _resolve_opencode_db_path()
+    if db_path is None or not db_path.exists():
+        return ""
+    try:
+        conn = sqlite3.connect(str(db_path), timeout=5)
+        conn.row_factory = sqlite3.Row
+        try:
+            # Find the last assistant message in this session
+            rows = conn.execute(
+                """
+                SELECT p.data AS part_data
+                FROM part p
+                JOIN message m ON p.message_id = m.id
+                WHERE p.session_id = ?
+                  AND json_extract(m.data, '$.role') = 'assistant'
+                  AND json_extract(p.data, '$.type') = 'text'
+                ORDER BY m.time_created DESC, p.time_created DESC
+                """,
+                (session_id,),
+            ).fetchall()
+            if not rows:
+                return ""
+            # All rows from the last assistant message's text parts,
+            # but we got them DESC; the first row is the latest part.
+            # We need to find all parts from the same message.
+            # Actually, let's get the last assistant message first.
+            last_msg = conn.execute(
+                """
+                SELECT m.id
+                FROM message m
+                WHERE m.session_id = ?
+                  AND json_extract(m.data, '$.role') = 'assistant'
+                ORDER BY m.time_created DESC
+                LIMIT 1
+                """,
+                (session_id,),
+            ).fetchone()
+            if not last_msg:
+                return ""
+            parts = conn.execute(
+                """
+                SELECT data
+                FROM part
+                WHERE message_id = ?
+                  AND json_extract(data, '$.type') = 'text'
+                ORDER BY time_created, id
+                """,
+                (last_msg["id"],),
+            ).fetchall()
+            text_parts = []
+            for part_row in parts:
+                part_data = json.loads(part_row["data"])
+                text = part_data.get("text", "")
+                if text.strip():
+                    text_parts.append(text)
+            return "".join(text_parts).strip()
+        finally:
+            conn.close()
+    except (sqlite3.Error, json.JSONDecodeError):
+        return ""
+
+
 def _opencode_command(
     *,
     binary: str,
@@ -1056,9 +1141,12 @@ def _run_backend(
 
     if backend == "opencode":
         reply_text = _extract_opencode_reply_from_json(result.stdout or "")
-        reply_path.write_text(reply_text, encoding="utf-8")
         if session_id is None:
             session_id = _extract_opencode_session_id_from_json(result.stdout or "")
+        # Tier 2 fallback: if JSON stream was incomplete, read reply from SQLite DB
+        if not reply_text.strip() and session_id and result.returncode == 0:
+            reply_text = _extract_opencode_reply_from_db(session_id)
+        reply_path.write_text(reply_text, encoding="utf-8")
     elif backend in {"claude", "kimi"}:
         reply_text = result.stdout or ""
         reply_path.write_text(reply_text, encoding="utf-8")
@@ -1231,6 +1319,9 @@ def _resume_backend(
 
     if backend == "opencode":
         reply_text = _extract_opencode_reply_from_json(result.stdout or "")
+        # Tier 2 fallback: if JSON stream was incomplete, read reply from SQLite DB
+        if not reply_text.strip() and session_id and result.returncode == 0:
+            reply_text = _extract_opencode_reply_from_db(session_id)
         reply_path.write_text(reply_text, encoding="utf-8")
     elif backend in {"claude", "kimi"}:
         reply_text = result.stdout or ""
