@@ -315,6 +315,6 @@ Clean up temporary artifacts created during the loop (for example plan scratch f
 
 If the implementation subagent is still open, close it and clear its saved handle or `session_id` before handing off to finishing.
 
-Report the process to the user using concrete facts and returned artifacts: how many plan-editor rounds, how many code-review rounds, the current `HEAD`, the changed-file list, the implementation subagent's latest summary and verification results, and any reviewer-reported residual issues.
+Finally, in one paragraph, briefly describe what was built/accomplished/changed/fixed. Then Report the process to the user using concrete facts and returned artifacts: how many plan-editor rounds, how many code-review rounds, the current `HEAD`, the changed-file list, the implementation subagent's latest summary and verification results, and any reviewer-reported residual issues.
 
 Then read and follow `<skill-directory>/subskills/trycycle-finishing/SKILL.md` to present the user with options for integrating the implementation workspace (merge, PR, etc.).
