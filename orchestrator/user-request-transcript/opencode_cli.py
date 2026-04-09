@@ -11,9 +11,11 @@ from common import TranscriptError, TranscriptTurn
 
 DEFAULT_DB_PATH = Path.home() / ".local" / "share" / "opencode" / "opencode.db"
 OPENCODE_DATA_DIR_ENV = "OPENCODE_DATA_DIR"
+OPENCODE_PID_ENV = "OPENCODE_PID"
 
-# Module-level cache: set by find_matching_transcripts so extract_transcript
-# can locate the DB without receiving search_root through the adapter contract.
+# Module-level cache: set by find_matching_transcripts or find_current_transcript
+# so extract_transcript can locate the DB without receiving search_root through
+# the adapter contract.
 _last_resolved_db_path: Path | None = None
 
 
@@ -45,6 +47,50 @@ def _connect(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
+def _session_id_from_proc() -> str | None:
+    pid_str = os.environ.get(OPENCODE_PID_ENV)
+    if not pid_str:
+        return None
+    try:
+        pid = int(pid_str)
+    except ValueError:
+        return None
+    try:
+        cmdline_bytes = Path(f"/proc/{pid}/cmdline").read_bytes()
+    except OSError:
+        return None
+    parts = cmdline_bytes.decode("utf-8", errors="replace").split("\x00")
+    for i, part in enumerate(parts):
+        if part == "--session" and i + 1 < len(parts):
+            return parts[i + 1]
+        if part.startswith("--session="):
+            return part.split("=", 1)[1]
+    return None
+
+
+def find_current_transcript(search_root: Path | None = None) -> Path | None:
+    global _last_resolved_db_path
+    session_id = _session_id_from_proc()
+    if not session_id:
+        return None
+    try:
+        db_path = _resolve_db_path(search_root)
+    except TranscriptError:
+        return None
+    _last_resolved_db_path = db_path
+    conn = _connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id FROM session WHERE id = ?",
+            (session_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if row:
+        return Path(f"/opencode-session/{session_id}")
+    return None
+
+
 def find_matching_transcripts(
     *,
     canary: str,
@@ -65,13 +111,17 @@ def find_matching_transcripts(
                 SELECT DISTINCT p.session_id
                 FROM part p
                 JOIN message m ON p.message_id = m.id
-                WHERE json_extract(m.data, '$.role') = 'user'
-                  AND json_extract(p.data, '$.type') = 'text'
-                  AND json_extract(p.data, '$.text') LIKE ?
+                WHERE (
+                    (json_extract(p.data, '$.type') = 'text'
+                     AND json_extract(p.data, '$.text') LIKE ?)
+                    OR
+                    (json_extract(p.data, '$.type') = 'tool'
+                     AND json_extract(p.data, '$.state') LIKE ?)
+                )
                 ORDER BY p.time_created DESC
                 LIMIT 1
                 """,
-                (f"%{canary}%",),
+                (f"%{canary}%", f"%{canary}%"),
             ).fetchall()
         finally:
             conn.close()
