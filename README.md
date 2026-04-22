@@ -60,9 +60,18 @@ My webcam software is terrible. Build something in Rust that exposes my webcam a
 
 Trycycle asks any questions it needs, then handles the rest: worktree, plan, plan strengthening, test plan, build, and code review -- all without further input unless something needs your judgment.
 
-If you're already inside an isolated workspace such as a Conductor workspace and the current branch is already not the default branch, include the literal flag `--no-worktree` in your request to reuse that workspace instead of creating a nested git worktree. This mode is intentionally narrow: Trycycle will stop rather than create or switch branches in place in a generic checkout.
+## Tips
 
-Works for anything from small features to large refactors, best when you have a clear goal and a codebase Trycycle can read and test.
+Trycycle assumes you know what you want and errs on the side of 'make a decision and keep going'. 
+
+It works best when:
+- You have a vague project and don't care about the details, like "Make solitaire"
+- You have an easy-to-define task ("Fix issue 123")
+- You have a detailed spec you created outside trycycle (I recommend Superpowers brainstorming, for example, or a good chat with your favorite AI)
+
+It works worst when you care about the details, but they're not specified. It will likely just yolo them for you.
+
+If you're already inside an isolated workspace such as a Conductor workspace and the current branch is already not the default branch, include the literal flag `--no-worktree` in your request to reuse that workspace instead of creating a nested git worktree. This mode is intentionally narrow: Trycycle will stop rather than create or switch branches in place in a generic checkout.
 
 ## How it works
 
