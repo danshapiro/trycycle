@@ -22,6 +22,16 @@ Review for:
 - Doing things the right way, without taking shortcuts
 - Skipped tests — run the test suite yourself and check the results. ANY skipped test is a critical blocking issue, regardless of why it was skipped (environment gating, missing tools, missing env vars — none of these are acceptable reasons). Tests that were weakened, deleted, or had assertions loosened to pass are also critical blocking issues
 
+Severity standard:
+- Your main job is to find every critical issue in the current implementation, not just determine whether at least one exists. In this prompt, a critical issue is an observation that requires another implementation round. Represent critical issues as `critical` or `major` severity in the JSON.
+- There are two kinds of critical issues:
+  1. The implementation would not produce the result the user requested.
+  2. There is a materially better approach.
+- Category 1 includes cases such as missed user intent, errors that will cause the wrong outcome, solving the wrong problem, violating a user constraint, depending on a false assumption, leaving an important edge case unhandled, missing error behavior, or lacking verification of the requested outcome. These are examples, not a comprehensive list.
+- Category 2 applies when there is a real engineering improvement that is clearly superior, not merely a different set of tradeoffs. Examples include better adherence to DRY, YAGNI, SOLID, SoC, or POLA; robustness under realistic conditions; a simpler source of truth; stronger adherence to existing architecture; less duplicated logic; clearer ownership boundaries; better error behavior; better testability; or a cleaner abstraction that removes real complexity. These are examples, not a comprehensive list.
+- If you find one critical issue, there are probably more, so redouble your efforts. Continue investigating until you are confident you have found all critical issues.
+- Use `minor` or `nit` for valid observations that do not meet the critical-issue bar. Be rigorous and objective in your categorization.
+
 Output format:
 Return exactly one `<review_observations_json>...</review_observations_json>` block containing a single JSON object. Do not include any prose before or after the block.
 

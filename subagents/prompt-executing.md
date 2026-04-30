@@ -26,7 +26,7 @@ A skipped test is a failed test — there are no "legitimate" skips in a final r
 
 Implement using TDD: for each feature or component, first establish the red state with the highest-priority automated check or checks from the test plan. Reuse or extend high-value existing tests when they already cover the behavior; when coverage is missing, write the new failing test or tests first. If the test plan specifies harnesses to build, build those first.
 
-{{#if POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}}Fix the implementation against the attached review observations directly. Treat them as observed evidence and verification targets, not as optional suggestions.{{/if}}
+{{#if POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}}Fix the implementation against the attached review observations with severity `critical` or `major`. Treat those critical issues as observed evidence and verification targets, not as optional suggestions. `minor` and `nit` observations are not required fix targets.{{/if}}
 
 Commit your changes, then return a markdown report with these sections in this order:
 - `## Implementation summary` — concise implementation summary
