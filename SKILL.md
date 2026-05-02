@@ -198,7 +198,7 @@ Deploy a fresh planning subagent to critique the current plan against the user's
 
 The plan editor is stateless: each round is a fresh first-look pass with only the template, the same task input used for initial planning, and the current plan.
 
-Immediately before each edit dispatch, prepare the `planning-edit` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-edit.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, and `--require-nonempty-tag task_input_json`, then dispatch a fresh planning subagent with the returned `prompt_path`.
+Immediately before each edit dispatch, prepare the `planning-edit` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-edit.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, and `--require-nonempty-tag task_input_json`, then dispatch a fresh planning subagent with the returned `prompt_path`. Start a phase prompt paths temp file if needed, and append the returned `prompt_path`.
 
 Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 
@@ -207,14 +207,14 @@ After each edit round:
 2. If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either an updated planning report or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 3. Update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path` in the latest planning report.
 4. Run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
-5. Close that planning subagent for the completed round and clear any saved handle or `session_id` for it.
+5. Start a loop outputs temp file if needed, save the returned planning report to a temp file, append that path, then close that planning subagent for the completed round and clear any saved handle or `session_id` for it.
 6. If `## Plan verdict` is `READY`, continue to step 8 with the current `{IMPLEMENTATION_PLAN_PATH}`. **If the verdict is NOT `READY`, do NOT proceed to step 8 - continue to step 7 for another planning round.**
 7. If `## Plan verdict` is `REVISED`, repeat with a fresh planning subagent.
 8. Repeat up to 5 rounds.
 
 If the plan still is not judged ready after the 5th editor round: **STOP. Do NOT proceed to step 8.**
 1. Stop looping.
-2. Dispatch a subagent to review past subagent sessions and hypothesize why the loop is not converging. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+2. Prepare the `nonconvergence-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-nonconvergence-review.md`, `--set TRYCYCLE_SKILL_PATH=<skill-directory>/SKILL.md`, `--set NONCONVERGENCE_CONTEXT="Plan-editor loop reached 5 rounds without a READY verdict."`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH="Not built yet; the plan-editor loop did not converge before the test-plan phase."`, `--set-file PHASE_PROMPT_PATHS=<phase-prompt-paths-temp-file>`, `--set-file LOOP_OUTPUT_PATHS=<loop-outputs-temp-file>`, and `--set IMPLEMENTATION_REPORT_PATHS="Not applicable; execution did not start."`, then dispatch a subagent with the returned `prompt_path`. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 3. Present that report and the latest planning report to the user and **await user instructions before taking any further action.**
 
 ## 8) Build test plan (subagent-owned)
@@ -258,7 +258,7 @@ In fallback-runner mode, record the returned `dispatch.backend` as `{IMPLEMENTAT
 Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
 If you kill and retry this implementation round, create a fresh implementation subagent or runner session and replace the saved implementation handle. In fallback-runner mode, also replace the saved `session_id` and `{IMPLEMENTATION_BACKEND}` with the fresh dispatch values.
 
-Do not proceed to post-implementation review until the implementation subagent has returned an implementation report. Save the report to a temp file immediately, and append that path to an implementation reports temp file.
+Do not proceed to post-implementation review until the implementation subagent has returned an implementation report. Start an implementation reports temp file if needed, save the report to a temp file immediately, and append that path.
 
 After implementation completes, run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before launching post-implementation review.
 
@@ -266,7 +266,7 @@ After implementation completes, run the workspace hygiene gate checks and verify
 
 After execution completes, deploy a new reviewer with no prior context and give it the finalized implementation plan plus the finalized test plan.
 
-Immediately before dispatch, prepare the `post-implementation-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-post-impl-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, and `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, then dispatch a review subagent with the returned `prompt_path`. Save the returned `prompt_path` to the phase prompt artifact list.
+Immediately before dispatch, prepare the `post-implementation-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-post-impl-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, and `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, then dispatch a review subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
 
 Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 
@@ -288,13 +288,13 @@ Treat the extractor's JSON stdout as authoritative for:
 
 If extraction fails, stop and surface the review reply plus the extractor failure to the user rather than guessing.
 
-Append each review reply path and extracted review-observations path to a review artifacts temp file.
+Start a loop outputs temp file if needed. Append each review reply path and extracted review-observations path to it.
 
 When another fix round is needed:
-1. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>`, and `--ignore-tag-for-placeholders post_implementation_review_observations_json`. Save the returned `prompt_path` to the phase prompt artifact list. The executing prompt must treat only `critical` and `major` observations as critical issues and required fix targets; `minor` and `nit` observations are not required fix targets.
+1. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>`, and `--ignore-tag-for-placeholders post_implementation_review_observations_json`. Append the returned `prompt_path` to the phase prompt paths temp file. The executing prompt must treat only `critical` and `major` observations as critical issues and required fix targets; `minor` and `nit` observations are not required fix targets.
 2. In native mode, resume the same implementation subagent and send the exact returned `prompt_path` contents verbatim. In fallback-runner mode, resume the implementation session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using the saved `session_id`, `--backend {IMPLEMENTATION_BACKEND}`, and the wrapper-prepared `prompt_path`.
 3. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
-4. If you kill and retry this implementation round, create a fresh implementation subagent or runner session and replace the saved implementation handle. In fallback-runner mode, also replace the saved `session_id` and `{IMPLEMENTATION_BACKEND}` with the fresh dispatch values.
+4. If you kill and retry this implementation round, create a fresh implementation subagent or runner session and replace the saved implementation handle. In fallback-runner mode, also replace the saved `session_id` and `{IMPLEMENTATION_BACKEND}` with the fresh dispatch values. Keep any paths already appended for the killed attempt; they are useful evidence if nonconvergence analysis is needed.
 
 After each implementation-subagent fix round, save the returned implementation report to a temp file and append that path to the implementation reports temp file, then run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next fresh review round.
 
@@ -304,7 +304,7 @@ Stop when either condition is met:
 
 If the latest extracted review-observations artifact still reports `blocking_issue_count > 0` after the 8th review:
 1. Stop looping.
-2. Prepare the `nonconvergence-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-nonconvergence-review.md`, `--set TRYCYCLE_SKILL_PATH=<skill-directory>/SKILL.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set-file PHASE_PROMPT_PATHS=<phase-prompt-paths-temp-file>`, `--set-file REVIEW_ARTIFACT_PATHS=<review-artifacts-temp-file>`, and `--set-file IMPLEMENTATION_REPORT_PATHS=<implementation-reports-temp-file>`, then dispatch a subagent with the returned `prompt_path`. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+2. Prepare the `nonconvergence-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-nonconvergence-review.md`, `--set TRYCYCLE_SKILL_PATH=<skill-directory>/SKILL.md`, `--set NONCONVERGENCE_CONTEXT="Post-implementation review loop reached 8 rounds while blockers remained."`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set-file PHASE_PROMPT_PATHS=<phase-prompt-paths-temp-file>`, `--set-file LOOP_OUTPUT_PATHS=<loop-outputs-temp-file>`, and `--set-file IMPLEMENTATION_REPORT_PATHS=<implementation-reports-temp-file>`, then dispatch a subagent with the returned `prompt_path`. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 3. Present that report and the latest review output to the user and await user instructions.
 
 ## 11) Finish
