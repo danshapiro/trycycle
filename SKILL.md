@@ -72,9 +72,11 @@ Kimi and OpenCode support is explicit here because `host` and `auto` cannot reli
 
 When a step below references `{POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}`, use the extracted review observations JSON exactly as the placeholder value.
 
-When a step below references `{IMPLEMENTATION_PLAN_PATH}`, use the latest absolute plan path returned by the planning subagent in the current trycycle session. Update it after the initial planning result and after every plan-edit result.
+When a step below references `{REVIEW_LOOP_HISTORY}`, use the accumulated post-implementation review-loop history artifact from the current trycycle session.
 
-When a step below references `{TEST_PLAN_PATH}`, use the latest absolute test-plan path returned by the test-plan subagent in the current trycycle session. Update it after every test-plan result.
+When a step below references `{IMPLEMENTATION_PLAN_PATH}`, use the latest absolute plan path returned by the planning subagent in the current trycycle session. Update it after the initial planning result, after every plan-edit result, and after every post-review plan-reconsideration result.
+
+When a step below references `{TEST_PLAN_PATH}`, use the latest absolute test-plan path returned by the test-plan subagent or post-review plan-reconsideration subagent in the current trycycle session. Update it after every test-plan result and every post-review plan-reconsideration result.
 
 When a step below references `{IMPLEMENTATION_BACKEND}`, use the resolved `dispatch.backend` returned by the initial implementation dispatch in the current trycycle session. Update it if you ever recreate the implementation session.
 
@@ -89,11 +91,12 @@ When a step below references `{IMPLEMENTATION_BACKEND}`, use the resolved `dispa
   - If no local override is configured and you can reliably identify your current model's exact backend name, pass that same model with `--model`. Otherwise omit `--model` and let the backend's local default apply.
   - Do not pass `--effort` unless the user explicitly asked for it or you are preserving a known parent setting. If the current effort is not safely knowable, omit it rather than guessing.
 - Planning subagents are ephemeral across plan-edit rounds so they can remain independent: spawn a fresh planning agent for the initial plan and for every plan-edit round until the plan is judged already excellent without changes.
+- Post-review plan-reconsideration checkpoints also use fresh planning subagents. They may update the implementation plan or test plan when implementation has exposed a real plan gap.
 - In native mode, implementation subagents are persistent: create one implementation agent, then resume it for every implementation-fix round.
 - In fallback-runner mode, implementation subagents are persistent through the runner: create one implementation session, record its `session_id`, then resume it through the runner for every implementation-fix round.
 - In fallback-runner mode, record the resolved `dispatch.backend` for persistent sessions and reuse that same backend on every `resume`.
 - Review subagents are ephemeral: create a fresh reviewer for each post-implementation review round.
-- For planning rounds, pass `{USER_REQUEST_TRANSCRIPT}` as the task input. Do not use the full prior conversation.
+- For initial planning and plan-edit rounds, pass `{USER_REQUEST_TRANSCRIPT}` as the task input. Do not use the full prior conversation there. Post-review plan-reconsideration checkpoints use `{FULL_CONVERSATION_VERBATIM}` because they need the review/fix history.
 - Render the prompt template with the prompt builder and pass the rendered prompt verbatim.
 - User instructions still apply. When they are relevant, relay them.
 - If a subagent returns `USER DECISION REQUIRED:`, keep that same agent or session alive until the user's reply has been forwarded and the round has resolved.
@@ -266,6 +269,8 @@ After implementation completes, run the workspace hygiene gate checks and verify
 
 After execution completes, deploy a new reviewer with no prior context and give it the finalized implementation plan plus the finalized test plan.
 
+Create an empty temp file for `{REVIEW_LOOP_HISTORY}` before starting the first review round, then append the implementation subagent's initial implementation report to it.
+
 Immediately before dispatch, prepare the `post-implementation-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-post-impl-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, and `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, then dispatch a review subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
 
 Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
@@ -290,13 +295,25 @@ If extraction fails, stop and surface the review reply plus the extractor failur
 
 Start a loop outputs temp file if needed. Append each review reply path and extracted review-observations path to it.
 
-When another fix round is needed:
+After extraction succeeds, append the completed review round number, the reviewer's raw stdout, and the normalized review-observations JSON to `{REVIEW_LOOP_HISTORY}`.
+
+When another fix round is needed, first check whether plan reconsideration is due. If blocking issues remain after the 4th or 6th completed review round, run this checkpoint before dispatching the next fix round:
+- Prepare the `planning-reconsider` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-reconsider.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set REVIEW_ROUND_NUMBER=<completed-review-round-number>`, `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>`, `--set-file REVIEW_LOOP_HISTORY=<review-loop-history-temp-file>`, `--transcript-placeholder FULL_CONVERSATION_VERBATIM`, `--require-nonempty-tag conversation`, `--require-nonempty-tag review_loop_history`, `--ignore-tag-for-placeholders conversation`, `--ignore-tag-for-placeholders post_implementation_review_observations_json`, and `--ignore-tag-for-placeholders review_loop_history`, then dispatch a fresh planning subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
+- Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+- Wait for either a report containing `## Plan reconsideration verdict`, `## Implementation plan path`, `## Test plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
+- If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either a plan-reconsideration report or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+- Update `{IMPLEMENTATION_PLAN_PATH}` from `## Implementation plan path` and `{TEST_PLAN_PATH}` from `## Test plan path` in the latest plan-reconsideration report.
+- Run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
+- Save the plan-reconsideration report to a temp file and append that path to the loop outputs temp file.
+- Close that planning subagent and clear any saved handle or `session_id` for it.
+
+Then continue with the fix round:
 1. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>`, and `--ignore-tag-for-placeholders post_implementation_review_observations_json`. Append the returned `prompt_path` to the phase prompt paths temp file. The executing prompt must treat only `critical` and `major` observations as critical issues and required fix targets; `minor` and `nit` observations are not required fix targets.
 2. In native mode, resume the same implementation subagent and send the exact returned `prompt_path` contents verbatim. In fallback-runner mode, resume the implementation session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using the saved `session_id`, `--backend {IMPLEMENTATION_BACKEND}`, and the wrapper-prepared `prompt_path`.
 3. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
 4. If you kill and retry this implementation round, create a fresh implementation subagent or runner session and replace the saved implementation handle. In fallback-runner mode, also replace the saved `session_id` and `{IMPLEMENTATION_BACKEND}` with the fresh dispatch values. Keep any paths already appended for the killed attempt; they are useful evidence if nonconvergence analysis is needed.
 
-After each implementation-subagent fix round, save the returned implementation report to a temp file and append that path to the implementation reports temp file, then run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next fresh review round.
+After each implementation-subagent fix round, save the returned implementation report to a temp file, append that path to the implementation reports temp file, append the report to `{REVIEW_LOOP_HISTORY}`, then run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next fresh review round.
 
 Stop when either condition is met:
 1. The extracted review-observations artifact reports `blocking_issue_count: 0`.

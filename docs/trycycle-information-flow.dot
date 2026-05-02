@@ -147,6 +147,23 @@ digraph trycycle_information_flow {
   executor -> code_artifacts [label="commits + test results"];
   code_artifacts -> post_review [label="review input"];
   prompt_builder -> post_review [label="review prompt"];
+  plan_reconsider [
+    label="Plan reconsideration\n(rounds 4 and 6)",
+    fillcolor="#ffffff"
+  ];
+  prompt_builder -> plan_reconsider [label="reconsider prompt"];
+  post_review -> plan_reconsider [
+    label="blocking findings persist",
+    style=dashed,
+    color="#d97706",
+    fontcolor="#b45309"
+  ];
+  plan_reconsider -> implementation_plan [
+    label="clarify/revise plans",
+    style=dashed,
+    color="#d97706",
+    fontcolor="#b45309"
+  ];
   post_review -> executor [
     label="critical/major findings\n(fix round, up to 8)",
     style=dashed,
