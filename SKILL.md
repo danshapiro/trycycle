@@ -267,7 +267,7 @@ Do not proceed to post-implementation review until the implementation subagent h
 
 After implementation completes, run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before launching post-implementation review.
 
-## 10) Post-implementation review loop (up to 8 rounds)
+## 10) Post-implementation review loop (up to 8 rounds by default)
 
 After execution completes, deploy a new reviewer with no prior context and give it the finalized implementation plan plus the finalized test plan.
 
@@ -299,7 +299,13 @@ Start a loop outputs temp file if needed. Append each review reply path and extr
 
 After extraction succeeds, append the completed review round number, the reviewer's raw stdout, and the normalized review-observations JSON to `{REVIEW_LOOP_HISTORY}`.
 
-When another fix round is needed, first check whether plan reconsideration is due. If blocking issues remain after the 4th or 6th completed review round, run this checkpoint before dispatching the next fix round:
+When blocking issues remain after a review round, first check whether the loop has reached its stop point. The default stop point is 8 completed review rounds, but the user can override that like any other instruction.
+
+Before either dispatching another fix round or running nonconvergence review, check whether plan reconsideration is due. Plan reconsideration is due when blocking issues remain and either:
+- The completed review round is even-numbered and greater than 2: the 4th, 6th, 8th, and every 2 rounds thereafter if the user overrides the stop point.
+- The loop has reached its configured stop point. This means nonconvergence review always runs after a plan-reconsideration checkpoint when the loop stops with blockers, even if the user chose a stop point that would not otherwise trigger the even-round cadence.
+
+If plan reconsideration is due, run this checkpoint before the next action:
 - Prepare the `planning-reconsider` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-reconsider.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set REVIEW_ROUND_NUMBER=<completed-review-round-number>`, `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>`, `--set-file REVIEW_LOOP_HISTORY=<review-loop-history-temp-file>`, `--transcript-placeholder FULL_CONVERSATION_VERBATIM`, `--require-nonempty-tag conversation`, `--require-nonempty-tag review_loop_history`, `--ignore-tag-for-placeholders conversation`, `--ignore-tag-for-placeholders post_implementation_review_observations_json`, and `--ignore-tag-for-placeholders review_loop_history`, then dispatch a fresh planning subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
 - Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 - Wait for either a report containing `## Plan reconsideration verdict`, `## Implementation plan path`, `## Test plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
@@ -310,22 +316,22 @@ When another fix round is needed, first check whether plan reconsideration is du
 - Append the plan-reconsideration report itself to `{REVIEW_LOOP_HISTORY}` under a clear plan-reconsideration heading so future plan-reconsideration checkpoints receive prior analyses. This history is for planning and final nonconvergence analysis; do not add it to executor or reviewer prompts.
 - Close that planning subagent and clear any saved handle or `session_id` for it.
 
-Then continue with the fix round:
+Stop when either condition is met:
+1. The extracted review-observations artifact reports `blocking_issue_count: 0`.
+2. The configured stop point has been reached. By default, this is 8 completed review rounds.
+
+If the latest extracted review-observations artifact still reports `blocking_issue_count > 0` after the configured stop point:
+1. Stop looping. Do not dispatch another implementation fix round.
+2. Prepare the `nonconvergence-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-nonconvergence-review.md`, `--set TRYCYCLE_SKILL_PATH=<skill-directory>/SKILL.md`, `--set NONCONVERGENCE_CONTEXT="Post-implementation review loop stopped after <completed-review-round-number> review rounds while blockers remained."`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set-file PHASE_PROMPT_PATHS=<phase-prompt-paths-temp-file>`, `--set-file LOOP_OUTPUT_PATHS=<loop-outputs-temp-file>`, and `--set-file IMPLEMENTATION_REPORT_PATHS=<implementation-reports-temp-file>`, then dispatch a subagent with the returned `prompt_path`. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+3. Present that report and the latest review output to the user and await user instructions.
+
+If blockers remain and the configured stop point has not been reached, continue with the fix round:
 1. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>`, and `--ignore-tag-for-placeholders post_implementation_review_observations_json`. Append the returned `prompt_path` to the phase prompt paths temp file. The executing prompt must treat only `critical` and `major` observations as critical issues and required fix targets; `minor` and `nit` observations are not required fix targets.
 2. In native mode, resume the same implementation subagent and send the exact returned `prompt_path` contents verbatim. In fallback-runner mode, resume the implementation session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using the saved `session_id`, `--backend {IMPLEMENTATION_BACKEND}`, and the wrapper-prepared `prompt_path`.
 3. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
 4. If you kill and retry this implementation round, create a fresh implementation subagent or runner session and replace the saved implementation handle. In fallback-runner mode, also replace the saved `session_id` and `{IMPLEMENTATION_BACKEND}` with the fresh dispatch values. Keep any paths already appended for the killed attempt; they are useful evidence if nonconvergence analysis is needed.
 
 After each implementation-subagent fix round, save the returned implementation report to a temp file, append that path to the implementation reports temp file, treat that saved file as the latest implementation report for the next review prompt, append the report to `{REVIEW_LOOP_HISTORY}`, then run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next fresh review round.
-
-Stop when either condition is met:
-1. The extracted review-observations artifact reports `blocking_issue_count: 0`.
-2. 8 rounds have been completed.
-
-If the latest extracted review-observations artifact still reports `blocking_issue_count > 0` after the 8th review:
-1. Stop looping.
-2. Prepare the `nonconvergence-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-nonconvergence-review.md`, `--set TRYCYCLE_SKILL_PATH=<skill-directory>/SKILL.md`, `--set NONCONVERGENCE_CONTEXT="Post-implementation review loop reached 8 rounds while blockers remained."`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set-file PHASE_PROMPT_PATHS=<phase-prompt-paths-temp-file>`, `--set-file LOOP_OUTPUT_PATHS=<loop-outputs-temp-file>`, and `--set-file IMPLEMENTATION_REPORT_PATHS=<implementation-reports-temp-file>`, then dispatch a subagent with the returned `prompt_path`. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
-3. Present that report and the latest review output to the user and await user instructions.
 
 ## 11) Finish
 

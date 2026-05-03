@@ -148,7 +148,7 @@ digraph trycycle_information_flow {
   code_artifacts -> post_review [label="review input"];
   prompt_builder -> post_review [label="review prompt"];
   plan_reconsider [
-    label="Plan reconsideration\n(rounds 4 and 6)",
+    label="Plan reconsideration\n(rounds 4, 6, 8... + stop)",
     fillcolor="#ffffff"
   ];
   prompt_builder -> plan_reconsider [label="reconsider prompt"];

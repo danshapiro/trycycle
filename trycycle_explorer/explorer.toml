@@ -49,7 +49,7 @@ source_category = "user-input"
 
 [bindings.FULL_CONVERSATION_VERBATIM]
 label = "Full conversation JSON"
-help = "Transcript JSON used when building the test plan and reconsidering plans after review-loop nonconvergence."
+help = "Transcript JSON used when building the test plan and reconsidering plans after review-loop blockers."
 widget = "textarea"
 source_category = "user-input"
 
