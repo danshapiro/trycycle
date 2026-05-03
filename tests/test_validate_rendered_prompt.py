@@ -61,6 +61,32 @@ class ValidateRenderedPromptTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_ignores_nested_same_name_tag_body_for_placeholders(self) -> None:
+        result = self.run_validator(
+            "<conversation>\n"
+            "Earlier transcript text mentioned <conversation>nested</conversation> tags.\n"
+            "It also included historical placeholders such as {IMPLEMENTATION_PLAN_PATH}, "
+            "{WORKTREE_PATH}, and {TEST_PLAN_PATH}.\n"
+            "</conversation>\n"
+            "Work in /tmp/example\n",
+            "--require-nonempty-tag",
+            "conversation",
+            "--ignore-tag-for-placeholders",
+            "conversation",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_does_not_ignore_placeholders_between_ignored_tag_blocks(self) -> None:
+        result = self.run_validator(
+            "<conversation>historical {WORKTREE_PATH}</conversation>\n"
+            "Current prompt still has {TEST_PLAN_PATH}\n"
+            "<conversation>historical {IMPLEMENTATION_PLAN_PATH}</conversation>\n",
+            "--ignore-tag-for-placeholders",
+            "conversation",
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("unsubstituted placeholders: TEST_PLAN_PATH", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

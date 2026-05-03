@@ -9,6 +9,7 @@ from pathlib import Path
 
 PLACEHOLDER_RE = re.compile(r"\{([A-Z][A-Z0-9_]*)\}")
 TAG_RE_TEMPLATE = r"<{tag}>(?P<body>.*?)</{tag}>"
+TAG_NAME_RE = re.compile(r"[a-z][a-z0-9_-]*")
 
 
 class ValidationError(RuntimeError):
@@ -70,15 +71,49 @@ def validate_no_placeholders(prompt_text: str) -> None:
 def strip_tag_bodies(prompt_text: str, tags: list[str]) -> str:
     stripped = prompt_text
     for tag in tags:
-        if not re.fullmatch(r"[a-z][a-z0-9_-]*", tag):
+        if not TAG_NAME_RE.fullmatch(tag):
             raise ValidationError(f"invalid tag name: {tag!r}")
-        pattern = re.compile(TAG_RE_TEMPLATE.format(tag=re.escape(tag)), re.DOTALL)
-        stripped = pattern.sub(f"<{tag}></{tag}>", stripped)
+        stripped = strip_balanced_tag_bodies(stripped, tag)
     return stripped
 
 
+def strip_balanced_tag_bodies(prompt_text: str, tag: str) -> str:
+    open_tag = f"<{tag}>"
+    close_tag = f"</{tag}>"
+    result: list[str] = []
+    cursor = 0
+
+    while True:
+        start = prompt_text.find(open_tag, cursor)
+        if start == -1:
+            result.append(prompt_text[cursor:])
+            return "".join(result)
+
+        result.append(prompt_text[cursor:start])
+        body_start = start + len(open_tag)
+        search_from = body_start
+        depth = 1
+
+        while depth:
+            next_open = prompt_text.find(open_tag, search_from)
+            next_close = prompt_text.find(close_tag, search_from)
+            if next_close == -1:
+                result.append(prompt_text[start:])
+                return "".join(result)
+            if next_open != -1 and next_open < next_close:
+                depth += 1
+                search_from = next_open + len(open_tag)
+                continue
+
+            depth -= 1
+            search_from = next_close + len(close_tag)
+
+        result.append(f"{open_tag}{close_tag}")
+        cursor = search_from
+
+
 def validate_nonempty_tag(prompt_text: str, tag: str) -> None:
-    if not re.fullmatch(r"[a-z][a-z0-9_-]*", tag):
+    if not TAG_NAME_RE.fullmatch(tag):
         raise ValidationError(f"invalid tag name: {tag!r}")
 
     pattern = re.compile(TAG_RE_TEMPLATE.format(tag=re.escape(tag)), re.DOTALL)
