@@ -59,6 +59,12 @@ help = "Structured review observations fed back into the execution loop."
 widget = "textarea"
 source_category = "user-input"
 
+[bindings.LATEST_IMPLEMENTATION_REPORT]
+label = "Latest implementation report"
+help = "Most recent implementation report supplied to the post-implementation reviewer as claims to verify."
+widget = "textarea"
+source_category = "user-input"
+
 [bindings.REVIEW_ROUND_NUMBER]
 label = "Review round number"
 help = "The completed post-implementation review round that triggered plan reconsideration."

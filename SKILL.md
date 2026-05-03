@@ -72,6 +72,8 @@ Kimi and OpenCode support is explicit here because `host` and `auto` cannot reli
 
 When a step below references `{POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}`, use the extracted review observations JSON exactly as the placeholder value.
 
+When a step below references `{LATEST_IMPLEMENTATION_REPORT}`, use the most recent implementation report returned by the implementation subagent. Bind it with `--set-file` from the temp-file path where you saved that report.
+
 When a step below references `{REVIEW_LOOP_HISTORY}`, use the accumulated post-implementation review-loop history artifact from the current trycycle session.
 
 When a step below references `{IMPLEMENTATION_PLAN_PATH}`, use the latest absolute plan path returned by the planning subagent in the current trycycle session. Update it after the initial planning result, after every plan-edit result, and after every post-review plan-reconsideration result.
@@ -261,7 +263,7 @@ In fallback-runner mode, record the returned `dispatch.backend` as `{IMPLEMENTAT
 Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
 If you kill and retry this implementation round, create a fresh implementation subagent or runner session and replace the saved implementation handle. In fallback-runner mode, also replace the saved `session_id` and `{IMPLEMENTATION_BACKEND}` with the fresh dispatch values.
 
-Do not proceed to post-implementation review until the implementation subagent has returned an implementation report. Start an implementation reports temp file if needed, save the report to a temp file immediately, and append that path.
+Do not proceed to post-implementation review until the implementation subagent has returned an implementation report. Start an implementation reports temp file if needed, save the report to a temp file immediately, append that path, and treat that saved file as the latest implementation report for the first review prompt.
 
 After implementation completes, run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before launching post-implementation review.
 
@@ -271,7 +273,7 @@ After execution completes, deploy a new reviewer with no prior context and give 
 
 Create an empty temp file for `{REVIEW_LOOP_HISTORY}` before starting the first review round, then append the implementation subagent's initial implementation report to it.
 
-Immediately before dispatch, prepare the `post-implementation-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-post-impl-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, and `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, then dispatch a review subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
+Immediately before dispatch, prepare the `post-implementation-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-post-impl-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set-file LATEST_IMPLEMENTATION_REPORT=<latest-implementation-report-temp-file>`, and `--ignore-tag-for-placeholders latest_implementation_report`, then dispatch a review subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
 
 Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 
@@ -314,7 +316,7 @@ Then continue with the fix round:
 3. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
 4. If you kill and retry this implementation round, create a fresh implementation subagent or runner session and replace the saved implementation handle. In fallback-runner mode, also replace the saved `session_id` and `{IMPLEMENTATION_BACKEND}` with the fresh dispatch values. Keep any paths already appended for the killed attempt; they are useful evidence if nonconvergence analysis is needed.
 
-After each implementation-subagent fix round, save the returned implementation report to a temp file, append that path to the implementation reports temp file, append the report to `{REVIEW_LOOP_HISTORY}`, then run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next fresh review round.
+After each implementation-subagent fix round, save the returned implementation report to a temp file, append that path to the implementation reports temp file, treat that saved file as the latest implementation report for the next review prompt, append the report to `{REVIEW_LOOP_HISTORY}`, then run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next fresh review round.
 
 Stop when either condition is met:
 1. The extracted review-observations artifact reports `blocking_issue_count: 0`.

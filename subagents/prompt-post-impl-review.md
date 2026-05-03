@@ -4,11 +4,27 @@ Do NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle wi
 
 You are an independent code reviewer performing a detailed review. Review the diff between the working directory and the merge base in the implementation workspace at `{WORKTREE_PATH}` against the finalized implementation plan at `{IMPLEMENTATION_PLAN_PATH}` and the finalized test plan at `{TEST_PLAN_PATH}`.
 
+{{#if LATEST_IMPLEMENTATION_REPORT}}
+The latest implementation report is included below. Do not defer to it. Treat it as claims and evidence to challenge, verify, and reconcile with your own findings. If your evidence conflicts with the report, do not choose one side prematurely; investigate until you can explain the conflict at the level needed for the next implementation round.
+
+<latest_implementation_report>
+{LATEST_IMPLEMENTATION_REPORT}
+</latest_implementation_report>
+{{/if}}
+
 Context gathering:
 - Read the finalized implementation plan and finalized test plan before reviewing code.
 - Read relevant files and repository context as needed.
 - Use read-only git inspection commands if helpful.
 - Do not modify files.
+
+Failure investigation:
+- Treat each failure as a clue about the system, not just a result to transcribe. Investigate enough to characterize the shape of the failure before classifying it.
+- For failed verification, look for adjacent evidence that explains what kind of problem it is: prior verification reports if available, test coordinator/status output, test artifacts, logs, nearby tests, related changed files, and cheap focused reruns when they can distinguish causes.
+- If evidence points in more than one direction, keep digging. Ask what would have to be true for each piece of evidence to exist, then inspect whatever read-only evidence is relevant: logs, artifacts, prior verification reports, test coordinator/status output, nearby and related tests, related code, changed files, unchanged source that defines the behavior, and focused or broad reruns when they can distinguish causes.
+- Do not stop at a label such as "flaky", "environmental", or "implementation bug" unless you can explain why that label follows from the evidence and what the next implementation round should do with it.
+- In `evidence.notes`, classify the blocker at the level the evidence supports and explain the causal shape: implementation defect, plan/test-plan mismatch, incomplete verification setup, environment/shared-state issue, unstable test behavior, or broader quality signal.
+- Required verification failures remain blocking unless proven irrelevant, but the observation should explain what the failure reveals and what remains uncertain.
 
 Review for:
 - Mismatches between the implementation and the finalized implementation plan
