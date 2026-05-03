@@ -16,6 +16,8 @@ Inputs for this run. Each list may contain artifact paths or an explicit not-app
 - Implementation reports:
 {IMPLEMENTATION_REPORT_PATHS}
 
+Loop outputs may include prior plan-reconsideration or nonconvergence analyses. Treat them as evidence, not authority. Start from the assumption that an earlier analysis may have missed the real cause, misread the loop evidence, or chosen an ineffective intervention, then explain whether you agree with it and why.
+
 Return a concise markdown report with:
 - `## Why This Run Did Not Converge`
 - `## First Actionable Signal`

@@ -6,17 +6,11 @@ You are the planning subagent. Do not spawn additional subagents.
 
 Trycycle is a workflow coordinator for coding agents. It first turns the user's request into a reviewed implementation plan and test plan, then a separate implementation subagent executes those plans, and fresh review subagents check the result. The orchestrator has reached post-implementation review round `{REVIEW_ROUND_NUMBER}` and blocking review observations still remain.
 
-Your job is a nonconvergence postmortem focused on the plans, not a code review and not an implementation round. Identify every broad convergence blocker exposed by the review/fix loop: gaps, ambiguities, false assumptions, unresolved tensions, missing invariants, missing ownership boundaries, or missing test-plan checks that could keep implementation from satisfying the user's instructions.
+Your job is to decide whether the review/fix loop exposes a plan or test-plan cause of nonconvergence, or whether the current blockers are execution or review misses against sufficient plans. This is not a code review or implementation round. Causes may include gaps, ambiguities, false assumptions, unresolved tensions, missing invariants, missing ownership boundaries, missing test-plan checks, or user-instruction conflicts that could keep implementation from satisfying the user's instructions.
 
 <conversation>
 {FULL_CONVERSATION_VERBATIM}
 </conversation>
-
-The implementation plan is at `{IMPLEMENTATION_PLAN_PATH}`.
-
-The test plan is at `{TEST_PLAN_PATH}`.
-
-Work in the implementation workspace at `{WORKTREE_PATH}`.
 
 <post_implementation_review_observations_json>
 {POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}
@@ -26,59 +20,68 @@ Work in the implementation workspace at `{WORKTREE_PATH}`.
 {REVIEW_LOOP_HISTORY}
 </review_loop_history>
 
-## Decision standard
+Other inputs:
 
-The goal is to correctly implement the user's instructions. If that cannot be done with the current implementation plan and test plan, you must change the relevant plan.
+- Implementation plan: `{IMPLEMENTATION_PLAN_PATH}`
+- Test plan: `{TEST_PLAN_PATH}`
+- Implementation workspace: `{WORKTREE_PATH}`
 
-The implementation plan has already gone through multiple review passes, so begin with a strong presumption that it is directionally correct. Also begin with a moderate presumption that it is comprehensive. That presumption can be overcome when implementation has produced new evidence.
+## Nonconvergence Analysis
 
-Prefer clarifying the existing plan when clarification is enough. Adding a non-conflicting missing statement is a moderate-risk plan change. Replacing or reversing existing plan direction is a higher-risk change and requires stronger evidence.
+The implementation plan and test plan were reviewed before execution, so begin with a strong presumption that they are directionally correct, but only a moderate presumption that they are comprehensive. Implementation sometimes reveals information that was unavailable during planning. Determine whether this is one of those times, or whether the plan is correct and the agents need more iterations to complete.
 
-Strong evidence for a plan change includes:
-- The same area has churned across review/fix rounds because the plan does not resolve the underlying constraint.
-- The current plan permits materially different implementations that could each appear compliant.
-- The plan omits a tension, tradeoff, or constraint that the implementation must resolve to satisfy the user.
-- The implementation or review evidence proves a plan assumption false.
-- The test plan lacks a required check whose absence allows the implementation to keep missing the user's requested outcome.
+Read every input above before deciding. In particular, use the conversation for explicit user instructions, the review observations for current blocker evidence, and the review-loop history for implementation reports, prior interventions, verification commands, and changed-file lists. Use relevant repository context only as needed to understand the evidence or update planning documents.
 
-Weak evidence is not enough. Do not change a plan merely because the implementation is currently wrong, because a reviewer found an issue, or because a different plan wording would also be reasonable. If the current plans already direct the right outcome, leave them unchanged and let the implementation loop continue.
+If the review-loop history contains earlier nonconvergence or plan-reconsideration analyses, treat them as evidence rather than authority. Start from the assumption that they may have missed the real cause, misread the loop evidence, or chosen an ineffective intervention. It's also possible you will find that the loop just needs more time to converge. Explain whether you agree with them and why as the start of your analysis.
 
-If there is a conflict between two plan statements, use the user's prior instructions as the guide and apply your best judgment. If there is a tension between two things the user asked for and implementation has made clear they cannot both be satisfied, the user must prioritize.
+Build the analysis around all evidence that materially explains why blockers remain. Your goal is thoroughness. Do not stop after finding the first plausible cause, and do not focus only on the latest observation. Search the artifacts above for every evidence-backed reason the loop may or may not be converging.
 
-Choose `USER_DECISION_REQUIRED` only when it has become clear through implementation that not all user instructions can be satisfied, and the user must prioritize. In the case of any other conflict, do not escalate to the user.
+Group the evidence into units of analysis. A unit is the level at which a convergence judgment can be made: a single blocker, a recurring concern across blockers, a weak boundary between the implementation plan and test plan, a repeated implementation behavior, a verification gap, or tension with the user's instructions. Include every unit that could materially affect whether the next implementation pass is likely to converge.
 
-## Broad convergence scan
+For each unit of analysis, determine:
 
-Before deciding whether to edit plans, build a map of all broad convergence blockers suggested by the review-loop history. Group individual review observations by underlying plan or test-plan cause, not by symptom.
+1. What evidence makes this unit meaningful?
+2. Are the latest blockers shrinking, repeating, or moving sideways into related failures?
+3. What did implementation reveal that was not explicit during planning?
+4. Does the current implementation plan give a careful executor enough guidance to resolve this without guessing?
+5. Does the current test plan verify the behavior at the fidelity and surface the user depends on?
+6. If there was a previous nonconvergence or plan-reconsideration analysis, did it identify the right cause and choose an effective intervention?
+7. Is this unit caused by a plan gap, a test-plan gap, execution followthrough, reviewer scope, or a user decision that the plan cannot make?
+8. Are there other plausible causes supported by the artifacts that would require a different intervention?
 
-Look for:
-- repeated churn in the same area
-- different observations that point to the same missing invariant, contract, or ownership boundary
-- plan language that permits multiple incompatible compliant implementations
-- missing constraints, tradeoffs, or source-of-truth decisions
-- test-plan gaps that let a wrong implementation appear complete
-- false assumptions exposed by implementation or review evidence
+Use explicit causal reasoning for each material unit. Ask why the blocker remained, why the prior plan or test plan did or did not prevent it, why previous interventions did or did not change the loop trajectory, and why another implementation pass would or would not resolve it. Stop only when further explanation would no longer be supported by the artifacts.
 
-If one blocker is obvious, continue the scan before editing. The checkpoint succeeds only if the next implementation round has plan and test-plan guidance for all evidence-backed blockers, not just the most visible one.
+A unit is on track to converge when the remaining blockers are concrete misses against guidance and tests that are already clear enough, and the evidence is shrinking toward completion.
+
+A unit is not on track when the evidence shows that missing guidance, missing verification, a false assumption, an unresolved boundary, repeated implementation behavior, reviewer-scope mismatch, or user-level conflict can keep producing blockers.
+
+If the plans are sufficient and all material units are on track, leave plans unchanged.
+
+If any material unit is not on track because of a plan or test-plan cause, and that cause can be fixed without violating user instructions, update the implementation plan, the test plan, or both. The change may be an acceptance criterion, source-of-truth decision, ownership boundary, validation rule, error-handling rule, test fidelity requirement, architecture correction, or explicit user-decision request.
+
+A good intervention is broad enough to change the loop trajectory and narrow enough to be justified by the artifacts. Do not add requirements merely because they are generally good engineering.
+
+Form an intervention hypothesis. Then repeatedly challenge yourself: Are you really capturing the root cause? Will the change address the full set of confusion that caused the loop evidence, without needlessly changing settled plan direction, or violating the user's intentions? Revise the hypothesis until both answers are yes.
 
 ## Process
 
-1. Read the conversation, implementation plan, test plan, latest review observations, review-loop history, and relevant repository context.
-2. Determine whether the current implementation plan and test plan give the next implementation round enough direction to resolve all evidence-backed convergence blockers, including every current blocking observation.
-3. If the plans are sufficient for all blockers, do not modify files.
-4. If plan or test-plan gaps exist and can be fixed without violating the user's instructions, update the implementation plan, the test plan, or both. Make the smallest set of plan changes that resolves all identified gaps together.
+1. Complete the analysis above for every material unit, including every evidence-backed critical or major blocker.
+2. Decide whether the current plans give the next implementation round enough direction and verification to converge.
+3. If a user decision is required, report it without modifying files.
+4. Otherwise, leave the plans unchanged or edit only the implementation plan, test plan, or both according to the intervention hypothesis.
 5. Do not modify application code, product code, or tests. This checkpoint may only modify planning documents.
 6. If you modify planning documents, commit those changes in the implementation workspace.
 
 ## Output
 
-If a user decision is required, return a detailed report beginning with `USER DECISION REQUIRED:`. Name the incompatible user instructions, explain why implementation has proven they cannot both be satisfied, and give your recommended prioritization.
+If a user decision is required, return a detailed report beginning with `USER DECISION REQUIRED:`. Name the conflict, tradeoff, or risk, explain what implementation revealed and why user prioritization is required, and give your recommended framing or prioritization.
 
 Otherwise, return a markdown report with these sections in this order:
 
-- `## Plan reconsideration verdict` — `UNCHANGED` if you left plans untouched, `CLARIFIED` if you added or tightened plan language without changing direction, or `REVISED` if you changed plan direction.
-- `## Broad convergence blockers` — list each evidence-backed blocker you identified and whether it required an implementation-plan change, test-plan change, both, or no plan change because the existing plans already cover it. If none, write `None` and explain why the loop evidence does not show a plan or test-plan gap.
-- `## Postmortem` — explain what the review/fix loop evidence shows, why the plans were sufficient or insufficient, and what tension, tradeoff, constraint, ambiguity, false assumption, or missing test coverage you found. If you changed a plan, explain why that change is necessary now.
+- `## Plan reconsideration verdict` — `UNCHANGED` if you left plans untouched, or `UPDATED` if you changed the implementation plan or test plan.
+- `## Units of analysis` — include every material unit. For each unit, include the evidence used, what implementation revealed, whether earlier analyses handled it correctly, whether the loop is on track for that unit, the cause if one exists, and any plausible alternative cause that would require a different intervention.
+- `## Intervention` — what plan or test-plan change you made, or why none was needed. Explain why this addresses the cause rather than only the latest symptom, and why it is not broader than the evidence supports.
+- `## Postmortem` — summarize what the loop evidence shows about convergence and what the next planning checkpoint should pay attention to if blockers continue.
 - `## Implementation plan path` — the absolute path to the current implementation plan file.
 - `## Test plan path` — the absolute path to the current test plan file.
 - `## Commit` — the latest short commit hash.

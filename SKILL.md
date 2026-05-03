@@ -305,6 +305,7 @@ When another fix round is needed, first check whether plan reconsideration is du
 - Update `{IMPLEMENTATION_PLAN_PATH}` from `## Implementation plan path` and `{TEST_PLAN_PATH}` from `## Test plan path` in the latest plan-reconsideration report.
 - Run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
 - Save the plan-reconsideration report to a temp file and append that path to the loop outputs temp file.
+- Append the plan-reconsideration report itself to `{REVIEW_LOOP_HISTORY}` under a clear plan-reconsideration heading so future plan-reconsideration checkpoints receive prior analyses. This history is for planning and final nonconvergence analysis; do not add it to executor or reviewer prompts.
 - Close that planning subagent and clear any saved handle or `session_id` for it.
 
 Then continue with the fix round:
