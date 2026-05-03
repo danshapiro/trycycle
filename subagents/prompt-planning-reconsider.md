@@ -36,7 +36,13 @@ If the review-loop history contains earlier nonconvergence or plan-reconsiderati
 
 Build the analysis around all evidence that materially explains why blockers remain. Your goal is thoroughness. Do not stop after finding the first plausible cause, and do not focus only on the latest observation. Search the artifacts above for every evidence-backed reason the loop may or may not be converging.
 
-Group the evidence into units of analysis. A unit is the level at which a convergence judgment can be made: a single blocker, a recurring concern across blockers, a weak boundary between the implementation plan and test plan, a repeated implementation behavior, a verification gap, or tension with the user's instructions. Include every unit that could materially affect whether the next implementation pass is likely to converge.
+Before deciding or editing, build a historical observation inventory from the review-loop history. Include every critical and major review observation the history exposes, using the most precise identifier available, such as review round plus observation id, artifact source plus id, or section heading plus id. Assign each observation to a blocker group and mark it `resolved`, `active`, `newly revealed`, or `not relevant to plan reconsideration` with a short reason. If the history is incomplete, duplicated, malformed, or too ambiguous to inventory fully, say exactly which parts cannot be inventoried and limit any convergence conclusion accordingly.
+
+Then build a blocker map from that inventory. The map must group observations by underlying plan/test-plan cause or execution pattern, not by the latest symptom. Include earlier resolved, recurring, and newly revealed blocker groups when they materially affect convergence. For each group, identify the specific observation ids that support it. Do not use broad ranges such as "rounds 8-11" as a substitute for assigning individual observations.
+
+Then separately account for every current critical or major observation in `<post_implementation_review_observations_json>`. Each current blocker must either map to a historical blocker group or be named as a newly revealed group. Do not let the latest observations substitute for the history scan.
+
+Group the evidence into units of analysis. A unit is the level at which a convergence judgment can be made: a blocker group from the history map, a single current blocker that does not fit any group, a recurring concern across blockers, a weak boundary between the implementation plan and test plan, a repeated implementation behavior, a verification gap, or tension with the user's instructions. Include every unit that could materially affect whether the next implementation pass is likely to converge.
 
 For each unit of analysis, determine:
 
@@ -55,6 +61,8 @@ A unit is on track to converge when the remaining blockers are concrete misses a
 
 A unit is not on track when the evidence shows that missing guidance, missing verification, a false assumption, an unresolved boundary, repeated implementation behavior, reviewer-scope mismatch, or user-level conflict can keep producing blockers.
 
+Do not claim the loop is converging unless the historical observation inventory and blocker map support that claim. A convergence claim must explain which historical blocker groups are resolved, which remain active, and why the current blockers are shrinking toward concrete followthrough instead of moving sideways into sibling gaps. If the history is incomplete, ambiguous, or too unstructured to support that conclusion, say so and limit the conclusion accordingly.
+
 If the plans are sufficient and all material units are on track, leave plans unchanged.
 
 If any material unit is not on track because of a plan or test-plan cause, and that cause can be fixed without violating user instructions, update the implementation plan, the test plan, or both. The change may be an acceptance criterion, source-of-truth decision, ownership boundary, validation rule, error-handling rule, test fidelity requirement, architecture correction, or explicit user-decision request.
@@ -65,12 +73,15 @@ Form an intervention hypothesis. Then repeatedly challenge yourself: Are you rea
 
 ## Process
 
-1. Complete the analysis above for every material unit, including every evidence-backed critical or major blocker.
-2. Decide whether the current plans give the next implementation round enough direction and verification to converge.
-3. If a user decision is required, report it without modifying files.
-4. Otherwise, leave the plans unchanged or edit only the implementation plan, test plan, or both according to the intervention hypothesis.
-5. Do not modify application code, product code, or tests. This checkpoint may only modify planning documents.
-6. If you modify planning documents, commit those changes in the implementation workspace.
+1. Build the historical observation inventory from the review-loop history.
+2. Build the blocker map from the inventory, grouping all evidence-backed critical or major failures by underlying cause or execution pattern.
+3. Map every current critical or major blocker to that blocker map, or identify it as newly revealed.
+4. Complete the analysis above for every material unit.
+5. Decide whether the current plans give the next implementation round enough direction and verification to converge.
+6. If a user decision is required, report it without modifying files.
+7. Otherwise, leave the plans unchanged or edit only the implementation plan, test plan, or both according to the intervention hypothesis.
+8. Do not modify application code, product code, or tests. This checkpoint may only modify planning documents.
+9. If you modify planning documents, commit those changes in the implementation workspace.
 
 ## Output
 
@@ -79,9 +90,12 @@ If a user decision is required, return a detailed report beginning with `USER DE
 Otherwise, return a markdown report with these sections in this order:
 
 - `## Plan reconsideration verdict` — `UNCHANGED` if you left plans untouched, or `UPDATED` if you changed the implementation plan or test plan.
+- `## Historical observation inventory` — list every historical critical and major review observation you found before the current review, using compact identifiers such as `round/id`. For each, give its blocker group and status. If there are many observations, keep each entry short, but do not omit entries or replace them with round ranges. Include a count of inventoried observations and a note about any incomplete or ambiguous history.
+- `## Blocker map` — group historical critical and major review observations by underlying cause or repeated execution pattern. For each group, include the specific observation ids that support it, whether it appears resolved or still active, and whether current blockers map to it. If the history is incomplete or too unstructured to support a complete map, say exactly what is missing and how that limits the conclusion.
+- `## Current blocker coverage` — list every current critical or major observation from `<post_implementation_review_observations_json>` and identify its blocker-map group, or mark it as newly revealed.
 - `## Units of analysis` — include every material unit. For each unit, include the evidence used, what implementation revealed, whether earlier analyses handled it correctly, whether the loop is on track for that unit, the cause if one exists, and any plausible alternative cause that would require a different intervention.
 - `## Intervention` — what plan or test-plan change you made, or why none was needed. Explain why this addresses the cause rather than only the latest symptom, and why it is not broader than the evidence supports.
-- `## Postmortem` — summarize what the loop evidence shows about convergence and what the next planning checkpoint should pay attention to if blockers continue.
+- `## Postmortem` — summarize what the loop evidence shows about convergence and what the next planning checkpoint should pay attention to if blockers continue. Any statement that the loop is converging must be grounded in the historical observation inventory and blocker map, not only in the latest observations.
 - `## Implementation plan path` — the absolute path to the current implementation plan file.
 - `## Test plan path` — the absolute path to the current test plan file.
 - `## Commit` — the latest short commit hash.
