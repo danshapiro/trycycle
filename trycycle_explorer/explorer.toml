@@ -18,7 +18,7 @@ id = "planning-loop"
 label = "Planning loop"
 gates = [
   "plan-with-trycycle-planning",
-  "plan-editor-loop",
+  "planning-issue-review-and-synthesis-loop",
   "build-test-plan",
 ]
 
@@ -76,6 +76,12 @@ label = "Review loop history"
 help = "Accumulated raw review and fix-round evidence passed to plan reconsideration."
 widget = "textarea"
 source_category = "user-input"
+
+[bindings.PLANNING_FINDINGS_MEMO]
+label = "Planning findings memo"
+help = "Simple issue/evidence memo passed from the planning issue finder to the planning synthesizer."
+widget = "textarea"
+source_category = "derived-path"
 
 [bindings.WORKTREE_PATH]
 label = "Workspace path"
@@ -185,7 +191,7 @@ to = "plan-with-trycycle-planning"
 from = "plan-with-trycycle-planning"
 id = "plan-created"
 label = "Plan created"
-to = "plan-editor-loop"
+to = "planning-issue-review-and-synthesis-loop"
 
 [[outcomes]]
 from = "plan-with-trycycle-planning"
@@ -194,19 +200,19 @@ label = "User decision required"
 to = "plan-with-trycycle-planning"
 
 [[outcomes]]
-from = "plan-editor-loop"
-id = "already-excellent"
-label = "Already excellent"
+from = "planning-issue-review-and-synthesis-loop"
+id = "ready"
+label = "No plan issues"
 to = "build-test-plan"
 
 [[outcomes]]
-from = "plan-editor-loop"
-id = "made-excellent"
-label = "Made excellent and loop"
-to = "plan-editor-loop"
+from = "planning-issue-review-and-synthesis-loop"
+id = "issues-synthesized"
+label = "Issues synthesized and loop"
+to = "planning-issue-review-and-synthesis-loop"
 
 [[outcomes]]
-from = "plan-editor-loop"
+from = "planning-issue-review-and-synthesis-loop"
 id = "not-converging"
 label = "Not converging"
 to = "finish"

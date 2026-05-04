@@ -21,8 +21,9 @@ DEFAULT_TIMEOUT_SECONDS = 60 * 60
 LONG_RUNNING_AGENT_TIMEOUT_SECONDS = 3 * 60 * 60
 LONG_RUNNING_AGENT_PHASES = {
     "executing",
-    "planning-edit",
-    "planning-edit-deepen",
+    "planning-review",
+    "planning-review-deepen",
+    "planning-synthesis",
     "post-implementation-review",
     "post-implementation-review-deepen",
 }

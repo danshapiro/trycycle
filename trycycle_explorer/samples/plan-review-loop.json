@@ -1,9 +1,9 @@
 {
   "id": "plan-review-loop",
   "label": "Plan review loop",
-  "description": "A scenario focused on the plan-editor loop and path selection through repeated plan improvement.",
-  "selected_gate_id": "plan-editor-loop",
-  "selected_outcome_id": "made-excellent",
+  "description": "A scenario focused on the planning issue-review and synthesis loop.",
+  "selected_gate_id": "planning-issue-review-and-synthesis-loop",
+  "selected_outcome_id": "issues-synthesized",
   "bindings": {
     "INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION": [
       {
@@ -44,6 +44,7 @@
       }
     ],
     "POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON": "",
+    "PLANNING_FINDINGS_MEMO": "## Issue 1\nFinding: The plan does not state the source of truth for gate ordering.\nEvidence:\n- The user asked to derive as much as possible from SKILL.md and prompt templates.\n- A static sidecar order could drift when SKILL.md changes.",
     "WORKTREE_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer",
     "IMPLEMENTATION_PLAN_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer/docs/plans/2026-03-10-trycycle-explorer.md",
     "TEST_PLAN_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer/docs/plans/2026-03-10-trycycle-explorer-test-plan.md"

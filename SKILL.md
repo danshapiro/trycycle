@@ -76,7 +76,7 @@ When a step below references `{LATEST_IMPLEMENTATION_REPORT}`, use the most rece
 
 When a step below references `{REVIEW_LOOP_HISTORY}`, use the accumulated post-implementation review-loop history artifact from the current trycycle session.
 
-When a step below references `{IMPLEMENTATION_PLAN_PATH}`, use the latest absolute plan path returned by the planning subagent in the current trycycle session. Update it after the initial planning result, after every plan-edit result, and after every post-review plan-reconsideration result.
+When a step below references `{IMPLEMENTATION_PLAN_PATH}`, use the latest absolute plan path returned by the planning subagent in the current trycycle session. Update it after the initial planning result, after every planning synthesis result, and after every post-review plan-reconsideration result.
 
 When a step below references `{TEST_PLAN_PATH}`, use the latest absolute test-plan path returned by the test-plan subagent or post-review plan-reconsideration subagent in the current trycycle session. Update it after every test-plan result and every post-review plan-reconsideration result.
 
@@ -92,14 +92,14 @@ When a step below references `{IMPLEMENTATION_BACKEND}`, use the resolved `dispa
   - `--model` is an exact backend-specific override, not a discovery mechanism. Only pass it when you have identified a valid backend model name and can spell it exactly. Never guess or invent model names.
   - If no local override is configured and you can reliably identify your current model's exact backend name, pass that same model with `--model`. Otherwise omit `--model` and let the backend's local default apply.
   - Do not pass `--effort` unless the user explicitly asked for it or you are preserving a known parent setting. If the current effort is not safely knowable, omit it rather than guessing.
-- Same-agent deepening preserves an active subagent's state inside the current fresh round after that subagent has already found blocking issues, encouraging it to keep searching for more issues. Send the deepening prompt to the same active subagent before closing it. Do not run deepening after a normal `READY` or no-blocker response.
-- Planning subagent state resets at the start of each fresh planning pass: create a fresh planning subagent for the initial plan and for every fresh plan-edit round, and use same-agent deepening only after an active planning subagent returns `REVISED`.
+- Same-agent deepening preserves an active subagent's state inside the current fresh round after that subagent has already found issues that block progress, encouraging it to keep searching for more issues. Send the deepening prompt to the same active subagent before closing it. Do not run deepening after a normal `READY` or no-blocker response.
+- Planning subagent state resets at the start of each fresh planning pass: create a fresh planning subagent for the initial plan, for every fresh planning issue-review round, and for every planning synthesis round. Use same-agent deepening only after an active planning issue finder returns `ISSUES`.
 - Post-review plan-reconsideration checkpoints also use fresh planning subagents. They may update the implementation plan or test plan when implementation has exposed a real plan gap.
 - In native mode, implementation subagents are persistent: create one implementation agent, then resume it for every implementation-fix round.
 - In fallback-runner mode, implementation subagents are persistent through the runner: create one implementation session, record its `session_id`, then resume it through the runner for every implementation-fix round.
 - In fallback-runner mode, record the resolved `dispatch.backend` for persistent sessions and reuse that same backend on every `resume`.
 - Review subagent state resets at the start of each fresh post-implementation review round: create a fresh review subagent for each round, and use same-agent deepening only after an active review subagent reports blocking issues.
-- For initial planning and plan-edit rounds, pass `{USER_REQUEST_TRANSCRIPT}` as the task input. Do not use the full prior conversation there. Post-review plan-reconsideration checkpoints use `{FULL_CONVERSATION_VERBATIM}` because they need the review/fix history.
+- For initial planning, planning issue-review rounds, and planning synthesis rounds, pass `{USER_REQUEST_TRANSCRIPT}` as the task input. Do not use the full prior conversation there. Post-review plan-reconsideration checkpoints use `{FULL_CONVERSATION_VERBATIM}` because they need the review/fix history.
 - Render the prompt template with the prompt builder and pass the rendered prompt verbatim.
 - User instructions still apply. When they are relevant, relay them.
 - If a subagent returns `USER DECISION REQUIRED:`, keep that same agent or session alive until the user's reply has been forwarded and the round has resolved.
@@ -166,7 +166,7 @@ Do not continue until the branch is correct and the status is clean.
 
 ## 5) Workspace hygiene gate (mandatory)
 
-Before and after each major phase (`plan-editing`, `execution`, `post-implementation review`), run:
+Before and after each major phase (`plan-review/synthesis`, `execution`, `post-implementation review`), run:
 - `git -C {WORKTREE_PATH} branch --show-current`
 - `git -C {WORKTREE_PATH} status --short`
 
@@ -198,51 +198,64 @@ If the planning subagent returns `USER DECISION REQUIRED:`, present that questio
 
 If a planning report was returned, update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path`, then run the workspace hygiene gate checks, verify the latest commit hash plus changed-file list match the planning subagent's report, confirm the plan file exists at `{IMPLEMENTATION_PLAN_PATH}`, then close that planning subagent and clear any saved handle or `session_id` for it.
 
-## 7) Plan-editor loop (up to 5 rounds)
+## 7) Planning issue-review and synthesis loop (up to 5 review rounds)
 
-Deploy a fresh planning subagent to critique the current plan against the user's request and the repo, then either declare it already excellent unchanged or improve it directly.
+Deploy a fresh planning issue finder to critique the current plan against the user's request and the repo. The issue finder only discovers and reports plan issues; it must not edit the plan. If it finds issues, deepen on the same issue finder until discovery is saturated or the planning issue-finder deepening cap is reached, then close it and dispatch a fresh planning synthesis subagent to rewrite the plan holistically from the accumulated findings.
 
-Plan-editor state resets at the start of each fresh plan-edit round. Each fresh round gets only the template, the same task input used for initial planning, and the current plan. If the active planning subagent returns `REVISED`, use the same-agent deepening rule from Subagent Defaults to encourage it to look further for issues before closing it.
+A planning review round is one fresh issue-finder pass plus any same-agent deepening responses from that same issue finder. If that round returns `ISSUES`, one fresh synthesis pass follows and the round counts as not ready. The synthesis pass is separate from issue discovery and must not be sent to the same subagent.
 
-Immediately before each edit dispatch, prepare the `planning-edit` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-edit.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, and `--require-nonempty-tag task_input_json`, then dispatch a fresh planning subagent with the returned `prompt_path`. Start a phase prompt paths temp file if needed, and append the returned `prompt_path`.
+Immediately before each issue-review dispatch, prepare the `planning-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, and `--require-nonempty-tag task_input_json`, then dispatch a fresh planning subagent with the returned `prompt_path`. Start a phase prompt paths temp file if needed, and append the returned `prompt_path`.
 
 Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
 
-After each edit round:
-1. Wait for the planning subagent to return either an updated planning report containing `## Plan verdict`, `## Critical issues`, `## Plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
-2. If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either an updated planning report or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
-3. Update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path` in the latest planning report.
-4. Run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
-5. Start a loop outputs temp file if needed, save the returned planning report to a temp file, and append that path.
-6. If `## Plan verdict` is `READY`, close that planning subagent for the completed round, clear any saved handle or `session_id`, and continue to `## 8) Build test plan` with the current `{IMPLEMENTATION_PLAN_PATH}`. Do not run deepening after a `READY` verdict.
-7. If `## Plan verdict` is `REVISED`, run the same-agent plan-editor deepening loop below without closing the planning subagent. The deepening loop defines its own timeout and cap halt cases. If it halts, stop and tell the user - do not close the active planning subagent or dispatch another planning subagent unless the user instructs you to. If the deepening loop ends normally, close that planning subagent for the completed round and clear any saved handle or `session_id`. The completed fresh plan-editor round still counts as `REVISED` even if the final deepening response is `READY`, because the plan changed during this round.
-8. If the completed fresh plan-editor round was `REVISED` (including if deepening was done and ended with `READY` after `REVISED`) and fewer than 5 fresh plan-editor rounds have completed, repeat the edit dispatch and "After each edit round" flow with a fresh planning subagent. If the 5th fresh plan-editor round completed as `REVISED`, stop and follow the nonconvergence-review path below.
+After each issue-review round starts:
+1. Wait for the planning issue finder to return either a report containing `## Plan verdict`, `## Findings memo`, `## Plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
+2. If the planning issue finder returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either an issue-review report or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
+3. Confirm `## Plan path` matches the current `{IMPLEMENTATION_PLAN_PATH}`, then run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the planning issue finder's report.
+4. Start a loop outputs temp file if needed, save the returned issue-review report to a temp file, and append that path.
+5. If `## Plan verdict` is `READY`, close that planning subagent for the completed round, clear any saved handle or `session_id`, and continue to `## 8) Build test plan` with the current `{IMPLEMENTATION_PLAN_PATH}`. Do not run deepening after a `READY` verdict.
+6. If `## Plan verdict` is `ISSUES`, run the same-agent planning issue-finder deepening loop below without closing the planning subagent.
+7. When the deepening loop ends normally or reaches its cap, create a planning findings memo temp file from all issue-review and deepening report paths for this round. Preserve the simple findings memo shape; do not add a taxonomy, ledger, required resolution field, or semantic deduplication. File headers that identify the source report are okay.
+8. Close the completed issue-finder subagent and clear any saved handle or `session_id`.
+9. Dispatch a fresh planning synthesis subagent with the findings memo as described below.
+10. After synthesis completes, if fewer than 5 fresh planning review rounds have completed, repeat the issue-review dispatch and this "After each issue-review round starts" flow with a fresh issue finder. If the 5th fresh planning review round found issues and synthesis completed, stop and follow the nonconvergence-review path below.
 
-Same-agent plan-editor deepening loop:
+Same-agent planning issue-finder deepening loop:
 
-Before entering this loop, set the plan-editor deepening count to 0 for this planning subagent.
+Before entering this loop, set the planning issue-finder deepening count to 0 for this planning subagent.
 
 For each deepening pass:
-1. Prepare the `planning-edit-deepen` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-edit-deepen.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, and `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`. Append the returned `prompt_path` to the phase prompt paths temp file.
-2. In native mode, send the exact returned `prompt_path` contents verbatim to the same active planning subagent. In fallback-runner mode, resume the same planning session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using that planning dispatch's saved `session_id`, its resolved backend, the wrapper-prepared `prompt_path`, and phase `planning-edit-deepen`.
-3. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and halt this Trycycle run as an unexpected deepening timeout. Surface all completed planning report paths, the timed-out attempt artifacts if available, and the active planning session id if available. Notify the user of what happened and tell them they can instruct you to continue; await user instructions before taking any further action.
-4. Wait for either a report containing `## Plan verdict`, `## Critical issues`, `## Plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
-5. If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that same active planning subagent, and wait again for either an updated planning report or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and halt with the completed planning report paths and timed-out attempt artifacts.
+1. Prepare the `planning-review-deepen` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-review-deepen.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, and `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`. Append the returned `prompt_path` to the phase prompt paths temp file.
+2. In native mode, send the exact returned `prompt_path` contents verbatim to the same active planning issue finder. In fallback-runner mode, resume the same planning session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using that planning dispatch's saved `session_id`, its resolved backend, the wrapper-prepared `prompt_path`, and phase `planning-review-deepen`.
+3. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and halt this Trycycle run as an unexpected deepening timeout. Surface all completed planning issue-review report paths, the timed-out attempt artifacts if available, and the active planning session id if available. Notify the user of what happened and tell them they can instruct you to continue; await user instructions before taking any further action.
+4. Wait for either a report containing `## Plan verdict`, `## Findings memo`, `## Plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
+5. If the planning issue finder returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that same active planning subagent, and wait again for either an issue-review report or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and halt with the completed planning issue-review report paths and timed-out attempt artifacts.
 6. Save the completed deepening report to a temp file immediately and append that path to the loop outputs temp file before sending any further prompt.
-7. Update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path`, then run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
-8. If `## Plan verdict` is `READY`, the same planning subagent has found no additional critical plan issues. End this same-agent deepening loop.
-9. If `## Plan verdict` is `REVISED`, increment the plan-editor deepening count.
-10. If the plan-editor deepening count is 10, halt this Trycycle run as an unexpected deepening cap. Do not proceed to test-plan building and do not start another fresh plan-editor round. Surface the latest planning report plus all completed planning report paths and await user instructions.
-11. If the plan-editor deepening count is less than 10, repeat from the start of the deepening pass list.
+7. Confirm `## Plan path` matches the current `{IMPLEMENTATION_PLAN_PATH}`, then run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the planning issue finder's report.
+8. If `## Plan verdict` is `READY`, the same planning issue finder has found no additional critical plan issues. End this same-agent deepening loop.
+9. If `## Plan verdict` is `ISSUES`, increment the planning issue-finder deepening count.
+10. If the planning issue-finder deepening count is 20, end this same-agent deepening loop and continue to synthesis with all accumulated findings. This is not a halt condition.
+11. If the planning issue-finder deepening count is less than 20, repeat from the start of the deepening pass list.
 
-If the plan still is not judged ready after the 5th editor round: **STOP. Do NOT proceed to step 8.**
+The planning issue-finder counter intentionally counts completed deepening responses that contain `ISSUES`. A final `READY` response stops the loop and is not counted toward the cap.
+
+Planning synthesis pass:
+1. Immediately before each synthesis dispatch, prepare the `planning-synthesis` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-synthesis.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set-file PLANNING_FINDINGS_MEMO=<planning-findings-memo-temp-file>`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, `--require-nonempty-tag task_input_json`, and `--ignore-tag-for-placeholders planning_findings_memo`, then dispatch a fresh planning subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
+2. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
+3. Wait for the planning synthesis subagent to return either a report containing `## Plan verdict`, `## Synthesis summary`, `## Plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
+4. If the planning synthesis subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either a synthesis report or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
+5. Update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path`, then run the workspace hygiene gate checks, verify the latest commit hash plus changed-file list match the planning synthesis subagent's report, and confirm the plan file exists at `{IMPLEMENTATION_PLAN_PATH}`.
+6. Save the synthesis report to a temp file and append that path to the loop outputs temp file.
+7. Close the completed synthesis subagent and clear any saved handle or `session_id`.
+
+If the plan still is not judged ready after the 5th planning review round: **STOP. Do NOT proceed to step 8.**
 1. Stop looping.
-2. Prepare the `nonconvergence-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-nonconvergence-review.md`, `--set TRYCYCLE_SKILL_PATH=<skill-directory>/SKILL.md`, `--set NONCONVERGENCE_CONTEXT="Plan-editor loop reached 5 rounds without a READY verdict."`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH="Not built yet; the plan-editor loop did not converge before the test-plan phase."`, `--set-file PHASE_PROMPT_PATHS=<phase-prompt-paths-temp-file>`, `--set-file LOOP_OUTPUT_PATHS=<loop-outputs-temp-file>`, and `--set IMPLEMENTATION_REPORT_PATHS="Not applicable; execution did not start."`, then dispatch a subagent with the returned `prompt_path`. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
-3. Present that report and the latest planning report to the user and **await user instructions before taking any further action.**
+2. Prepare the `nonconvergence-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-nonconvergence-review.md`, `--set TRYCYCLE_SKILL_PATH=<skill-directory>/SKILL.md`, `--set NONCONVERGENCE_CONTEXT="Planning issue-review and synthesis loop reached 5 review rounds without a READY verdict."`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH="Not built yet; the planning issue-review and synthesis loop did not converge before the test-plan phase."`, `--set-file PHASE_PROMPT_PATHS=<phase-prompt-paths-temp-file>`, `--set-file LOOP_OUTPUT_PATHS=<loop-outputs-temp-file>`, and `--set IMPLEMENTATION_REPORT_PATHS="Not applicable; execution did not start."`, then dispatch a subagent with the returned `prompt_path`. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+3. Present that report plus the latest issue-review and synthesis reports to the user and **await user instructions before taking any further action.**
 
 ## 8) Build test plan (subagent-owned)
 
-Now that the implementation plan has passed the plan-editor loop and is finalized, dispatch a subagent to reconcile the testing strategy against the plan and produce the concrete test plan, starting from high-value existing automated checks where they exist and adding new tests where coverage is missing.
+Now that the implementation plan has passed the planning issue-review and synthesis loop and is finalized, dispatch a subagent to reconcile the testing strategy against the plan and produce the concrete test plan, starting from high-value existing automated checks where they exist and adding new tests where coverage is missing.
 
 Immediately before dispatch, prepare the `test-plan` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-test-plan.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--transcript-placeholder FULL_CONVERSATION_VERBATIM`, and `--require-nonempty-tag conversation`.
 
@@ -415,6 +428,6 @@ Clean up temporary artifacts created during the loop (for example plan scratch f
 
 If the implementation subagent is still open, close it and clear its saved handle or `session_id` before handing off to finishing.
 
-Finally, in one paragraph, briefly describe what was built/accomplished/changed/fixed. Then Report the process to the user using concrete facts and returned artifacts: how many plan-editor rounds, how many code-review rounds, the current `HEAD`, the changed-file list, the implementation subagent's latest summary and verification results, and any reviewer-reported residual issues.
+Finally, in one paragraph, briefly describe what was built/accomplished/changed/fixed. Then Report the process to the user using concrete facts and returned artifacts: how many planning issue-review/synthesis rounds, how many code-review rounds, the current `HEAD`, the changed-file list, the implementation subagent's latest summary and verification results, and any reviewer-reported residual issues.
 
 Then read and follow `<skill-directory>/subskills/trycycle-finishing/SKILL.md` to present the user with options for integrating the implementation workspace (merge, PR, etc.).

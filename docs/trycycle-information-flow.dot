@@ -74,7 +74,13 @@ digraph trycycle_information_flow {
       shape=note,
       fillcolor="#ffffff"
     ];
-    plan_reviewer [label="Fresh plan reviewer"];
+    plan_reviewer [label="Fresh planning\nissue finder"];
+    planning_findings [
+      label="Findings memo\n(issue + evidence)",
+      shape=note,
+      fillcolor="#ffffff"
+    ];
+    plan_synthesizer [label="Fresh planning\nsynthesizer"];
   }
 
   subgraph cluster_execution {
@@ -133,9 +139,23 @@ digraph trycycle_information_flow {
   worktree_manager -> planner [label="isolated repo view"];
   planner -> implementation_plan [label="proposed plan"];
   implementation_plan -> plan_reviewer [label="review input"];
-  prompt_builder -> plan_reviewer [label="review prompt"];
-  plan_reviewer -> planner [
-    label="critical/major findings\n(fresh round, up to 5)",
+  prompt_builder -> plan_reviewer [label="issue-review prompt"];
+  plan_reviewer -> planning_findings [
+    label="issues + same-agent deepening",
+    style=dashed,
+    color="#d97706",
+    fontcolor="#b45309"
+  ];
+  planning_findings -> plan_synthesizer [label="evidence memo"];
+  implementation_plan -> plan_synthesizer [label="current plan"];
+  prompt_builder -> plan_synthesizer [label="synthesis prompt"];
+  plan_synthesizer -> implementation_plan [
+    label="holistic rewrite",
+    color="#166534",
+    fontcolor="#166534"
+  ];
+  plan_synthesizer -> plan_reviewer [
+    label="fresh verification\n(up to 5)",
     style=dashed,
     color="#d97706",
     fontcolor="#b45309"

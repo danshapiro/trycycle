@@ -1413,8 +1413,9 @@ class SubagentRunnerTimeoutDefaultsTests(unittest.TestCase):
     def test_review_and_deepening_phases_use_execution_timeout(self) -> None:
         for phase in (
             "executing",
-            "planning-edit",
-            "planning-edit-deepen",
+            "planning-review",
+            "planning-review-deepen",
+            "planning-synthesis",
             "post-implementation-review",
             "post-implementation-review-deepen",
         ):
