@@ -1128,5 +1128,293 @@ class OpenCodeTranscriptTests(UserRequestTranscriptBuildTests):
             self.assertIn("canary", result.stderr.lower())
 
 
+def _write_pi_session(
+    sessions_root: Path,
+    *,
+    cwd: str = "/tmp/project",
+    session_id: str = "019dc509-cf06-7708-87a6-5f302e2416ce",
+    records: list[dict] | None = None,
+) -> Path:
+    """Write a Pi-format JSONL session file in the correct session directory.
+
+    Pi stores sessions under sessions_root/--{encoded_cwd}--/*.jsonl
+    """
+    encoded = cwd.lstrip("/").replace("/", "-").replace(":", "-")
+    session_dir = sessions_root / f"--{encoded}--"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    session_path = session_dir / f"{session_id}.jsonl"
+
+    all_records: list[dict] = [
+        {
+            "type": "session",
+            "version": 3,
+            "id": session_id,
+            "timestamp": "2026-05-04T00:00:00.000Z",
+            "cwd": cwd,
+        },
+    ]
+    if records:
+        all_records.extend(records)
+
+    _write_jsonl(session_path, all_records)
+    return session_path
+
+
+def _pi_message(
+    role: str,
+    content: list[dict],
+) -> dict:
+    """Build a Pi JSONL message record."""
+    return {
+        "type": "message",
+        "message": {
+            "role": role,
+            "content": content,
+        },
+    }
+
+
+def _text_block(text: str) -> dict:
+    return {"type": "text", "text": text}
+
+
+def _thinking_block(text: str) -> dict:
+    return {"type": "thinking", "text": text}
+
+
+def _tool_call_block(text: str) -> dict:
+    return {"type": "toolCall", "text": text}
+
+
+class PiCliTranscriptTests(UserRequestTranscriptBuildTests):
+    def test_pi_canary_finds_correct_session(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            sessions_root = tmp_path / "sessions"
+            canary = "trycycle-canary-pi-12345678901234567890"
+
+            _write_pi_session(
+                sessions_root,
+                cwd="/tmp/project",
+                session_id="ses-001",
+                records=[
+                    _pi_message("user", [_text_block(f"Build something {canary}")]),
+                    _pi_message("assistant", [_text_block("I'll help you build that.")]),
+                ],
+            )
+
+            result = self.run_builder(
+                "--cli", "pi-cli",
+                "--canary", canary,
+                "--search-root", str(sessions_root),
+                "--timeout-ms", "1000",
+                env={"HOME": str(tmp_path)},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            turns = json.loads(result.stdout)
+            self.assertEqual(len(turns), 2)
+            self.assertEqual(turns[0]["role"], "user")
+            self.assertIn(canary, turns[0]["text"])
+            self.assertEqual(turns[1]["role"], "assistant")
+            self.assertEqual(turns[1]["text"], "I'll help you build that.")
+
+    def test_pi_multi_turn_transcript(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            sessions_root = tmp_path / "sessions"
+            canary = "trycycle-canary-pi-multi-turn"
+
+            _write_pi_session(
+                sessions_root,
+                cwd="/tmp/project",
+                session_id="ses-multi",
+                records=[
+                    _pi_message("user", [_text_block(f"user1 {canary}")]),
+                    _pi_message("assistant", [_text_block("assistant1")]),
+                    _pi_message("user", [_text_block("user2")]),
+                    _pi_message("assistant", [_text_block("assistant2")]),
+                ],
+            )
+
+            result = self.run_builder(
+                "--cli", "pi-cli",
+                "--canary", canary,
+                "--search-root", str(sessions_root),
+                "--timeout-ms", "1000",
+                env={"HOME": str(tmp_path)},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            turns = json.loads(result.stdout)
+            self.assertEqual(len(turns), 4)
+            self.assertEqual(turns[0]["role"], "user")
+            self.assertEqual(turns[1]["role"], "assistant")
+            self.assertEqual(turns[2]["role"], "user")
+            self.assertEqual(turns[3]["role"], "assistant")
+
+    def test_pi_transcript_filters_thinking_and_tool_call(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            sessions_root = tmp_path / "sessions"
+            canary = "trycycle-canary-pi-filter"
+
+            _write_pi_session(
+                sessions_root,
+                cwd="/tmp/project",
+                session_id="ses-filter",
+                records=[
+                    _pi_message("user", [_text_block(f"visible user {canary}")]),
+                    _pi_message(
+                        "assistant",
+                        [
+                            _thinking_block("internal reasoning"),
+                            _tool_call_block("bash command output"),
+                            _text_block("visible reply"),
+                        ],
+                    ),
+                ],
+            )
+
+            result = self.run_builder(
+                "--cli", "pi-cli",
+                "--canary", canary,
+                "--search-root", str(sessions_root),
+                "--timeout-ms", "1000",
+                env={"HOME": str(tmp_path)},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            turns = json.loads(result.stdout)
+            self.assertEqual(len(turns), 2)
+            self.assertEqual(turns[0]["role"], "user")
+            self.assertIn(canary, turns[0]["text"])
+            self.assertEqual(turns[1]["role"], "assistant")
+            self.assertEqual(turns[1]["text"], "visible reply")
+            # Verify thinking/toolCall content is excluded
+            self.assertNotIn("internal reasoning", turns[1]["text"])
+            self.assertNotIn("bash command output", turns[1]["text"])
+
+    def test_pi_transcript_skips_non_message_records(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            sessions_root = tmp_path / "sessions"
+            canary = "trycycle-canary-pi-skip-meta"
+
+            _write_pi_session(
+                sessions_root,
+                cwd="/tmp/project",
+                session_id="ses-meta",
+                records=[
+                    {"type": "model_change", "id": "mc1", "provider": "test", "modelId": "gpt-4"},
+                    _pi_message("user", [_text_block(f"visible user {canary}")]),
+                    {"type": "model_change", "id": "mc2", "provider": "test", "modelId": "gpt-4"},
+                    _pi_message("assistant", [_text_block("visible reply")]),
+                ],
+            )
+
+            result = self.run_builder(
+                "--cli", "pi-cli",
+                "--canary", canary,
+                "--search-root", str(sessions_root),
+                "--timeout-ms", "1000",
+                env={"HOME": str(tmp_path)},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            turns = json.loads(result.stdout)
+            self.assertEqual(len(turns), 2)
+            self.assertEqual(turns[0]["role"], "user")
+            self.assertEqual(turns[1]["role"], "assistant")
+
+    def test_pi_transcript_fails_gracefully_when_sessions_root_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            sessions_root = tmp_path / "nonexistent"
+
+            result = self.run_builder(
+                "--cli", "pi-cli",
+                "--canary", "some-canary",
+                "--search-root", str(sessions_root),
+                "--timeout-ms", "500",
+                env={"HOME": str(tmp_path)},
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("does not exist", result.stderr)
+
+    def test_pi_canary_timeout_when_canary_not_in_any_session(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            sessions_root = tmp_path / "sessions"
+            canary = "trycycle-canary-pi-notfound"
+
+            _write_pi_session(
+                sessions_root,
+                cwd="/tmp/project",
+                session_id="ses-empty",
+                records=[
+                    _pi_message("user", [_text_block("no canary here")]),
+                ],
+            )
+
+            result = self.run_builder(
+                "--cli", "pi-cli",
+                "--canary", canary,
+                "--search-root", str(sessions_root),
+                "--timeout-ms", "500",
+                env={"HOME": str(tmp_path)},
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("canary", result.stderr.lower())
+
+    def test_pi_encode_cwd(self) -> None:
+        """Unit test for _encode_cwd path encoding."""
+        sys.path.insert(0, str(TRANSCRIPT_MODULE_ROOT))
+        try:
+            import pi_cli  # type: ignore
+        finally:
+            sys.path.pop(0)
+
+        # Standard path
+        self.assertEqual(pi_cli._encode_cwd("/tmp/project"), "--tmp-project--")
+        # Root path
+        self.assertEqual(pi_cli._encode_cwd("/"), "----")
+        # Path with colon
+        self.assertEqual(pi_cli._encode_cwd("/C:/Users/test"), "--C--Users-test--")
+        # Nested path
+        self.assertEqual(
+            pi_cli._encode_cwd("/home/user/repos/my-project"),
+            "--home-user-repos-my-project--",
+        )
+
+    def test_pi_extract_transcript_keeps_last_assistant_per_user_interval(self) -> None:
+        """Multiple assistant messages between user messages: keep the last one."""
+        sys.path.insert(0, str(TRANSCRIPT_MODULE_ROOT))
+        try:
+            import pi_cli  # type: ignore
+        finally:
+            sys.path.pop(0)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            session_path = Path(tmpdir) / "session.jsonl"
+            _write_jsonl(
+                session_path,
+                [
+                    {"type": "session", "version": 3, "id": "test", "timestamp": "", "cwd": "/tmp"},
+                    _pi_message("user", [_text_block("first user")]),
+                    _pi_message("assistant", [_text_block("intermediate")]),
+                    _pi_message("assistant", [_text_block("final assistant")]),
+                    _pi_message("user", [_text_block("second user")]),
+                    _pi_message("assistant", [_text_block("second reply")]),
+                ],
+            )
+
+            turns = pi_cli.extract_transcript(session_path)
+            # First user + intermediate assistant gets flushed when second user arrives,
+            # but then replaced by final assistant. So:
+            # user1, assistant(final assistant), user2, assistant(second reply)
+            self.assertEqual(len(turns), 4)
+            self.assertEqual(turns[0].text, "first user")
+            self.assertEqual(turns[1].text, "final assistant")
+            self.assertEqual(turns[2].text, "second user")
+            self.assertEqual(turns[3].text, "second reply")
+
+
 if __name__ == "__main__":
     unittest.main()
