@@ -8,6 +8,7 @@ import claude_code
 import codex_cli
 import kimi_cli
 import opencode_cli
+import pi_cli
 from common import TranscriptError, choose_most_recent_match, render_transcript
 
 
@@ -16,6 +17,7 @@ ADAPTERS = {
     "codex-cli": codex_cli,
     "kimi-cli": kimi_cli,
     "opencode": opencode_cli,
+    "pi-cli": pi_cli,
 }
 
 

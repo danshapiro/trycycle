@@ -29,6 +29,7 @@ MODEL_OVERRIDE_ENV_BY_BACKEND = {
     "claude": "TRYCYCLE_CLAUDE_MODEL",
     "kimi": "TRYCYCLE_KIMI_MODEL",
     "opencode": "TRYCYCLE_OPENCODE_MODEL",
+    "pi": "TRYCYCLE_PI_MODEL",
 }
 
 
@@ -259,6 +260,8 @@ def _probe_opencode(binary: str) -> dict[str, Any]:
 
 
 def _detect_host_backend() -> str | None:
+    if os.environ.get("PI_CODING_AGENT") == "true":
+        return "pi"
     if os.environ.get("CODEX_THREAD_ID") or os.environ.get("CODEX_HOME"):
         return "codex"
     if os.environ.get("CLAUDECODE"):
@@ -270,13 +273,15 @@ def _detect_host_backend() -> str | None:
 
 def _detect_backend_preferences() -> list[str]:
     host_backend = _detect_host_backend()
+    if host_backend == "pi":
+        return ["pi", "codex", "claude", "kimi", "opencode"]
     if host_backend == "codex":
-        return ["codex", "claude", "kimi", "opencode"]
+        return ["codex", "claude", "kimi", "opencode", "pi"]
     if host_backend == "claude":
-        return ["claude", "codex", "kimi", "opencode"]
+        return ["claude", "codex", "kimi", "opencode", "pi"]
     if host_backend == "opencode":
-        return ["opencode", "codex", "claude", "kimi"]
-    return ["codex", "claude", "kimi", "opencode"]
+        return ["opencode", "codex", "claude", "kimi", "pi"]
+    return ["codex", "claude", "kimi", "opencode", "pi"]
 
 
 def _probe_backends() -> dict[str, Any]:
@@ -285,6 +290,7 @@ def _probe_backends() -> dict[str, Any]:
         "claude": _probe_claude("claude"),
         "kimi": _probe_kimi("kimi"),
         "opencode": _probe_opencode("opencode"),
+        "pi": _probe_pi("pi"),
     }
 
     preferred_order = _detect_backend_preferences()
@@ -970,6 +976,100 @@ def _extract_opencode_reply_from_db(session_id: str, db_path: Path | None = None
         return ""
 
 
+def _probe_pi(binary: str) -> dict[str, Any]:
+    path = _resolve_binary(binary)
+    if path is None:
+        return {
+            "available": False,
+            "binary": binary,
+            "reason": "binary not found on PATH",
+        }
+
+    ok, output = _run_probe([path, "--help"])
+    if not ok:
+        return {
+            "available": False,
+            "binary": path,
+            "reason": output,
+        }
+
+    required_tokens = ["--print", "--session", "--session-dir", "--no-skills", "--model"]
+    missing = [token for token in required_tokens if token not in output]
+    if missing:
+        return {
+            "available": False,
+            "binary": path,
+            "reason": f"missing required help tokens: {', '.join(missing)}",
+        }
+
+    return {
+        "available": True,
+        "binary": path,
+        "supports_resume": True,
+    }
+
+
+def _pi_command(
+    *,
+    binary: str,
+    artifacts_dir: Path,
+    effort: str | None,
+    model: str | None,
+) -> list[str]:
+    command = [
+        binary,
+        "-p",
+        "--session-dir",
+        str(artifacts_dir),
+        "--no-skills",
+        "--no-extensions",
+        "--no-prompt-templates",
+        "--no-context-files",
+    ]
+    if model:
+        command.extend(["--model", model])
+    if effort:
+        command.extend(["--thinking", effort])
+    return command
+
+
+def _pi_resume_command(
+    *,
+    binary: str,
+    session_id: str,
+    effort: str | None,
+    model: str | None,
+) -> list[str]:
+    command = [
+        binary,
+        "-p",
+        "--session",
+        session_id,
+        "--no-skills",
+        "--no-extensions",
+        "--no-prompt-templates",
+        "--no-context-files",
+    ]
+    if model:
+        command.extend(["--model", model])
+    if effort:
+        command.extend(["--thinking", effort])
+    return command
+
+
+def _extract_pi_session_id(artifacts_dir: Path) -> str | None:
+    """Extract session ID from the first JSONL file found in artifacts_dir."""
+    for jsonl_path in sorted(artifacts_dir.glob("*.jsonl")):
+        try:
+            first_line = jsonl_path.read_text(encoding="utf-8").splitlines()[0]
+            record = json.loads(first_line)
+            if record.get("type") == "session":
+                return record.get("id")
+        except (OSError, json.JSONDecodeError, IndexError):
+            continue
+    return None
+
+
 def _opencode_command(
     *,
     binary: str,
@@ -1074,6 +1174,15 @@ def _run_backend(
             model=model,
         )
         cwd = workdir
+    elif backend == "pi":
+        command = _pi_command(
+            binary=binary,
+            artifacts_dir=reply_path.parent,
+            effort=effort,
+            model=model,
+        )
+        cwd = workdir
+        session_id = None
     else:
         raise ValueError(f"unsupported backend: {backend}")
 
@@ -1160,6 +1269,9 @@ def _run_backend(
         if not reply_text.strip() and session_id and result.returncode == 0:
             reply_text = _extract_opencode_reply_from_db(session_id)
         reply_path.write_text(reply_text, encoding="utf-8")
+    elif backend == "pi":
+        reply_text = result.stdout or ""
+        reply_path.write_text(reply_text, encoding="utf-8")
     elif backend in {"claude", "kimi"}:
         reply_text = result.stdout or ""
         reply_path.write_text(reply_text, encoding="utf-8")
@@ -1184,6 +1296,9 @@ def _run_backend(
             workdir=workdir,
             started_at=session_lookup_started_at,
         )
+
+    if backend == "pi" and result.returncode == 0 and session_id is None:
+        session_id = _extract_pi_session_id(reply_path.parent)
 
     return {
         "command": command,
@@ -1245,6 +1360,14 @@ def _resume_backend(
             binary=binary,
             session_id=session_id,
             workdir=workdir,
+            effort=effort,
+            model=model,
+        )
+        cwd = workdir
+    elif backend == "pi":
+        command = _pi_resume_command(
+            binary=binary,
+            session_id=session_id,
             effort=effort,
             model=model,
         )
@@ -1335,6 +1458,9 @@ def _resume_backend(
         # Tier 2 fallback: if JSON stream was incomplete, read reply from SQLite DB
         if not reply_text.strip() and session_id and result.returncode == 0:
             reply_text = _extract_opencode_reply_from_db(session_id)
+        reply_path.write_text(reply_text, encoding="utf-8")
+    elif backend == "pi":
+        reply_text = result.stdout or ""
         reply_path.write_text(reply_text, encoding="utf-8")
     elif backend in {"claude", "kimi"}:
         reply_text = result.stdout or ""
@@ -1736,19 +1862,19 @@ def _command_resume(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Safe fallback runner for trycycle subagent dispatch via Codex, Claude, Kimi, or OpenCode.",
+        description="Safe fallback runner for trycycle subagent dispatch via Codex, Claude, Kimi, OpenCode, or Pi.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     probe_parser = subparsers.add_parser(
         "probe",
-        help="Detect supported Codex, Claude, Kimi, and OpenCode backends.",
+        help="Detect supported Codex, Claude, Kimi, OpenCode, and Pi backends.",
     )
     probe_parser.set_defaults(func=_command_probe)
 
     run_parser = subparsers.add_parser(
         "run",
-        help="Run a subagent prompt through Codex, Claude, Kimi, or OpenCode without shell quoting.",
+        help="Run a subagent prompt through Codex, Claude, Kimi, OpenCode, or Pi without shell quoting.",
     )
     run_parser.add_argument(
         "--phase",
@@ -1771,7 +1897,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument(
         "--backend",
-        choices=["auto", "host", "codex", "claude", "kimi", "opencode"],
+        choices=["auto", "host", "codex", "claude", "kimi", "opencode", "pi"],
         default="auto",
         help="Backend selection policy. Use 'host' to stay on the parent backend.",
     )
@@ -1830,7 +1956,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     resume_parser.add_argument(
         "--backend",
-        choices=["auto", "host", "codex", "claude", "kimi", "opencode"],
+        choices=["auto", "host", "codex", "claude", "kimi", "opencode", "pi"],
         default="auto",
         help="Backend selection policy. Use 'host' to stay on the parent backend.",
     )
