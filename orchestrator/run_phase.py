@@ -48,6 +48,8 @@ def _parse_binding(raw: str) -> tuple[str, str]:
 def _detect_transcript_cli(selected: str) -> str:
     if selected != "auto":
         return selected
+    if os.environ.get("PI_CODING_AGENT") == "true":
+        return "pi-cli"
     if os.environ.get("CODEX_THREAD_ID") or os.environ.get("CODEX_HOME"):
         return "codex-cli"
     if os.environ.get("CLAUDECODE"):
@@ -286,7 +288,7 @@ def _add_prepare_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--transcript-cli",
-        choices=["auto", "codex-cli", "claude-code", "kimi-cli", "opencode"],
+        choices=["auto", "codex-cli", "claude-code", "kimi-cli", "opencode", "pi-cli"],
         default="auto",
         help="Transcript provider to use for transcript placeholders.",
     )
@@ -335,7 +337,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_prepare_arguments(run_parser)
     run_parser.add_argument(
         "--backend",
-        choices=["auto", "host", "codex", "claude", "kimi", "opencode"],
+        choices=["auto", "host", "codex", "claude", "kimi", "opencode", "pi"],
         default="auto",
         help="Subagent backend selection policy.",
     )

@@ -511,6 +511,7 @@ class RunPhaseTests(unittest.TestCase):
                 env={
                     "PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}",
                     "CODEX_THREAD_ID": "thread-123",
+                    "PI_CODING_AGENT": "",
                 },
             )
 
@@ -794,6 +795,7 @@ class RunPhaseTests(unittest.TestCase):
                     "CLAUDECODE": "",
                     "CODEX_THREAD_ID": "",
                     "CODEX_HOME": "",
+                    "PI_CODING_AGENT": "",
                 },
             )
 

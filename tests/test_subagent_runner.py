@@ -225,13 +225,14 @@ class SubagentRunnerTests(unittest.TestCase):
                     "CODEX_THREAD_ID": "",
                     "CODEX_HOME": "",
                     "OPENCODE": "",
+                    "PI_CODING_AGENT": "",
                 },
             )
 
             self.assertEqual(result.returncode, 0, result.stderr)
             payload = json.loads(result.stdout)
             self.assertEqual(payload["selected_backend"], "kimi")
-            self.assertEqual(payload["backend_order"], ["codex", "claude", "kimi", "opencode"])
+            self.assertEqual(payload["backend_order"], ["codex", "claude", "kimi", "opencode", "pi"])
             self.assertTrue(payload["backends"]["kimi"]["available"])
             self.assertTrue(payload["backends"]["kimi"]["supports_resume"])
 
@@ -250,6 +251,7 @@ class SubagentRunnerTests(unittest.TestCase):
                     "PATH": str(bin_dir),
                     "HOME": str(home_dir),
                     "CODEX_THREAD_ID": "thread-123",
+                    "PI_CODING_AGENT": "",
                 },
             )
 
@@ -289,6 +291,7 @@ class SubagentRunnerTests(unittest.TestCase):
                     "PATH": str(bin_dir),
                     "HOME": str(home_dir),
                     "CODEX_THREAD_ID": "thread-123",
+                    "PI_CODING_AGENT": "",
                 },
             )
 
@@ -331,6 +334,7 @@ class SubagentRunnerTests(unittest.TestCase):
                     "CODEX_THREAD_ID": "",
                     "CODEX_HOME": "",
                     "CLAUDECODE": "",
+                    "PI_CODING_AGENT": "",
                 },
             )
 
@@ -1462,6 +1466,7 @@ class OpenCodeTests(unittest.TestCase):
                     "CLAUDECODE": "",
                     "CODEX_THREAD_ID": "",
                     "CODEX_HOME": "",
+                    "PI_CODING_AGENT": "",
                 },
             )
 
@@ -1629,6 +1634,7 @@ class OpenCodeTests(unittest.TestCase):
                     "CLAUDECODE": "",
                     "CODEX_THREAD_ID": "",
                     "CODEX_HOME": "",
+                    "PI_CODING_AGENT": "",
                 },
             )
 
@@ -1821,6 +1827,379 @@ class OpenCodeExtractionUnitTests(unittest.TestCase):
             ])
             reply = self._extract_reply_from_db("ses_multi", db_path)
             self.assertEqual(reply, "second answer")
+
+
+def _write_fake_pi_binary(bin_dir: Path) -> Path:
+    pi_path = bin_dir / "pi"
+    pi_path.write_text(
+        textwrap.dedent(
+            f"""\
+            #!{sys.executable}
+            import json
+            import os
+            import sys
+            import uuid
+            from pathlib import Path
+
+            def read_flag_value(flag):
+                if flag not in sys.argv:
+                    return None
+                index = sys.argv.index(flag)
+                if index + 1 >= len(sys.argv):
+                    return None
+                return sys.argv[index + 1]
+
+            def append_log():
+                log_path = os.environ.get("FAKE_PI_LOG")
+                if not log_path:
+                    return
+                with open(log_path, "a", encoding="utf-8") as handle:
+                    handle.write(json.dumps({{"argv": sys.argv[1:]}}) + "\\n")
+
+            append_log()
+
+            if "--help" in sys.argv or "-h" in sys.argv:
+                sys.stdout.write(
+                    "pi - AI coding assistant\\n"
+                    "--print, -p  Non-interactive mode\\n"
+                    "--session <path|id>  Use specific session\\n"
+                    "--session-dir <dir>  Directory for session storage\\n"
+                    "--no-skills, -ns  Disable skills\\n"
+                    "--model <pattern>  Model pattern or ID\\n"
+                    "--no-extensions, -ne  Disable extensions\\n"
+                    "--no-prompt-templates, -np  Disable prompt templates\\n"
+                    "--no-context-files, -nc  Disable context files\\n"
+                )
+                raise SystemExit(0)
+
+            # Simulate -p (print/non-interactive) mode
+            session_dir = read_flag_value("--session-dir")
+            session_flag = read_flag_value("--session")
+            prompt_text = sys.stdin.read()
+            mode = os.environ.get("FAKE_PI_MODE", "success")
+            reply_text = os.environ.get("FAKE_PI_REPLY", "fake pi reply")
+            session_id = os.environ.get("FAKE_PI_SESSION_ID", str(uuid.uuid4()))
+
+            if mode == "failure":
+                sys.stderr.write("Error: something went wrong\\n")
+                raise SystemExit(1)
+
+            # If --session-dir is given, write a session JSONL file
+            if session_dir and not session_flag:
+                session_dir_path = Path(session_dir)
+                session_dir_path.mkdir(parents=True, exist_ok=True)
+                session_file = session_dir_path / f"session.jsonl"
+                header = {{"type": "session", "version": 3, "id": session_id, "timestamp": "2026-05-04T00:00:00.000Z", "cwd": "/tmp"}}
+                session_file.write_text(json.dumps(header) + "\\n", encoding="utf-8")
+
+            sys.stdout.write(reply_text)
+            raise SystemExit(0)
+            """
+        ),
+        encoding="utf-8",
+    )
+    pi_path.chmod(0o755)
+    return pi_path
+
+
+class PiBackendTests(unittest.TestCase):
+    def run_runner(
+        self,
+        *args: str,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        merged_env = os.environ.copy()
+        if env:
+            merged_env.update(env)
+        return subprocess.run(
+            [sys.executable, str(SUBAGENT_RUNNER), *args],
+            text=True,
+            capture_output=True,
+            check=False,
+            env=merged_env,
+        )
+
+    def test_probe_detects_pi_backend(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            _write_fake_pi_binary(bin_dir)
+
+            result = self.run_runner(
+                "probe",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "CLAUDECODE": "",
+                    "CODEX_THREAD_ID": "",
+                    "CODEX_HOME": "",
+                    "OPENCODE": "",
+                    "PI_CODING_AGENT": "",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["backends"]["pi"]["available"])
+            self.assertTrue(payload["backends"]["pi"]["supports_resume"])
+
+    def test_probe_detects_pi_host_backend(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            _write_fake_pi_binary(bin_dir)
+
+            result = self.run_runner(
+                "probe",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "PI_CODING_AGENT": "true",
+                    "CLAUDECODE": "",
+                    "CODEX_THREAD_ID": "",
+                    "CODEX_HOME": "",
+                    "OPENCODE": "",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["host_backend"], "pi")
+            self.assertEqual(payload["selected_backend"], "pi")
+
+    def test_run_with_pi_backend_dry_run_returns_ok(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            workdir = tmp_path / "work"
+            artifacts_dir = tmp_path / "artifacts"
+            prompt_path = tmp_path / "prompt.txt"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            workdir.mkdir()
+            prompt_path.write_text("pi dry run test\n", encoding="utf-8")
+            fake_pi = _write_fake_pi_binary(bin_dir)
+
+            result = self.run_runner(
+                "run",
+                "--phase", "smoke",
+                "--prompt-file", str(prompt_path),
+                "--workdir", str(workdir),
+                "--artifacts-dir", str(artifacts_dir),
+                "--backend", "pi",
+                "--dry-run",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "ok")
+            self.assertEqual(payload["backend"], "pi")
+            command = payload["process"]["command"]
+            self.assertEqual(command[0], str(fake_pi))
+            self.assertIn("-p", command)
+            self.assertIn("--session-dir", command)
+            self.assertIn("--no-skills", command)
+            self.assertIn("--no-extensions", command)
+            self.assertIn("--no-prompt-templates", command)
+            self.assertIn("--no-context-files", command)
+
+    def test_run_with_pi_backend_returns_ok(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            workdir = tmp_path / "work"
+            artifacts_dir = tmp_path / "artifacts"
+            prompt_path = tmp_path / "prompt.txt"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            workdir.mkdir()
+            prompt_path.write_text("pi live run test\n", encoding="utf-8")
+            _write_fake_pi_binary(bin_dir)
+
+            session_id = "019dc509-cf06-7708-87a6-5f302e2416ce"
+
+            result = self.run_runner(
+                "run",
+                "--phase", "smoke",
+                "--prompt-file", str(prompt_path),
+                "--workdir", str(workdir),
+                "--artifacts-dir", str(artifacts_dir),
+                "--backend", "pi",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "FAKE_PI_MODE": "success",
+                    "FAKE_PI_REPLY": "pi test reply",
+                    "FAKE_PI_SESSION_ID": session_id,
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "ok")
+            self.assertEqual(payload["backend"], "pi")
+            self.assertEqual(payload["session_id"], session_id)
+            reply_path = Path(payload["reply_path"])
+            self.assertEqual(reply_path.read_text(encoding="utf-8"), "pi test reply")
+
+    def test_resume_with_pi_backend_dry_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            workdir = tmp_path / "work"
+            artifacts_dir = tmp_path / "artifacts"
+            prompt_path = tmp_path / "prompt.txt"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            workdir.mkdir()
+            prompt_path.write_text("pi resume dry run\n", encoding="utf-8")
+            fake_pi = _write_fake_pi_binary(bin_dir)
+
+            result = self.run_runner(
+                "resume",
+                "--phase", "execute",
+                "--session-id", "session-file-123",
+                "--prompt-file", str(prompt_path),
+                "--workdir", str(workdir),
+                "--artifacts-dir", str(artifacts_dir),
+                "--backend", "pi",
+                "--dry-run",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "ok")
+            self.assertEqual(payload["backend"], "pi")
+            command = payload["process"]["command"]
+            self.assertEqual(command[0], str(fake_pi))
+            self.assertIn("-p", command)
+            self.assertIn("--session", command)
+            self.assertIn("session-file-123", command)
+            self.assertIn("--no-skills", command)
+
+    def test_run_with_pi_backend_model_override_from_env(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            workdir = tmp_path / "work"
+            artifacts_dir = tmp_path / "artifacts"
+            prompt_path = tmp_path / "prompt.txt"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            workdir.mkdir()
+            prompt_path.write_text("model override test\n", encoding="utf-8")
+            _write_fake_pi_binary(bin_dir)
+
+            result = self.run_runner(
+                "run",
+                "--phase", "smoke",
+                "--prompt-file", str(prompt_path),
+                "--workdir", str(workdir),
+                "--artifacts-dir", str(artifacts_dir),
+                "--backend", "pi",
+                "--dry-run",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "TRYCYCLE_PI_MODEL": "glm-5.1:high",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "ok")
+            command = payload["process"]["command"]
+            self.assertIn("--model", command)
+            self.assertIn("glm-5.1:high", command)
+
+    def test_run_with_host_backend_uses_pi_when_pi_is_host(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            workdir = tmp_path / "work"
+            artifacts_dir = tmp_path / "artifacts"
+            prompt_path = tmp_path / "prompt.txt"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            workdir.mkdir()
+            prompt_path.write_text("host backend dry run\n", encoding="utf-8")
+            fake_pi = _write_fake_pi_binary(bin_dir)
+
+            result = self.run_runner(
+                "run",
+                "--phase", "smoke",
+                "--prompt-file", str(prompt_path),
+                "--workdir", str(workdir),
+                "--artifacts-dir", str(artifacts_dir),
+                "--backend", "host",
+                "--dry-run",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "PI_CODING_AGENT": "true",
+                    "CLAUDECODE": "",
+                    "CODEX_THREAD_ID": "",
+                    "CODEX_HOME": "",
+                    "OPENCODE": "",
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "ok")
+            self.assertEqual(payload["backend"], "pi")
+            self.assertEqual(payload["process"]["command"][0], str(fake_pi))
+
+    def test_run_with_pi_backend_escalates_on_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bin_dir = tmp_path / "bin"
+            home_dir = tmp_path / "home"
+            workdir = tmp_path / "work"
+            artifacts_dir = tmp_path / "artifacts"
+            prompt_path = tmp_path / "prompt.txt"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            workdir.mkdir()
+            prompt_path.write_text("failing prompt\n", encoding="utf-8")
+            _write_fake_pi_binary(bin_dir)
+
+            result = self.run_runner(
+                "run",
+                "--phase", "smoke",
+                "--prompt-file", str(prompt_path),
+                "--workdir", str(workdir),
+                "--artifacts-dir", str(artifacts_dir),
+                "--backend", "pi",
+                env={
+                    "PATH": str(bin_dir),
+                    "HOME": str(home_dir),
+                    "FAKE_PI_MODE": "failure",
+                },
+            )
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "escalate_to_user")
 
 
 def _create_opencode_session_db(db_path: Path, session_id: str, messages: list[dict]) -> None:
