@@ -1400,6 +1400,39 @@ def _write_fake_opencode_binary(bin_dir: Path) -> Path:
     return opencode_path
 
 
+class SubagentRunnerTimeoutDefaultsTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        sys.path.insert(0, str(ORCHESTRATOR_ROOT))
+        import subagent_runner  # type: ignore
+
+        cls._default_timeout_seconds_for_phase = staticmethod(
+            subagent_runner._default_timeout_seconds_for_phase
+        )
+
+    def test_review_and_deepening_phases_use_execution_timeout(self) -> None:
+        for phase in (
+            "executing",
+            "planning-edit",
+            "planning-edit-deepen",
+            "post-implementation-review",
+            "post-implementation-review-deepen",
+        ):
+            with self.subTest(phase=phase):
+                self.assertEqual(self._default_timeout_seconds_for_phase(phase), 3 * 60 * 60)
+
+    def test_unrelated_phases_keep_default_timeout(self) -> None:
+        for phase in (
+            "planning-initial",
+            "test-plan",
+            "planning-reconsider",
+            "nonconvergence-review",
+            "smoke",
+        ):
+            with self.subTest(phase=phase):
+                self.assertEqual(self._default_timeout_seconds_for_phase(phase), 60 * 60)
+
+
 class OpenCodeTests(unittest.TestCase):
     def run_runner(
         self,

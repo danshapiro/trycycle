@@ -41,6 +41,16 @@ def _read_text(path: Path) -> str:
         raise ExtractionError(f"could not read reply file: {path}") from exc
 
 
+def _read_json(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ExtractionError(f"could not read observations JSON file: {path}") from exc
+    if not isinstance(payload, dict):
+        raise ExtractionError(f"observations JSON root must be an object: {path}")
+    return payload
+
+
 def _extract_tagged_json(reply_text: str) -> dict[str, Any]:
     match = TAG_RE.search(reply_text)
     if not match:
@@ -239,6 +249,45 @@ def extract_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def combine_payloads(payloads: list[dict[str, Any]]) -> dict[str, Any]:
+    observations: list[dict[str, Any]] = []
+    summaries: list[str] = []
+    for payload in payloads:
+        normalized = normalize_payload(payload)
+        if normalized["summary"]:
+            summaries.append(normalized["summary"])
+        for observation in normalized["observations"]:
+            copied = dict(observation)
+            copied["id"] = f"R{len(observations) + 1}"
+            observations.append(copied)
+
+    combined = {
+        "status": "issues_found" if observations else "no_issues",
+        "summary": " | ".join(summaries),
+        "observations": observations,
+    }
+    return normalize_payload(combined)
+
+
+def combine_command(args: argparse.Namespace) -> int:
+    input_paths = [Path(raw).resolve() for raw in args.inputs]
+    output_path = Path(args.output).resolve()
+    payloads = [_read_json(path) for path in input_paths]
+    combined = combine_payloads(payloads)
+    _write_json(output_path, combined)
+    result = {
+        "status": "ok",
+        "observations_path": str(output_path),
+        "issue_count": combined["issue_count"],
+        "blocking_issue_count": combined["blocking_issue_count"],
+        "has_blocking_issues": combined["blocking_issue_count"] > 0,
+        "review_status": combined["status"],
+    }
+    json.dump(result, sys.stdout, indent=2, sort_keys=True)
+    sys.stdout.write("\n")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Extract and validate structured review observations from a reviewer reply."
@@ -256,6 +305,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to write the normalized review observations JSON.",
     )
     extract.set_defaults(func=extract_command)
+
+    combine = subparsers.add_parser(
+        "combine",
+        help="Combine normalized review observation JSON files into one normalized artifact.",
+    )
+    combine.add_argument("--output", required=True, help="Path to write combined observations JSON.")
+    combine.add_argument("inputs", nargs="+", help="Normalized observation JSON files from extract.")
+    combine.set_defaults(func=combine_command)
 
     return parser
 

@@ -92,12 +92,13 @@ When a step below references `{IMPLEMENTATION_BACKEND}`, use the resolved `dispa
   - `--model` is an exact backend-specific override, not a discovery mechanism. Only pass it when you have identified a valid backend model name and can spell it exactly. Never guess or invent model names.
   - If no local override is configured and you can reliably identify your current model's exact backend name, pass that same model with `--model`. Otherwise omit `--model` and let the backend's local default apply.
   - Do not pass `--effort` unless the user explicitly asked for it or you are preserving a known parent setting. If the current effort is not safely knowable, omit it rather than guessing.
-- Planning subagents are ephemeral across plan-edit rounds so they can remain independent: spawn a fresh planning agent for the initial plan and for every plan-edit round until the plan is judged already excellent without changes.
+- Same-agent deepening preserves an active subagent's state inside the current fresh round after that subagent has already found blocking issues, encouraging it to keep searching for more issues. Send the deepening prompt to the same active subagent before closing it. Do not run deepening after a normal `READY` or no-blocker response.
+- Planning subagent state resets at the start of each fresh planning pass: create a fresh planning subagent for the initial plan and for every fresh plan-edit round, and use same-agent deepening only after an active planning subagent returns `REVISED`.
 - Post-review plan-reconsideration checkpoints also use fresh planning subagents. They may update the implementation plan or test plan when implementation has exposed a real plan gap.
 - In native mode, implementation subagents are persistent: create one implementation agent, then resume it for every implementation-fix round.
 - In fallback-runner mode, implementation subagents are persistent through the runner: create one implementation session, record its `session_id`, then resume it through the runner for every implementation-fix round.
 - In fallback-runner mode, record the resolved `dispatch.backend` for persistent sessions and reuse that same backend on every `resume`.
-- Review subagents are ephemeral: create a fresh reviewer for each post-implementation review round.
+- Review subagent state resets at the start of each fresh post-implementation review round: create a fresh review subagent for each round, and use same-agent deepening only after an active review subagent reports blocking issues.
 - For initial planning and plan-edit rounds, pass `{USER_REQUEST_TRANSCRIPT}` as the task input. Do not use the full prior conversation there. Post-review plan-reconsideration checkpoints use `{FULL_CONVERSATION_VERBATIM}` because they need the review/fix history.
 - Render the prompt template with the prompt builder and pass the rendered prompt verbatim.
 - User instructions still apply. When they are relevant, relay them.
@@ -201,21 +202,38 @@ If a planning report was returned, update `{IMPLEMENTATION_PLAN_PATH}` from `## 
 
 Deploy a fresh planning subagent to critique the current plan against the user's request and the repo, then either declare it already excellent unchanged or improve it directly.
 
-The plan editor is stateless: each round is a fresh first-look pass with only the template, the same task input used for initial planning, and the current plan.
+Plan-editor state resets at the start of each fresh plan-edit round. Each fresh round gets only the template, the same task input used for initial planning, and the current plan. If the active planning subagent returns `REVISED`, use the same-agent deepening rule from Subagent Defaults to encourage it to look further for issues before closing it.
 
 Immediately before each edit dispatch, prepare the `planning-edit` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-edit.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, and `--require-nonempty-tag task_input_json`, then dispatch a fresh planning subagent with the returned `prompt_path`. Start a phase prompt paths temp file if needed, and append the returned `prompt_path`.
 
-Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
 
 After each edit round:
 1. Wait for the planning subagent to return either an updated planning report containing `## Plan verdict`, `## Critical issues`, `## Plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
-2. If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either an updated planning report or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+2. If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either an updated planning report or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
 3. Update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path` in the latest planning report.
 4. Run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
-5. Start a loop outputs temp file if needed, save the returned planning report to a temp file, append that path, then close that planning subagent for the completed round and clear any saved handle or `session_id` for it.
-6. If `## Plan verdict` is `READY`, continue to step 8 with the current `{IMPLEMENTATION_PLAN_PATH}`. **If the verdict is NOT `READY`, do NOT proceed to step 8 - continue to step 7 for another planning round.**
-7. If `## Plan verdict` is `REVISED`, repeat with a fresh planning subagent.
-8. Repeat up to 5 rounds.
+5. Start a loop outputs temp file if needed, save the returned planning report to a temp file, and append that path.
+6. If `## Plan verdict` is `READY`, close that planning subagent for the completed round, clear any saved handle or `session_id`, and continue to `## 8) Build test plan` with the current `{IMPLEMENTATION_PLAN_PATH}`. Do not run deepening after a `READY` verdict.
+7. If `## Plan verdict` is `REVISED`, run the same-agent plan-editor deepening loop below without closing the planning subagent. The deepening loop defines its own timeout and cap halt cases. If it halts, stop and tell the user - do not close the active planning subagent or dispatch another planning subagent unless the user instructs you to. If the deepening loop ends normally, close that planning subagent for the completed round and clear any saved handle or `session_id`. The completed fresh plan-editor round still counts as `REVISED` even if the final deepening response is `READY`, because the plan changed during this round.
+8. If the completed fresh plan-editor round was `REVISED` (including if deepening was done and ended with `READY` after `REVISED`) and fewer than 5 fresh plan-editor rounds have completed, repeat the edit dispatch and "After each edit round" flow with a fresh planning subagent. If the 5th fresh plan-editor round completed as `REVISED`, stop and follow the nonconvergence-review path below.
+
+Same-agent plan-editor deepening loop:
+
+Before entering this loop, set the plan-editor deepening count to 0 for this planning subagent.
+
+For each deepening pass:
+1. Prepare the `planning-edit-deepen` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-edit-deepen.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, and `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`. Append the returned `prompt_path` to the phase prompt paths temp file.
+2. In native mode, send the exact returned `prompt_path` contents verbatim to the same active planning subagent. In fallback-runner mode, resume the same planning session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using that planning dispatch's saved `session_id`, its resolved backend, the wrapper-prepared `prompt_path`, and phase `planning-edit-deepen`.
+3. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and halt this Trycycle run as an unexpected deepening timeout. Surface all completed planning report paths, the timed-out attempt artifacts if available, and the active planning session id if available. Notify the user of what happened and tell them they can instruct you to continue; await user instructions before taking any further action.
+4. Wait for either a report containing `## Plan verdict`, `## Critical issues`, `## Plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
+5. If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that same active planning subagent, and wait again for either an updated planning report or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and halt with the completed planning report paths and timed-out attempt artifacts.
+6. Save the completed deepening report to a temp file immediately and append that path to the loop outputs temp file before sending any further prompt.
+7. Update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path`, then run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
+8. If `## Plan verdict` is `READY`, the same planning subagent has found no additional critical plan issues. End this same-agent deepening loop.
+9. If `## Plan verdict` is `REVISED`, increment the plan-editor deepening count.
+10. If the plan-editor deepening count is 10, halt this Trycycle run as an unexpected deepening cap. Do not proceed to test-plan building and do not start another fresh plan-editor round. Surface the latest planning report plus all completed planning report paths and await user instructions.
+11. If the plan-editor deepening count is less than 10, repeat from the start of the deepening pass list.
 
 If the plan still is not judged ready after the 5th editor round: **STOP. Do NOT proceed to step 8.**
 1. Stop looping.
@@ -275,11 +293,24 @@ Create an empty temp file for `{REVIEW_LOOP_HISTORY}` before starting the first 
 
 Immediately before dispatch, prepare the `post-implementation-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-post-impl-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set-file LATEST_IMPLEMENTATION_REPORT=<latest-implementation-report-temp-file>`, and `--ignore-tag-for-placeholders latest_implementation_report`, then dispatch a review subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
 
-Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
 
-Use the review subagent's output as the fix-loop input. As soon as you have captured the reviewer's stdout or decided the review loop is done, close that completed review subagent and clear any saved handle or `session_id` for it.
+Use the review subagent's completed output as the first review-pass input. Keep that same review subagent open until either:
+- the normal first response has no blocking issues,
+- same-agent deepening completes without additional blocking issues,
+- the 10-pass deepening cap is hit,
+- a timeout or extraction failure requires halting,
+- or the reviewer asks for `USER DECISION REQUIRED:`.
 
-After every review round, save the reviewer's raw stdout to a temp file immediately and extract a structured review-observations artifact from it:
+If the reviewer returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that same active review subagent, and wait again for either a completed review response or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and halt with all completed review reply paths, extracted observation paths, and timed-out attempt artifacts if available.
+
+After every completed review pass, including the normal first response and every deepening response:
+1. Save the reviewer's raw stdout to a temp file immediately.
+2. Extract a structured review-observations artifact from that saved reply.
+3. Append the review reply path and extracted review-observations path to the loop outputs temp file.
+4. Append the completed review pass number, raw stdout, and normalized review-observations JSON to `{REVIEW_LOOP_HISTORY}` under the current post-implementation review round before sending any further prompt.
+
+Use this command for each pass extraction:
 
 ```bash
 python3 <skill-directory>/orchestrator/review_observations.py extract \
@@ -295,18 +326,58 @@ Treat the extractor's JSON stdout as authoritative for:
 
 If extraction fails, stop and surface the review reply plus the extractor failure to the user rather than guessing.
 
-Start a loop outputs temp file if needed. Append each review reply path and extracted review-observations path to it.
+Start a loop outputs temp file if needed before appending review artifacts.
 
-After extraction succeeds, append the completed review round number, the reviewer's raw stdout, and the normalized review-observations JSON to `{REVIEW_LOOP_HISTORY}`.
+If the normal first review response has `blocking_issue_count: 0`, do not run deepening. Close the completed review subagent and clear any saved handle or `session_id`.
 
-When blocking issues remain after a review round, first check whether the loop has reached its stop point. The default stop point is 8 completed review rounds, but the user can override that like any other instruction.
+If any completed review pass has `blocking_issue_count > 0`, run same-agent post-implementation review deepening before deciding the fix-loop input. Before entering this loop, set the post-implementation review deepening count to 0 for this review subagent. If this loop halts for timeout, cap, or extraction failure, preserve the active review subagent or runner session where the host supports it. For each deepening pass:
+1. Prepare the `post-implementation-review-deepen` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-post-impl-review-deepen.md`. Append the returned `prompt_path` to the phase prompt paths temp file.
+2. In native mode, send the exact returned `prompt_path` contents verbatim to the same active review subagent. In fallback-runner mode, resume the same review session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using that review dispatch's saved `session_id`, its resolved backend, the wrapper-prepared `prompt_path`, and phase `post-implementation-review-deepen`.
+3. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and halt this Trycycle run as an unexpected deepening timeout. Surface all completed review reply paths, extracted observation paths, the timed-out attempt artifacts if available, and the active review session id if available. Await user instructions before taking any further action.
+4. Wait for either a completed review response containing a `<review_observations_json>...</review_observations_json>` block or a report beginning with `USER DECISION REQUIRED:`.
+5. If the reviewer returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that same active review subagent, and wait again for either a completed review response or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and halt with all completed review reply paths, extracted observation paths, and timed-out attempt artifacts if available.
+6. Save and extract the completed deepening response immediately, append its reply path and observation path to the loop outputs temp file, and append the pass to `{REVIEW_LOOP_HISTORY}` before sending any further prompt.
+7. If extraction fails, stop and surface the review reply plus the extractor failure to the user rather than guessing.
+8. If the deepening response has `blocking_issue_count: 0`, the same reviewer has found no additional critical or major issues. End this same-agent deepening loop, then close the completed review subagent and clear any saved handle or `session_id`.
+9. If the deepening response has `blocking_issue_count > 0`, increment the post-implementation review deepening count.
+10. If the post-implementation review deepening count is 10, create the combined review-round observation artifact using the combine command below and all completed extracted observation paths. Append the combined path to the loop outputs temp file. If combine fails, keep the per-pass artifacts and surface the combine failure instead of guessing.
+11. After the 10th blocking deepening pass has been saved, extracted, and combined if possible, halt this Trycycle run as an unexpected deepening cap. Do not dispatch an implementation fix round, do not run plan reconsideration, and do not start another fresh review round. Do not close the active review subagent or runner session unless the user instructs you to. Surface the latest review output, all completed review reply paths, all extracted observation paths, the combined observation path if created, the active review handle or session id if available, and the resolved review backend if available. Await user instructions.
+12. If the post-implementation review deepening count is less than 10, repeat from the start of the deepening pass list.
+
+The counter intentionally counts completed deepening responses that contain `critical` or `major` observations. A final `no_issues` response stops the loop and is not counted toward the cap.
+
+After the normal review response and any completed deepening responses have been extracted, create the review-round observation artifact used by the rest of the loop:
+
+```bash
+python3 <skill-directory>/orchestrator/review_observations.py combine \
+  --output <combined-review-observations-temp-file> \
+  <review-observations-temp-file> [<deepening-review-observations-temp-file> ...]
+```
+
+Treat the combine command's JSON stdout as authoritative for:
+- `issue_count`
+- `blocking_issue_count`
+- `has_blocking_issues`
+- `review_status`
+
+Append the combined review-round observation artifact path to the loop outputs temp file.
+
+Use this combined review-round observation artifact anywhere Step 10 previously used the latest extracted review-observations artifact, including:
+- stop condition checks
+- plan reconsideration `{POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}`
+- implementation fix-round `{POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}`
+- nonconvergence evidence
+
+Deepening passes do not increment the completed fresh post-implementation review round number. Plan reconsideration cadence and the default stop point use completed fresh review rounds only.
+
+When blocking issues remain after a review round, first check whether the loop has reached its stop point. The default stop point is 8 completed fresh review rounds, but the user can override that like any other instruction.
 
 Before either dispatching another fix round or running nonconvergence review, check whether plan reconsideration is due. Plan reconsideration is due when blocking issues remain and either:
 - The completed review round is even-numbered and greater than 2: the 4th, 6th, 8th, and every 2 rounds thereafter if the user overrides the stop point.
 - The loop has reached its configured stop point. This means nonconvergence review always runs after a plan-reconsideration checkpoint when the loop stops with blockers, even if the user chose a stop point that would not otherwise trigger the even-round cadence.
 
 If plan reconsideration is due, run this checkpoint before the next action:
-- Prepare the `planning-reconsider` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-reconsider.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set REVIEW_ROUND_NUMBER=<completed-review-round-number>`, `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>`, `--set-file REVIEW_LOOP_HISTORY=<review-loop-history-temp-file>`, `--transcript-placeholder FULL_CONVERSATION_VERBATIM`, `--require-nonempty-tag conversation`, `--require-nonempty-tag review_loop_history`, `--ignore-tag-for-placeholders conversation`, `--ignore-tag-for-placeholders post_implementation_review_observations_json`, and `--ignore-tag-for-placeholders review_loop_history`, then dispatch a fresh planning subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
+- Prepare the `planning-reconsider` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-reconsider.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set REVIEW_ROUND_NUMBER=<completed-review-round-number>`, `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<combined-review-observations-temp-file>`, `--set-file REVIEW_LOOP_HISTORY=<review-loop-history-temp-file>`, `--transcript-placeholder FULL_CONVERSATION_VERBATIM`, `--require-nonempty-tag conversation`, `--require-nonempty-tag review_loop_history`, `--ignore-tag-for-placeholders conversation`, `--ignore-tag-for-placeholders post_implementation_review_observations_json`, and `--ignore-tag-for-placeholders review_loop_history`, then dispatch a fresh planning subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
 - Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 - Wait for either a report containing `## Plan reconsideration verdict`, `## Implementation plan path`, `## Test plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
 - If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either a plan-reconsideration report or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
@@ -317,16 +388,16 @@ If plan reconsideration is due, run this checkpoint before the next action:
 - Close that planning subagent and clear any saved handle or `session_id` for it.
 
 Stop when either condition is met:
-1. The extracted review-observations artifact reports `blocking_issue_count: 0`.
-2. The configured stop point has been reached. By default, this is 8 completed review rounds.
+1. The combined review-round observation artifact reports `blocking_issue_count: 0`.
+2. The configured stop point has been reached. By default, this is 8 completed fresh review rounds.
 
-If the latest extracted review-observations artifact still reports `blocking_issue_count > 0` after the configured stop point:
+If the combined review-round observation artifact still reports `blocking_issue_count > 0` after the configured stop point:
 1. Stop looping. Do not dispatch another implementation fix round.
 2. Prepare the `nonconvergence-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-nonconvergence-review.md`, `--set TRYCYCLE_SKILL_PATH=<skill-directory>/SKILL.md`, `--set NONCONVERGENCE_CONTEXT="Post-implementation review loop stopped after <completed-review-round-number> review rounds while blockers remained."`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set-file PHASE_PROMPT_PATHS=<phase-prompt-paths-temp-file>`, `--set-file LOOP_OUTPUT_PATHS=<loop-outputs-temp-file>`, and `--set-file IMPLEMENTATION_REPORT_PATHS=<implementation-reports-temp-file>`, then dispatch a subagent with the returned `prompt_path`. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 3. Present that report and the latest review output to the user and await user instructions.
 
 If blockers remain and the configured stop point has not been reached, continue with the fix round:
-1. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>`, and `--ignore-tag-for-placeholders post_implementation_review_observations_json`. Append the returned `prompt_path` to the phase prompt paths temp file. The executing prompt must treat only `critical` and `major` observations as critical issues and required fix targets; `minor` and `nit` observations are not required fix targets.
+1. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<combined-review-observations-temp-file>`, and `--ignore-tag-for-placeholders post_implementation_review_observations_json`. Append the returned `prompt_path` to the phase prompt paths temp file. The executing prompt must treat only `critical` and `major` observations as critical issues and required fix targets; `minor` and `nit` observations are not required fix targets.
 2. In native mode, resume the same implementation subagent and send the exact returned `prompt_path` contents verbatim. In fallback-runner mode, resume the implementation session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using the saved `session_id`, `--backend {IMPLEMENTATION_BACKEND}`, and the wrapper-prepared `prompt_path`.
 3. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
 4. If you kill and retry this implementation round, create a fresh implementation subagent or runner session and replace the saved implementation handle. In fallback-runner mode, also replace the saved `session_id` and `{IMPLEMENTATION_BACKEND}` with the fresh dispatch values. Keep any paths already appended for the killed attempt; they are useful evidence if nonconvergence analysis is needed.
