@@ -41,20 +41,22 @@ Read https://raw.githubusercontent.com/danshapiro/trycycle/main/README.md. Follo
 
 ### If you've been sent here by your human
 
+```
 Use this instead of a standard installation, or it won't work. Clone into your skills directory:
 
-- **Claude Code:** `git clone https://github.com/danshapiro/trycycle.git ~/.claude/skills/trycycle`
-- **Codex CLI:** `git clone https://github.com/danshapiro/trycycle.git ~/.codex/skills/trycycle`
-- **Kimi CLI:** `git clone https://github.com/danshapiro/trycycle.git ~/.kimi/skills/trycycle`
-- **OpenCode:** `git clone https://github.com/danshapiro/trycycle.git ~/.config/opencode/skills/trycycle`
+Claude Code: git clone https://github.com/danshapiro/trycycle.git ~/.claude/skills/trycycle
+Codex CLI: git clone https://github.com/danshapiro/trycycle.git ~/.codex/skills/trycycle
+Kimi CLI: git clone https://github.com/danshapiro/trycycle.git ~/.kimi/skills/trycycle
+OpenCode: git clone https://github.com/danshapiro/trycycle.git ~/.config/opencode/skills/trycycle
 
-> **Note:** OpenCode also discovers skills installed at `~/.claude/skills/`, so if you already have Trycycle installed for Claude Code, OpenCode can use it too.
+Note: OpenCode also discovers skills installed at ~/.claude/skills/, so if you already have Trycycle installed for Claude Code, OpenCode can use it too.
 
-Trycycle requires `python3` at runtime. Make sure it is installed and on your `PATH`.
+Trycycle requires python3 at runtime. Make sure it is installed and on your PATH.
 
 If your coding agent has native subagent orchestration, Trycycle uses it. Otherwise, it falls back to a bundled stdlib-only Python runner.
 
 Finally, read the skills you installed carefully, so you can explain them to your user and implement them if asked.
+```
 
 ## Using Trycycle
 
