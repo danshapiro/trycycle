@@ -20,11 +20,12 @@
 
       <section class="dashboard-shell">
         <section class="panel input-panel" data-test="input-panel">
-          <div class="panel-header">
-            <h2>Inputs</h2>
-            <p>Choose a sample or edit the current bindings before rerendering.</p>
-          </div>
-          <div class="input-band-grid">
+          <details class="input-details">
+            <summary class="panel-header input-summary">
+              <h2>Inputs</h2>
+              <p>Choose a sample or edit the current bindings before rerendering.</p>
+            </summary>
+            <div class="input-band-grid">
             <div class="input-band-primary">
               <div class="input-toolbar">
                 <label class="field">
@@ -52,6 +53,7 @@
               </section>
             </div>
           </div>
+          </details>
         </section>
 
         <section class="workspace-grid">

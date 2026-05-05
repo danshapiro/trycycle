@@ -147,6 +147,47 @@ h1 {
   gap: 1rem;
 }
 
+.input-details {
+  display: grid;
+  gap: 1rem;
+}
+
+.input-details[open] summary.input-summary {
+  margin-bottom: 0;
+}
+
+.input-summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.input-summary::-webkit-details-marker {
+  display: none;
+}
+
+.input-summary::marker {
+  display: none;
+  content: "";
+}
+
+.input-summary h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.input-summary h2::after {
+  content: "▶";
+  display: inline-block;
+  font-size: 0.65rem;
+  transition: transform 0.15s;
+  color: var(--ink-soft);
+}
+
+.input-details[open] .input-summary h2::after {
+  transform: rotate(90deg);
+}
+
 .panel-header {
   margin-bottom: 1rem;
 }
