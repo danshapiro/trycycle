@@ -23,6 +23,12 @@
 
 ---
 
+## Philosophy
+
+- **Take any request, of any size or complexity** — from "Make the button blue" to "Implement this 20-page specification." Trycycle handles it all through a structured pipeline: planning, plan strengthening, test planning, execution, and multi-round code review.
+- **Avoid asking the user questions** — Assume the starting request is everything the user cares about and use your best judgment for the rest. You can always interrupt or redirect.
+- **Prioritize zero bugs** — Trycycle runs planning issue-review loops (up to 5 rounds), builds a test plan from your testing strategy, then cycles through execution and post-implementation review (up to 8 rounds) with deepening passes and plan-reconsideration checkpoints. No shortcuts.
+
 ## Getting Started
 
 ### If you are human
@@ -60,22 +66,32 @@ My webcam software is terrible. Build something in Rust that exposes my webcam a
 
 Trycycle asks any questions it needs, then handles the rest: worktree, plan, plan strengthening, test plan, build, and code review -- all without further input unless something needs your judgment.
 
-## Tips
+## Tips & Tricks
 
-Trycycle assumes you know what you want and errs on the side of 'make a decision and keep going'. 
+**Write a spec first.** Use your favorite chatbot, or a skill like Jesse Vincent's [brainstorm](https://github.com/obra/superpowers) superpowers, to produce a spec before handing it to Trycycle. A good spec dramatically improves results.
 
-It works best when:
-- You have a vague project and don't care about the details, like "Make solitaire"
-- You have an easy-to-define task ("Fix issue 123")
-- You have a detailed spec you created outside trycycle (I recommend Superpowers brainstorming, for example, or a good chat with your favorite AI)
+This works in Claude Code, Codex CLI, Kimi CLI, and OpenCode. It's very inexpensive on OpenCode with the OpenCode Go subscription and Deepseek v4 (substitute your favorite inexpensive model if this recommendation goes stale).
 
-It works worst when you care about the details, but they're not specified. It will likely just yolo them for you.
+It's just a skill. If you're not sure what it did, or if you don't like what it's doing, just stop it and tell it. Once it finishes 5–8 passes, it will stop to complain. That's fine — ask any questions, then tell it to wrap up, change course, or do up to 5 more passes (usually the last one is best).
+
+Trycycle assumes you know what you want and errs on the side of "make a decision and keep going." It works best with vague projects, well-defined tasks, or detailed specs. It works worst when you care about the details but they're not specified — it will likely just yolo them for you.
 
 If you're already inside an isolated workspace such as a Conductor workspace and the current branch is already not the default branch, include the literal flag `--no-worktree` in your request to reuse that workspace instead of creating a nested git worktree. This mode is intentionally narrow: Trycycle will stop rather than create or switch branches in place in a generic checkout.
 
 ## How it works
 
 Trycycle is a hill climber. It writes a plan, then sends it to a fresh planning issue finder with the same task input and repo context. If that reviewer finds plan-breaking issues, Trycycle deepens on the same reviewer to collect more findings, then hands the findings memo to a fresh planning synthesizer that rewrites the plan holistically. A fresh reviewer checks the synthesized plan, repeating up to five review/synthesis rounds. Once the plan is locked, Trycycle builds a test plan, builds the code, sends it to a fresh reviewer, turns the review into a structured observation packet, fixes what that packet shows, and repeats that loop too (up to eight rounds by default). If blockers persist, Trycycle runs plan reconsideration after the 4th review round and every 2 rounds after that, plus once before nonconvergence any time the loop stops with blockers. Each review uses a fresh reviewer, and synthesis uses a fresh planning agent, so stale context does not accumulate where a clean judgment matters.
+
+## Explore the Pipeline
+
+Want to understand how Trycycle works under the hood? The Trycycle Explorer is a static site that visualizes every gate, prompt template, binding, review loop, and outcome in the Trycycle state machine — with pre-loaded sample inputs you can walk through without running a real cycle.
+
+```bash
+python3 -m trycycle_explorer build
+open build/trycycle-explorer/index.html  # or open the directory in your browser
+```
+
+Pick a sample (like "simple feature request" or "planning synthesis") and see exactly what prompts flow through each phase, how bindings are substituted, and what the reviewer and synthesis loops look like from the inside.
 
 ## Credits
 
