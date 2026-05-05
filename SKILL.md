@@ -234,8 +234,8 @@ For each deepening pass:
 7. Confirm `## Plan path` matches the current `{IMPLEMENTATION_PLAN_PATH}`, then run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the planning issue finder's report.
 8. If `## Plan verdict` is `READY`, the same planning issue finder has found no additional critical plan issues. End this same-agent deepening loop.
 9. If `## Plan verdict` is `ISSUES`, increment the planning issue-finder deepening count.
-10. If the planning issue-finder deepening count is 20, end this same-agent deepening loop and continue to synthesis with all accumulated findings. This is not a halt condition.
-11. If the planning issue-finder deepening count is less than 20, repeat from the start of the deepening pass list.
+10. If the planning issue-finder deepening count is 5, end this same-agent deepening loop and continue to synthesis with all accumulated findings. This is not a halt condition.
+11. If the planning issue-finder deepening count is less than 5, repeat from the start of the deepening pass list.
 
 The planning issue-finder counter intentionally counts completed deepening responses that contain `ISSUES`. A final `READY` response stops the loop and is not counted toward the cap.
 
@@ -311,7 +311,7 @@ Monitor by checking every 5 minutes until 180 minutes have passed. Then, and onl
 Use the review subagent's completed output as the first review-pass input. Keep that same review subagent open until either:
 - the normal first response has no blocking issues,
 - same-agent deepening completes without additional blocking issues,
-- the 10-pass deepening cap is hit,
+- the 5-pass deepening cap is hit,
 - a timeout or extraction failure requires halting,
 - or the reviewer asks for `USER DECISION REQUIRED:`.
 
@@ -353,9 +353,9 @@ If any completed review pass has `blocking_issue_count > 0`, run same-agent post
 7. If extraction fails, stop and surface the review reply plus the extractor failure to the user rather than guessing.
 8. If the deepening response has `blocking_issue_count: 0`, the same reviewer has found no additional critical or major issues. End this same-agent deepening loop, then close the completed review subagent and clear any saved handle or `session_id`.
 9. If the deepening response has `blocking_issue_count > 0`, increment the post-implementation review deepening count.
-10. If the post-implementation review deepening count is 10, create the combined review-round observation artifact using the combine command below and all completed extracted observation paths. Append the combined path to the loop outputs temp file. If combine fails, keep the per-pass artifacts and surface the combine failure instead of guessing.
-11. After the 10th blocking deepening pass has been saved, extracted, and combined if possible, halt this Trycycle run as an unexpected deepening cap. Do not dispatch an implementation fix round, do not run plan reconsideration, and do not start another fresh review round. Do not close the active review subagent or runner session unless the user instructs you to. Surface the latest review output, all completed review reply paths, all extracted observation paths, the combined observation path if created, the active review handle or session id if available, and the resolved review backend if available. Await user instructions.
-12. If the post-implementation review deepening count is less than 10, repeat from the start of the deepening pass list.
+10. If the post-implementation review deepening count is 5, create the combined review-round observation artifact using the combine command below and all completed extracted observation paths. Append the combined path to the loop outputs temp file. If combine fails, keep the per-pass artifacts and surface the combine failure instead of guessing.
+11. After the 5th blocking deepening pass has been saved, extracted, and combined if possible, halt this Trycycle run as an unexpected deepening cap. Do not dispatch an implementation fix round, do not run plan reconsideration, and do not start another fresh review round. Do not close the active review subagent or runner session unless the user instructs you to. Surface the latest review output, all completed review reply paths, all extracted observation paths, the combined observation path if created, the active review handle or session id if available, and the resolved review backend if available. Await user instructions.
+12. If the post-implementation review deepening count is less than 5, repeat from the start of the deepening pass list.
 
 The counter intentionally counts completed deepening responses that contain `critical` or `major` observations. A final `no_issues` response stops the loop and is not counted toward the cap.
 

@@ -1,9 +1,10 @@
 {
   "id": "post-review-fix",
-  "label": "Post-review fix loop",
-  "description": "A scenario that keeps the execution prompt focused on structured review observations and the fix loop.",
+  "label": "Post-review fix prompt",
+  "description": "A scenario that keeps the execution prompt focused on combined structured review observations after review and deepening.",
   "selected_gate_id": "post-implementation-review-loop",
   "selected_outcome_id": "fix-round",
+  "selected_prompt_source_id": "post-implementation-review-loop::subagent-template::prompt-executing",
   "bindings": {
     "INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION": [
       {

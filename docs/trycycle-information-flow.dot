@@ -75,8 +75,11 @@ digraph trycycle_information_flow {
       fillcolor="#ffffff"
     ];
     plan_reviewer [label="Fresh planning\nissue finder"];
+    planning_deepening [
+      label="Same planning issue finder\nsame-agent deepening\n(up to 5 ISSUES)"
+    ];
     planning_findings [
-      label="Findings memo\n(issue + evidence)",
+      label="Accumulated findings memo\n(issue + evidence)",
       shape=note,
       fillcolor="#ffffff"
     ];
@@ -96,6 +99,14 @@ digraph trycycle_information_flow {
       fillcolor="#ffffff"
     ];
     post_review [label="Fresh code reviewer"];
+    post_review_deepening [
+      label="Same code reviewer\nsame-agent deepening\n(5 blocking cap = halt)"
+    ];
+    review_round_observations [
+      label="Combined review-round observations\n(normal + deepening)",
+      shape=note,
+      fillcolor="#ffffff"
+    ];
   }
 
   subgraph cluster_finish {
@@ -140,11 +151,23 @@ digraph trycycle_information_flow {
   planner -> implementation_plan [label="proposed plan"];
   implementation_plan -> plan_reviewer [label="review input"];
   prompt_builder -> plan_reviewer [label="issue-review prompt"];
-  plan_reviewer -> planning_findings [
-    label="issues + same-agent deepening",
+  plan_reviewer -> planning_deepening [
+    label="ISSUES;\nkeep same agent",
     style=dashed,
     color="#d97706",
     fontcolor="#b45309"
+  ];
+  prompt_builder -> planning_deepening [label="deepening prompt"];
+  planning_deepening -> planning_findings [
+    label="additional ISSUES or READY;\n5-cap still synthesizes",
+    style=dashed,
+    color="#d97706",
+    fontcolor="#b45309"
+  ];
+  plan_reviewer -> implementation_plan [
+    label="READY => finalized plan",
+    color="#166534",
+    fontcolor="#166534"
   ];
   planning_findings -> plan_synthesizer [label="evidence memo"];
   implementation_plan -> plan_synthesizer [label="current plan"];
@@ -167,12 +190,28 @@ digraph trycycle_information_flow {
   executor -> code_artifacts [label="commits + test results"];
   code_artifacts -> post_review [label="review input"];
   prompt_builder -> post_review [label="review prompt"];
+  post_review -> post_review_deepening [
+    label="blocking issues;\nkeep same reviewer",
+    style=dashed,
+    color="#d97706",
+    fontcolor="#b45309"
+  ];
+  prompt_builder -> post_review_deepening [label="deepening prompt"];
+  post_review -> review_round_observations [
+    label="normal review observations"
+  ];
+  post_review_deepening -> review_round_observations [
+    label="extract + combine",
+    style=dashed,
+    color="#d97706",
+    fontcolor="#b45309"
+  ];
   plan_reconsider [
     label="Plan reconsideration\n(rounds 4, 6, 8... + stop)",
     fillcolor="#ffffff"
   ];
   prompt_builder -> plan_reconsider [label="reconsider prompt"];
-  post_review -> plan_reconsider [
+  review_round_observations -> plan_reconsider [
     label="blocking findings persist",
     style=dashed,
     color="#d97706",
@@ -184,14 +223,14 @@ digraph trycycle_information_flow {
     color="#d97706",
     fontcolor="#b45309"
   ];
-  post_review -> executor [
+  review_round_observations -> executor [
     label="critical/major findings\n(fix round, up to 8)",
     style=dashed,
     color="#d97706",
     fontcolor="#b45309"
   ];
 
-  post_review -> finisher [label="no critical/major issues"];
+  review_round_observations -> finisher [label="blocking_issue_count = 0"];
   finisher -> run_summary [label="collect final facts"];
   run_summary -> integration [label="present choices"];
 }

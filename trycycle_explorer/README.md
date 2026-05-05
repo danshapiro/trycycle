@@ -50,7 +50,7 @@ What you should see:
 - The left panel shows the trycycle gates and the currently selected path.
 - The flow panel also includes `Intro` and `Outro` blocks. `Intro` is all copy from `SKILL.md` before step 1. `Outro` is any copy after the numbered flow; if there is none, the app says so explicitly.
 - The middle panel shows the current sample/custom bindings.
-- The right panel shows the selected prompt source, builder-interface pills for the current prompt, a markdown preview, the raw markdown, active diagnostics, and a before/after diff after rerenders.
+- The right panel shows the selected prompt source, loop details for multi-phase gates, builder-interface pills for the current prompt, a markdown preview, the raw markdown, active diagnostics, and a before/after diff after rerenders.
 - Every large text box has an `Expand` button. For input fields it opens a large editable modal that syncs back to the inline field. For rendered/read-only panels it opens a large read-only modal. Use `Close` or click outside the modal to dismiss it.
 
 The builder-interface pills come from the real prompt-dispatch lines in `SKILL.md`. They expose caller-visible constraints such as:
@@ -108,9 +108,16 @@ Bundled samples live in `samples/`:
 
 - `simple-feature`
 - `plan-review-loop`
+- `planning-review-deepening`
+- `planning-synthesis`
 - `post-review-fix`
+- `post-review-deepening`
+- `post-review-reconsideration`
+- `no-worktree-conductor`
 
 You can start from a sample, then edit the fields directly in the browser to simulate a custom input set.
+
+The planning samples mirror the current planning flow: a fresh issue finder, same-agent issue-finder deepening, then a fresh synthesis subagent that receives the accumulated findings memo. The post-review samples likewise separate the fresh reviewer, same-reviewer deepening, execution fix prompt, and plan-reconsideration checkpoint.
 
 ## CLI
 

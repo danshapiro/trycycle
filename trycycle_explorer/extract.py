@@ -24,6 +24,7 @@ from .model import (
     DotNode,
     ExplorerModel,
     Gate,
+    GateDetailItem,
     Group,
     Outcome,
     PaletteEntry,
@@ -95,10 +96,11 @@ def build_model(repo_root: Path, sidecar_path: Path | None = None) -> ExplorerMo
     placeholder_names: set[str] = set()
 
     for section in sections:
-        prompts = extract_prompt_sources(repo_root, section)
+        prompts = extract_prompt_sources(repo_root, section, sidecar)
         for prompt in prompts:
             placeholder_names.update(prompt.placeholder_names)
         outcomes = load_outcomes(sidecar, section.gate_id)
+        detail_title, detail_items = load_gate_detail(sidecar, section.gate_id)
         group_id = group_by_gate.get(section.gate_id, "ungrouped")
         summary = summarize_section(section.markdown)
         gates.append(
@@ -112,6 +114,8 @@ def build_model(repo_root: Path, sidecar_path: Path | None = None) -> ExplorerMo
                 prompts=prompts,
                 outcomes=outcomes,
                 default_prompt_source_id=pick_default_prompt(prompts),
+                detail_title=detail_title,
+                detail_items=detail_items,
             )
         )
 
@@ -122,6 +126,7 @@ def build_model(repo_root: Path, sidecar_path: Path | None = None) -> ExplorerMo
     gate_ids = {gate.id for gate in gates}
     validate_sidecar_outcomes(sidecar, gate_ids)
     validate_outcomes(gates, gate_ids)
+    validate_gate_details(gates)
     validate_samples(sample_inputs, {gate.id: gate for gate in gates})
 
     return ExplorerModel(
@@ -297,12 +302,31 @@ def load_outcomes(sidecar: dict[str, Any], gate_id: str) -> list[Outcome]:
     return outcomes
 
 
+def load_gate_detail(
+    sidecar: dict[str, Any], gate_id: str
+) -> tuple[str | None, list[GateDetailItem]]:
+    details = sidecar.get("gate_details", {})
+    config = details.get(gate_id, {})
+    title = optional_string(config.get("title"))
+    items = [
+        GateDetailItem(
+            label=str(item["label"]),
+            body=str(item["body"]),
+            prompt_source_path=optional_string(item.get("prompt_source_path")),
+        )
+        for item in config.get("items", [])
+    ]
+    return title, items
+
+
 def summarize_section(markdown: str) -> str:
     lines = [line.strip() for line in markdown.splitlines()[1:] if line.strip()]
     return lines[0] if lines else ""
 
 
-def extract_prompt_sources(repo_root: Path, section: SkillSection) -> list[PromptSource]:
+def extract_prompt_sources(
+    repo_root: Path, section: SkillSection, sidecar: dict[str, Any]
+) -> list[PromptSource]:
     prompts = [
         build_prompt_source(
             prompt_id=f"{section.gate_id}::orchestrator",
@@ -342,7 +366,7 @@ def extract_prompt_sources(repo_root: Path, section: SkillSection) -> list[Promp
         prompts.append(
             build_prompt_source(
                 prompt_id=f"{section.gate_id}::{source_kind}::{path.stem.lower()}",
-                label=derive_prompt_label(relative_path, source_kind),
+                label=load_prompt_label(sidecar, relative_path, source_kind),
                 source_path=relative_path,
                 source_kind=source_kind,
                 render_mode=(
@@ -362,6 +386,16 @@ def derive_prompt_label(relative_path: str, source_kind: str) -> str:
         stem = Path(relative_path).stem.replace("prompt-", "")
         return stem.replace("-", " ").title()
     return Path(relative_path).parent.name.replace("-", " ").title()
+
+
+def load_prompt_label(
+    sidecar: dict[str, Any], relative_path: str, source_kind: str
+) -> str:
+    configured_labels = sidecar.get("prompt_labels", {})
+    label = configured_labels.get(relative_path)
+    if label:
+        return str(label)
+    return derive_prompt_label(relative_path, source_kind)
 
 
 def build_prompt_source(
@@ -509,6 +543,19 @@ def validate_outcomes(gates: list[Gate], gate_ids: set[str]) -> None:
                 raise ExplorerError(
                     f"sidecar outcome {gate.id}:{outcome.id} points to unknown gate "
                     f"{outcome.to_gate_id}"
+                )
+
+
+def validate_gate_details(gates: list[Gate]) -> None:
+    for gate in gates:
+        prompt_paths = {prompt.source_path for prompt in gate.prompts}
+        for item in gate.detail_items:
+            if item.prompt_source_path is None:
+                continue
+            if item.prompt_source_path not in prompt_paths:
+                raise ExplorerError(
+                    f"gate detail {gate.id}:{item.label} points to unknown prompt "
+                    f"source path {item.prompt_source_path}"
                 )
 
 

@@ -288,6 +288,24 @@ h1 {
   font-size: 0.92rem;
 }
 
+.gate-phase-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0 0.95rem 0.85rem;
+}
+
+.gate-phase {
+  border-radius: 999px;
+  border: 1px solid rgba(156, 100, 39, 0.18);
+  background: rgba(234, 223, 201, 0.5);
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.15;
+  padding: 0.26rem 0.45rem;
+}
+
 .outcome-list {
   display: grid;
   gap: 0.5rem;
@@ -483,6 +501,75 @@ h1 {
   display: grid;
   gap: 0.6rem;
   margin-bottom: 1rem;
+}
+
+.gate-detail {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0 0 1rem;
+  padding: 0.95rem 0 0 0.25rem;
+  border-top: 1px solid var(--line);
+}
+
+.gate-detail[hidden] {
+  display: none;
+}
+
+.gate-detail-heading {
+  margin-bottom: 0;
+}
+
+.gate-detail-list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: gate-detail;
+}
+
+.gate-detail-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.2rem 0.2rem 0.2rem 0.85rem;
+  border-left: 3px solid rgba(115, 91, 56, 0.22);
+}
+
+.gate-detail-item.selected {
+  border-left-color: var(--accent);
+}
+
+.gate-detail-copy {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.gate-detail-copy strong {
+  color: var(--ink);
+}
+
+.gate-detail-copy p {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.gate-detail-prompt {
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.35rem 0.65rem;
+  white-space: nowrap;
+}
+
+.gate-detail-item.selected .gate-detail-prompt {
+  background: var(--accent-soft);
+  border-color: rgba(156, 100, 39, 0.28);
 }
 
 .prompt-diagnostic-item {
@@ -927,6 +1014,16 @@ h1 {
   .prompt-source {
     max-height: none;
     min-height: 18rem;
+  }
+
+  .gate-detail-item {
+    grid-template-columns: 1fr;
+  }
+
+  .gate-detail-prompt {
+    justify-self: start;
+    white-space: normal;
+    text-align: left;
   }
 
   .copy-body {

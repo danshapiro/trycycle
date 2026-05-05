@@ -54,6 +54,9 @@ function wireInputs() {
     .getElementById("prompt-source-tabs")
     .addEventListener("click", handlePromptTabClick);
   document
+    .getElementById("gate-detail")
+    .addEventListener("click", handleGateDetailClick);
+  document
     .getElementById("prompt-view-tabs")
     .addEventListener("click", handlePromptViewClick);
   document
@@ -108,6 +111,15 @@ function handlePromptTabClick(event) {
     return;
   }
   state.selectedPromptSourceId = tabButton.dataset.promptSourceId;
+  rerender();
+}
+
+function handleGateDetailClick(event) {
+  const detailButton = event.target.closest("[data-detail-prompt-source-id]");
+  if (!detailButton) {
+    return;
+  }
+  state.selectedPromptSourceId = detailButton.dataset.detailPromptSourceId;
   rerender();
 }
 
@@ -263,6 +275,18 @@ function renderFlow() {
       `;
       card.append(button);
 
+      if (gate.detail_items?.length) {
+        const phaseList = document.createElement("div");
+        phaseList.className = "gate-phase-list";
+        for (const item of gate.detail_items) {
+          const phase = document.createElement("span");
+          phase.className = "gate-phase";
+          phase.textContent = item.label;
+          phaseList.append(phase);
+        }
+        card.append(phaseList);
+      }
+
       if (gate.id === state.selectedGateId && gate.outcomes.length) {
         const outcomeList = document.createElement("div");
         outcomeList.className = "outcome-list";
@@ -356,6 +380,7 @@ function renderPromptPanel(gate, promptSource, snapshot) {
 
   renderPromptTabs(gate);
   renderPromptInterface(promptSource);
+  renderGateDetail(gate, promptSource);
   renderActivePromptView();
 }
 
@@ -373,6 +398,55 @@ function renderPromptTabs(gate) {
     button.textContent = prompt.label;
     container.append(button);
   }
+}
+
+function renderGateDetail(gate, promptSource) {
+  const container = document.getElementById("gate-detail");
+  container.innerHTML = "";
+  const items = gate.detail_items ?? [];
+  if (!items.length) {
+    container.hidden = true;
+    return;
+  }
+
+  container.hidden = false;
+  const heading = document.createElement("div");
+  heading.className = "section-heading gate-detail-heading";
+  heading.innerHTML = `<h3>${escapeHtml(gate.detail_title ?? "Gate flow")}</h3>`;
+  container.append(heading);
+
+  const list = document.createElement("ol");
+  list.className = "gate-detail-list";
+  for (const item of items) {
+    const prompt = item.prompt_source_path
+      ? gate.prompts.find((entry) => entry.source_path === item.prompt_source_path)
+      : null;
+    const entry = document.createElement("li");
+    entry.className = "gate-detail-item";
+    if (prompt?.id === promptSource.id) {
+      entry.classList.add("selected");
+    }
+
+    const body = document.createElement("div");
+    body.className = "gate-detail-copy";
+    body.innerHTML = `
+      <strong>${escapeHtml(item.label)}</strong>
+      <p>${escapeHtml(item.body)}</p>
+    `;
+    entry.append(body);
+
+    if (prompt) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "gate-detail-prompt";
+      button.dataset.detailPromptSourceId = prompt.id;
+      button.textContent = prompt.label;
+      entry.append(button);
+    }
+
+    list.append(entry);
+  }
+  container.append(list);
 }
 
 function renderLegend() {

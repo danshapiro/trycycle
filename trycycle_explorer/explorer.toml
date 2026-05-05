@@ -1,6 +1,6 @@
 [display]
 title = "Trycycle Explorer"
-subtitle = "Inspect gate prompts, bindings, and loop outcomes from the real trycycle repo."
+subtitle = "Inspect gate prompts, bindings, reviewer/deepening loops, and outcomes from the real trycycle repo."
 
 [[groups]]
 id = "session-setup"
@@ -79,9 +79,73 @@ source_category = "user-input"
 
 [bindings.PLANNING_FINDINGS_MEMO]
 label = "Planning findings memo"
-help = "Simple issue/evidence memo passed from the planning issue finder to the planning synthesizer."
+help = "Accumulated issue/evidence memo from the planning issue finder and its same-agent deepening passes, passed to the fresh planning synthesizer."
 widget = "textarea"
 source_category = "derived-path"
+
+[prompt_labels]
+"subagents/prompt-planning-review.md" = "Planning issue finder"
+"subagents/prompt-planning-review-deepen.md" = "Planning issue-finder deepening"
+"subagents/prompt-planning-synthesis.md" = "Planning synthesis"
+"subagents/prompt-post-impl-review.md" = "Fresh code reviewer"
+"subagents/prompt-post-impl-review-deepen.md" = "Same-reviewer deepening"
+"subagents/prompt-planning-reconsider.md" = "Post-review plan reconsideration"
+"subagents/prompt-executing.md" = "Implementation or fix execution"
+"subagents/prompt-nonconvergence-review.md" = "Nonconvergence review"
+
+[gate_details."planning-issue-review-and-synthesis-loop"]
+title = "Planning review cycle"
+
+[[gate_details."planning-issue-review-and-synthesis-loop".items]]
+label = "1. Fresh issue finder"
+body = "A fresh planning subagent reviews the current implementation plan against the user's request and repo context. It reports ISSUES or READY and must not edit the plan."
+prompt_source_path = "subagents/prompt-planning-review.md"
+
+[[gate_details."planning-issue-review-and-synthesis-loop".items]]
+label = "2. Same-agent deepening"
+body = "If the issue finder reports ISSUES, the conductor keeps that same active subagent open and asks for additional critical plan issues. READY here means no additional issues in that deepening pass."
+prompt_source_path = "subagents/prompt-planning-review-deepen.md"
+
+[[gate_details."planning-issue-review-and-synthesis-loop".items]]
+label = "3. Findings memo"
+body = "The conductor accumulates the issue-review and deepening reports into a simple issue/evidence memo. The 5 ISSUES deepening cap stops discovery and continues to synthesis; it is not a halt."
+
+[[gate_details."planning-issue-review-and-synthesis-loop".items]]
+label = "4. Fresh synthesis"
+body = "A fresh planning subagent receives the current plan plus the findings memo and rewrites the plan holistically. Synthesis is separate from issue discovery and does not run in the same subagent."
+prompt_source_path = "subagents/prompt-planning-synthesis.md"
+
+[[gate_details."planning-issue-review-and-synthesis-loop".items]]
+label = "5. Fresh verification loop"
+body = "After synthesis, the conductor starts another fresh issue-review round. READY proceeds to the test-plan phase. Five review rounds without READY goes to nonconvergence review."
+prompt_source_path = "subagents/prompt-nonconvergence-review.md"
+
+[gate_details."post-implementation-review-loop"]
+title = "Post-implementation review cycle"
+
+[[gate_details."post-implementation-review-loop".items]]
+label = "1. Fresh code reviewer"
+body = "A fresh reviewer gets the finalized implementation plan, finalized test plan, workspace, and latest implementation report. No blocking observations means the run can finish."
+prompt_source_path = "subagents/prompt-post-impl-review.md"
+
+[[gate_details."post-implementation-review-loop".items]]
+label = "2. Same-reviewer deepening"
+body = "If the reviewer reports critical or major issues, the conductor keeps that same reviewer open and asks for additional non-duplicate blocking observations before deciding the fix input."
+prompt_source_path = "subagents/prompt-post-impl-review-deepen.md"
+
+[[gate_details."post-implementation-review-loop".items]]
+label = "3. Combined observations"
+body = "Every normal and deepening response is saved, extracted, and combined into one review-round observations artifact. A 5th blocking deepening pass halts for user inspection instead of dispatching fixes."
+
+[[gate_details."post-implementation-review-loop".items]]
+label = "4. Plan reconsideration"
+body = "When blockers remain at rounds 4, 6, 8, and the stop point, a fresh planning subagent decides whether implementation revealed a plan or test-plan gap."
+prompt_source_path = "subagents/prompt-planning-reconsider.md"
+
+[[gate_details."post-implementation-review-loop".items]]
+label = "5. Fix execution or stop"
+body = "If blockers remain before the stop point, the same persistent implementation subagent resumes with the combined critical/major observations. At the stop point, nonconvergence review runs instead."
+prompt_source_path = "subagents/prompt-executing.md"
 
 [bindings.WORKTREE_PATH]
 label = "Workspace path"
@@ -138,13 +202,33 @@ path = "trycycle_explorer/samples/simple-feature.json"
 
 [[sample_inputs]]
 id = "plan-review-loop"
-label = "Plan review loop"
+label = "Planning issue review"
 path = "trycycle_explorer/samples/plan-review-loop.json"
 
 [[sample_inputs]]
+id = "planning-review-deepening"
+label = "Planning deepening"
+path = "trycycle_explorer/samples/planning-review-deepening.json"
+
+[[sample_inputs]]
+id = "planning-synthesis"
+label = "Planning synthesis"
+path = "trycycle_explorer/samples/planning-synthesis.json"
+
+[[sample_inputs]]
 id = "post-review-fix"
-label = "Post-review fix loop"
+label = "Post-review fix prompt"
 path = "trycycle_explorer/samples/post-review-fix.json"
+
+[[sample_inputs]]
+id = "post-review-deepening"
+label = "Post-review deepening"
+path = "trycycle_explorer/samples/post-review-deepening.json"
+
+[[sample_inputs]]
+id = "post-review-reconsideration"
+label = "Plan reconsideration"
+path = "trycycle_explorer/samples/post-review-reconsideration.json"
 
 [[sample_inputs]]
 id = "no-worktree-conductor"
@@ -202,19 +286,19 @@ to = "plan-with-trycycle-planning"
 [[outcomes]]
 from = "planning-issue-review-and-synthesis-loop"
 id = "ready"
-label = "No plan issues"
+label = "Fresh issue review returned READY"
 to = "build-test-plan"
 
 [[outcomes]]
 from = "planning-issue-review-and-synthesis-loop"
 id = "issues-synthesized"
-label = "Issues synthesized and loop"
+label = "Issues found, deepened, synthesized"
 to = "planning-issue-review-and-synthesis-loop"
 
 [[outcomes]]
 from = "planning-issue-review-and-synthesis-loop"
 id = "not-converging"
-label = "Not converging"
+label = "5 review rounds without READY"
 to = "finish"
 
 [[outcomes]]
@@ -244,7 +328,7 @@ to = "finish"
 [[outcomes]]
 from = "post-implementation-review-loop"
 id = "fix-round"
-label = "Fix round needed"
+label = "Blocking issues after review/deepening"
 to = "execute-with-trycycle-executing"
 
 [[outcomes]]
@@ -256,7 +340,7 @@ to = "finish"
 [[outcomes]]
 from = "post-implementation-review-loop"
 id = "not-converging"
-label = "Review loop exhausted"
+label = "Stop point reached with blockers"
 to = "finish"
 
 [[outcomes]]

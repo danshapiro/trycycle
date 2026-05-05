@@ -1,0 +1,45 @@
+{
+  "id": "post-review-deepening",
+  "label": "Post-review deepening",
+  "description": "A scenario focused on the same post-implementation reviewer after it has already found blocking issues.",
+  "selected_gate_id": "post-implementation-review-loop",
+  "selected_outcome_id": "fix-round",
+  "selected_prompt_source_id": "post-implementation-review-loop::subagent-template::prompt-post-impl-review-deepen",
+  "bindings": {
+    "INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION": [
+      {
+        "role": "user",
+        "text": "Build a trycycle explorer that lets me inspect path decisions, rendered prompts, and rerender diffs."
+      },
+      {
+        "role": "assistant",
+        "text": "The strategy is approved; proceed with the static-site implementation."
+      }
+    ],
+    "USER_REQUEST_TRANSCRIPT": [
+      {
+        "role": "user",
+        "text": "Build a trycycle explorer that lets me inspect path decisions, rendered prompts, and rerender diffs."
+      }
+    ],
+    "FULL_CONVERSATION_VERBATIM": [
+      {
+        "role": "user",
+        "text": "Build a trycycle explorer that lets me inspect path decisions, rendered prompts, and rerender diffs."
+      },
+      {
+        "role": "user",
+        "text": "Use browser snapshots and screenshot diffs at each step to verify legibility, attractiveness, and correctness."
+      },
+      {
+        "role": "user",
+        "text": "approved"
+      }
+    ],
+    "POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON": "{\n  \"status\": \"issues_found\",\n  \"summary\": \"The first reviewer pass found one blocking UI issue.\",\n  \"observations\": [\n    {\n      \"id\": \"R1\",\n      \"severity\": \"major\",\n      \"category\": \"behavior\",\n      \"expected\": \"Missing-binding diagnostics remain visible after rerender.\",\n      \"observed\": \"After rerender, the diagnostics panel clears even when required bindings are still missing.\",\n      \"where\": {\n        \"file\": \"trycycle_explorer/assets/app.js\",\n        \"line\": 142\n      },\n      \"evidence\": {\n        \"commands\": [\"git diff -- trycycle_explorer/assets/app.js\"],\n        \"notes\": \"The rerender path replaces diagnostics state without reapplying missing-binding markers.\"\n      }\n    }\n  ]\n}",
+    "LATEST_IMPLEMENTATION_REPORT": "## Implementation summary\nBuilt the static explorer shell and sample rendering path.\n\n## Verification results\n- `python3 -m trycycle_explorer dump-model --repo . --output /tmp/model.json` passed.\n\n## Commit\n`abc1234`\n\n## Changed files\ntrycycle_explorer/assets/app.js\ntrycycle_explorer/samples/post-review-fix.json",
+    "WORKTREE_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer",
+    "IMPLEMENTATION_PLAN_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer/docs/plans/2026-03-10-trycycle-explorer.md",
+    "TEST_PLAN_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer/docs/plans/2026-03-10-trycycle-explorer-test-plan.md"
+  }
+}

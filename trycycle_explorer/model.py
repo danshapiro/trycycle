@@ -87,6 +87,16 @@ class Outcome:
 
 
 @dataclass(frozen=True)
+class GateDetailItem:
+    label: str
+    body: str
+    prompt_source_path: str | None
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class Gate:
     id: str
     step_number: int
@@ -97,6 +107,8 @@ class Gate:
     prompts: list[PromptSource]
     outcomes: list[Outcome]
     default_prompt_source_id: str
+    detail_title: str | None
+    detail_items: list[GateDetailItem]
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -109,6 +121,8 @@ class Gate:
             "prompts": [prompt.to_dict() for prompt in self.prompts],
             "outcomes": [outcome.to_dict() for outcome in self.outcomes],
             "default_prompt_source_id": self.default_prompt_source_id,
+            "detail_title": self.detail_title,
+            "detail_items": [item.to_dict() for item in self.detail_items],
         }
 
 

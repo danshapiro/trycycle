@@ -1,10 +1,10 @@
 {
-  "id": "plan-review-loop",
-  "label": "Planning issue review",
-  "description": "A scenario focused on the fresh planning issue finder that reviews a completed implementation plan without editing it.",
+  "id": "planning-synthesis",
+  "label": "Planning synthesis",
+  "description": "A scenario focused on the fresh synthesis subagent that rewrites the plan from the accumulated findings memo.",
   "selected_gate_id": "planning-issue-review-and-synthesis-loop",
   "selected_outcome_id": "issues-synthesized",
-  "selected_prompt_source_id": "planning-issue-review-and-synthesis-loop::subagent-template::prompt-planning-review",
+  "selected_prompt_source_id": "planning-issue-review-and-synthesis-loop::subagent-template::prompt-planning-synthesis",
   "bindings": {
     "INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION": [
       {
@@ -44,8 +44,7 @@
         "text": "approved"
       }
     ],
-    "POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON": "",
-    "PLANNING_FINDINGS_MEMO": "## Issue 1\nFinding: The plan does not state the source of truth for gate ordering.\nEvidence:\n- The user asked to derive as much as possible from SKILL.md and prompt templates.\n- A static sidecar order could drift when SKILL.md changes.\n\n## Issue 2\nFinding: The plan does not prove that every planning subprompt is visible in the explorer.\nEvidence:\n- The planning loop now has separate issue-finder, deepening, synthesis, and nonconvergence prompts.\n- A single default prompt tab would hide regressions in the non-default prompt sources.",
+    "PLANNING_FINDINGS_MEMO": "## Issue 1\nFinding: The plan hard-codes gate ordering instead of deriving it from SKILL.md.\nEvidence:\n- The user asked to derive as much as possible from SKILL.md and prompt templates.\n- Sidecar-only gate ordering would drift when numbered skill steps change.\n\n## Issue 2\nFinding: The plan treats the planning loop as one review/edit prompt even though the runtime now separates issue finding, deepening, and synthesis.\nEvidence:\n- SKILL.md dispatches prompt-planning-review.md, prompt-planning-review-deepen.md, and prompt-planning-synthesis.md separately.\n- A sample that only renders the default prompt cannot prove the synthesis prompt receives PLANNING_FINDINGS_MEMO.",
     "WORKTREE_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer",
     "IMPLEMENTATION_PLAN_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer/docs/plans/2026-03-10-trycycle-explorer.md",
     "TEST_PLAN_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer/docs/plans/2026-03-10-trycycle-explorer-test-plan.md"
