@@ -25,11 +25,9 @@
 
 ## Philosophy
 
-Is Trycycle for you?
-
-- **You want momentum.** Trycycle takes any request, of any size or complexity — from "Make the button blue" to "Implement this 20-page specification" — and drives it forward without waiting on you. It makes decisions, not excuses.
-- **You don't want to micromanage.** It assumes your starting request is everything you care about and uses its best judgment for everything else. If you wanted to answer clarifying questions all day, you'd do the work yourself.
-- **You care about correctness.** Trycycle prioritizes zero bugs above speed or token efficiency. It will spend the compute to get it right, because the most expensive thing in software is shipping bugs.
+- **Take any request, of any size or complexity** — from "Make the button blue" to "Implement this 20-page specification."
+- **Avoid asking the user questions.** Assume the starting request is everything the user cares about; use your best judgment for the rest.
+- **Prioritize zero bugs**, even if it takes a lot of time and tokens.
 
 ## Getting Started
 
