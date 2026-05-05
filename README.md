@@ -72,13 +72,11 @@ Trycycle asks any questions it needs, then handles the rest: worktree, plan, pla
 
 **Write a spec first.** Use your favorite chatbot, or a skill like Jesse Vincent's [brainstorm](https://github.com/obra/superpowers) superpowers, to produce a spec before handing it to Trycycle. A good spec dramatically improves results.
 
-This works in Claude Code, Codex CLI, Kimi CLI, and OpenCode. It's very inexpensive on OpenCode with the OpenCode Go subscription and Deepseek v4 (substitute your favorite inexpensive model if this recommendation goes stale).
+**It can be cheap.** Trycyle uses a lot of time and tokens, but it's very inexpensive on OpenCode with the OpenCode Go subscription. As of May '26 I use it with Deepseek v4.
 
-It's just a skill. If you're not sure what it did, or if you don't like what it's doing, just stop it and tell it. Once it finishes 5–8 passes, it will stop to complain. That's fine — ask any questions, then tell it to wrap up, change course, or do up to 5 more passes (usually the last one is best).
+**It's just a skill.** If you're not sure what it did, or if you don't like what it's doing, just stop it and tell it. Once it finishes 5–8 passes, it will stop to complain. That's fine — ask any questions, then tell it to wrap up, change course, or do up to 5 more passes (usually the last one is best).
 
-Trycycle assumes you know what you want and errs on the side of "make a decision and keep going." It works best with vague projects, well-defined tasks, or detailed specs. It works worst when you care about the details but they're not specified — it will likely just yolo them for you.
-
-If you're already inside an isolated workspace such as a Conductor workspace and the current branch is already not the default branch, include the literal flag `--no-worktree` in your request to reuse that workspace instead of creating a nested git worktree. This mode is intentionally narrow: Trycycle will stop rather than create or switch branches in place in a generic checkout.
+**Tell it everything that matters.** Trycycle assumes you told it everything you care about. If you left something out, it makes a decision and keeps going. It works best with vague projects, well-defined tasks, or detailed specs. It works worst when you care about the details but they're not specified. It won't stop to ask!
 
 ## How it works
 
