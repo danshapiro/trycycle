@@ -25,9 +25,11 @@
 
 ## Philosophy
 
-- **Take any request, of any size or complexity** — from "Make the button blue" to "Implement this 20-page specification." Trycycle handles it all through a structured pipeline: planning, plan strengthening, test planning, execution, and multi-round code review.
-- **Avoid asking the user questions** — Assume the starting request is everything the user cares about and use your best judgment for the rest. You can always interrupt or redirect.
-- **Prioritize zero bugs** — Trycycle runs planning issue-review loops (up to 5 rounds), builds a test plan from your testing strategy, then cycles through execution and post-implementation review (up to 8 rounds) with deepening passes and plan-reconsideration checkpoints. No shortcuts.
+Is Trycycle for you?
+
+- **You want momentum.** Trycycle takes any request, of any size or complexity — from "Make the button blue" to "Implement this 20-page specification" — and drives it forward without waiting on you. It makes decisions, not excuses.
+- **You don't want to micromanage.** It assumes your starting request is everything you care about and uses its best judgment for everything else. If you wanted to answer clarifying questions all day, you'd do the work yourself.
+- **You care about correctness.** Trycycle prioritizes zero bugs above speed or token efficiency. It will spend the compute to get it right, because the most expensive thing in software is shipping bugs.
 
 ## Getting Started
 
@@ -84,14 +86,9 @@ Trycycle is a hill climber. It writes a plan, then sends it to a fresh planning 
 
 ## Explore the Pipeline
 
-Want to understand how Trycycle works under the hood? The Trycycle Explorer is a static site that visualizes every gate, prompt template, binding, review loop, and outcome in the Trycycle state machine — with pre-loaded sample inputs you can walk through without running a real cycle.
+Curious how Trycycle works under the hood? Walk through the full state machine — every gate, prompt template, binding, review loop, and outcome — with pre-loaded sample inputs. No install required.
 
-```bash
-python3 -m trycycle_explorer build
-open build/trycycle-explorer/index.html  # or open the directory in your browser
-```
-
-Pick a sample (like "simple feature request" or "planning synthesis") and see exactly what prompts flow through each phase, how bindings are substituted, and what the reviewer and synthesis loops look like from the inside.
+→ **[Open the Trycycle Explorer](https://danshapiro.github.io/trycycle/explorer/)**
 
 ## Credits
 
