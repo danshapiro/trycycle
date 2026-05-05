@@ -63,7 +63,7 @@ Finally, read the skills you installed carefully, so you can explain them to you
 Include the word Trycycle in your request and describe what you want built:
 
 ```
-My webcam software is terrible. Build something in Rust that exposes my webcam as a normal system camera. 
+My webcam software is terrible. Use trycycle to build a replacement in Rust. Make sure it works with OBS.
 ```
 
 Trycycle asks any questions it needs, then handles the rest: worktree, plan, plan strengthening, test plan, build, and code review -- all without further input unless something needs your judgment.
