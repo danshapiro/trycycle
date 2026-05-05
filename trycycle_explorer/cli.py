@@ -34,7 +34,7 @@ def build_parser() -> argparse.ArgumentParser:
     build_parser.add_argument(
         "--output",
         type=Path,
-        default=Path("build/trycycle-explorer"),
+        default=Path("docs/explorer"),
         help="Directory to write the built static site into.",
     )
     build_parser.add_argument(
@@ -63,7 +63,7 @@ def build_parser() -> argparse.ArgumentParser:
     dump_model_parser.add_argument(
         "--output",
         type=Path,
-        default=Path("build/trycycle-explorer/explorer-model.json"),
+        default=Path("docs/explorer/explorer-model.json"),
         help="Path to the JSON file to write.",
     )
     dump_model_parser.add_argument(
