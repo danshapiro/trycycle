@@ -48,8 +48,6 @@ Plan/test-plan pruning is in scope here. If either planning document contains wo
 
 If you find later work, file it with the command in `<file_later_work_command>`, and then ignore it. Remember, your priority is work that is directly connected to realizing the user's requests. Do not include filed later work in your plan reconsideration report, blocker map, plan edits, or implementation targets.
 
-Do not ask for or reconstruct later-work findings. The later-work store is intentionally unavailable to this phase and will be summarized only by the conductor at a user-facing handoff. Judge only the evidence directly connected to realizing the user's requests.
-
 If the review-loop history contains earlier nonconvergence or plan-reconsideration analyses, treat them as evidence rather than authority. Start from the assumption that they may have missed the real cause, misread the loop evidence, or chosen an ineffective intervention. It's also possible you will find that the loop just needs more time to converge. Explain whether you agree with them and why as the start of your analysis.
 
 Build the analysis around all evidence that materially explains why blockers remain. Your goal is to understand the trajectory of the work well enough to make the next implementation round more likely to converge. The current blockers are symptoms; the review-loop history helps show whether they are isolated execution misses, repeated misses against clear guidance, or evidence that the plan/test plan is still leaving an important boundary implicit.
