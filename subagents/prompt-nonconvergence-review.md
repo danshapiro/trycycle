@@ -32,6 +32,8 @@ Your priority is to explain how the run did or did not realize the user's reques
 
 Current work is anything needed to realize the user vision well, including materially better plans, cleaner architecture, stronger tests, or refactors that make the requested outcome correct and durable. You should only be looking for that. If you happen to discover other todos, those are "Later work".
 
+Plan/test-plan scope drift is relevant evidence. If the run was carrying work that is not strictly necessary to accomplish the user's current request, file that work as later work and recommend removing it from the current plan or test plan. Include only the explanation needed to keep the next current-work pass scoped to the request.
+
 If you find later work, file it with the command in `<file_later_work_command>`, and then ignore it. Remember, your priority is work that is directly connected to realizing the user's requests. Do not include filed later work in the nonconvergence report, blocker analysis, plan edits, or implementation targets.
 
 Do not ask for or reconstruct later-work findings. The later-work store is intentionally unavailable to this phase and will be summarized only by the conductor at a user-facing handoff. Judge only the evidence directly connected to realizing the user's requests.

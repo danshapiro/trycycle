@@ -38,6 +38,7 @@ Failure investigation:
 Review for:
 - Mismatches between the implementation and the finalized implementation plan
 - Mismatches between the tests and the finalized test plan
+- Plan/test-plan scope drift: planned work that is not strictly necessary to accomplish the user's current request and should be removed from the current plan or test plan and filed as later work
 - Correctness and logic issues
 - Missing edge cases
 - Security and performance problems
@@ -50,6 +51,7 @@ Review for:
 Current-work boundary:
 - Your priority is to realize the user's requests. Be creative, skeptical, and ambitious inside that boundary: rethink architecture, refactor, question assumptions, and identify materially better approaches when they help satisfy the request.
 - Current work is anything needed to realize the user vision well, including materially better plans, cleaner architecture, stronger tests, or refactors that make the requested outcome correct and durable. You should only be looking for that. If you happen to discover other todos, those are "Later work".
+- Plan/test-plan scope pruning is part of this review. If the finalized implementation plan or test plan contains work that is not strictly necessary to accomplish the user's current request, the current-work observation is that the plan or test plan should remove that work and file it as later work. File the future todo with `<file_later_work_command>`, but report only the plan/test-plan removal needed to keep current work scoped to the request.
 - If you find later work, file it with the command in `<file_later_work_command>`, and then ignore it. Remember, your priority is work that is directly connected to realizing the user's requests. Do not include filed later work in your review JSON, blocker list, phase report, plan edits, or implementation targets.
 
 Severity standard:

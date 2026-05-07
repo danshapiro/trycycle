@@ -44,6 +44,8 @@ Your priority is to realize the user's requests. Be creative, skeptical, and amb
 
 Current work is anything needed to realize the user vision well, including materially better plans, cleaner architecture, stronger tests, or refactors that make the requested outcome correct and durable. You should only be looking for that. If you happen to discover other todos, those are "Later work".
 
+Plan/test-plan pruning is in scope here. If either planning document contains work that is not strictly necessary to accomplish the user's current request, remove that work from the document and file it as later work. Explain only the removal needed to keep current work scoped to the request; do not carry the later-work details into the next implementation round.
+
 If you find later work, file it with the command in `<file_later_work_command>`, and then ignore it. Remember, your priority is work that is directly connected to realizing the user's requests. Do not include filed later work in your plan reconsideration report, blocker map, plan edits, or implementation targets.
 
 Do not ask for or reconstruct later-work findings. The later-work store is intentionally unavailable to this phase and will be summarized only by the conductor at a user-facing handoff. Judge only the evidence directly connected to realizing the user's requests.
