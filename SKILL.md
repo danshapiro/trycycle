@@ -84,6 +84,10 @@ When a step below references `{USER_INTENT_PATH}`, use the absolute path to the 
 
 When a step below references `{USER_INTENT}`, bind the current contents of `{USER_INTENT_PATH}` with `--set-file USER_INTENT={USER_INTENT_PATH}`. Do not manually inline it.
 
+When a step below references `{LATER_WORK_PATH}`, use the absolute path to the append-only later-work store for the current Trycycle run. The conductor must not read this file until a user-facing handoff point: `## 12) Finish`, planning nonconvergence, or post-review nonconvergence.
+
+When a step below references `{FILE_LATER_WORK_COMMAND}`, use the exact per-run command string created by `orchestrator/later_work.py init` for the active shell. Pass it with `--set FILE_LATER_WORK_COMMAND={FILE_LATER_WORK_COMMAND}`. Do not bind `{LATER_WORK_PATH}` into subagent prompts.
+
 When a step below references `{IMPLEMENTATION_BACKEND}`, use the resolved `dispatch.backend` returned by the initial implementation dispatch in the current trycycle session. Update it if you ever recreate the implementation session.
 
 ## Subagent Defaults
@@ -108,6 +112,7 @@ When a step below references `{IMPLEMENTATION_BACKEND}`, use the resolved `dispa
 - User instructions still apply. When they are relevant, relay them.
 - If a subagent returns `USER DECISION REQUIRED:`, keep that same agent or session alive until the user's reply has been forwarded and the round has resolved.
 - The initial user-intent artifact is subagent-owned. Do not create it manually.
+- Later-work filing is a write-only sink during the run. Subagents may use `{FILE_LATER_WORK_COMMAND}` to file valuable findings outside the current user vision, but no phase may read, summarize, or reason from `{LATER_WORK_PATH}` until a user-facing handoff point.
 - User intent freshness is conductor-owned after `{USER_INTENT_PATH}` exists. After every later user message, before dispatching or resuming any subagent, decide whether the new user message adds, removes, corrects, approves, rejects, narrows, broadens, prioritizes, supports an assistant proposal, or otherwise changes the user's intent, constraints, process requirements, scope, or acceptance criteria. If it does, append the exact or minimally trimmed new intent to `{USER_INTENT_PATH}` under `## User Intent Updates, Oldest First`. This may include assistant-proposed text when the user has supported it. Preserve chronological order. Do not rewrite, reorder, summarize, or regenerate earlier content.
 
 Example: if the user says "We're almost there, don't start over," relay that instruction.
@@ -156,6 +161,24 @@ Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only
 
 When the subagent returns, verify the report contains `## User intent path`, confirm it matches `{USER_INTENT_PATH}`, and confirm the file exists and is non-empty. Do not read or summarize the file contents. Close the completed user-intent subagent and clear any saved handle or `session_id`.
 
+Then initialize the later-work filing sink:
+
+```bash
+python3 <skill-directory>/orchestrator/later_work.py init --artifacts-dir <trycycle-run-temp-dir>
+```
+
+Use the run's existing temp/artifacts directory if one already exists; otherwise create a temp directory specifically for this run's sidecar artifacts. Record `later_work_path` from the JSON stdout as `{LATER_WORK_PATH}`.
+
+Record `{FILE_LATER_WORK_COMMAND}` from the JSON stdout as the exact command string for the conductor's active shell:
+- POSIX shells: `file_later_work_command_posix`
+- PowerShell: `file_later_work_command_powershell`
+- `cmd.exe`: `file_later_work_command_cmd`
+- If the active shell is not known, use `file_later_work_command`, which is the helper's best current-host default.
+
+The helper also emits `file_later_work_argv` and `file_later_work_wrapper_path` for tests and diagnostics, but do not bind those into prompts.
+
+Mark `{LATER_WORK_PATH}` and the wrapper path as protected run artifacts. Do not delete them in temp cleanup until after the later-work summary has been generated. Do not read `{LATER_WORK_PATH}` again until a user-facing handoff point.
+
 ## 5) Prepare implementation workspace
 
 Default behavior: before creating the worktree, fetch and fast-forward the base branch so the worktree starts from the latest code. Other agents may have merged changes while the user was reviewing earlier steps.
@@ -202,7 +225,7 @@ Only subagents read or write plan files.
 
 Spawn a fresh planning subagent for each planning round.
 
-Immediately before dispatch, prepare the `planning-initial` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-initial.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, and `--require-nonempty-tag task_input_json`.
+Immediately before dispatch, prepare the `planning-initial` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-initial.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set FILE_LATER_WORK_COMMAND={FILE_LATER_WORK_COMMAND}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, and `--require-nonempty-tag task_input_json`.
 
 Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 
@@ -220,7 +243,7 @@ Deploy a fresh planning issue finder to critique the current plan against the us
 
 A planning review round is one fresh issue-finder pass plus any same-agent deepening responses from that same issue finder. If that round returns `ISSUES`, one fresh synthesis pass follows and the round counts as not ready. The synthesis pass is separate from issue discovery and must not be sent to the same subagent.
 
-Immediately before each issue-review dispatch, prepare the `planning-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, and `--require-nonempty-tag task_input_json`, then dispatch a fresh planning subagent with the returned `prompt_path`. Start a phase prompt paths temp file if needed, and append the returned `prompt_path`.
+Immediately before each issue-review dispatch, prepare the `planning-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set FILE_LATER_WORK_COMMAND={FILE_LATER_WORK_COMMAND}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, and `--require-nonempty-tag task_input_json`, then dispatch a fresh planning subagent with the returned `prompt_path`. Start a phase prompt paths temp file if needed, and append the returned `prompt_path`.
 
 Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
 
@@ -241,7 +264,7 @@ Same-agent planning issue-finder deepening loop:
 Before entering this loop, set the planning issue-finder deepening count to 0 for this planning subagent.
 
 For each deepening pass:
-1. Prepare the `planning-review-deepen` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-review-deepen.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, and `--set-file USER_INTENT={USER_INTENT_PATH}`. Append the returned `prompt_path` to the phase prompt paths temp file.
+1. Prepare the `planning-review-deepen` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-review-deepen.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set FILE_LATER_WORK_COMMAND={FILE_LATER_WORK_COMMAND}`, and `--set-file USER_INTENT={USER_INTENT_PATH}`. Append the returned `prompt_path` to the phase prompt paths temp file.
 2. In native mode, send the exact returned `prompt_path` contents verbatim to the same active planning issue finder. In fallback-runner mode, resume the same planning session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using that planning dispatch's saved `session_id`, its resolved backend, the wrapper-prepared `prompt_path`, and phase `planning-review-deepen`.
 3. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and halt this Trycycle run as an unexpected deepening timeout. Surface all completed planning issue-review report paths, the timed-out attempt artifacts if available, and the active planning session id if available. Notify the user of what happened and tell them they can instruct you to continue; await user instructions before taking any further action.
 4. Wait for either a report containing `## Plan verdict`, `## Findings memo`, `## Plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
@@ -256,7 +279,7 @@ For each deepening pass:
 The planning issue-finder counter intentionally counts completed deepening responses that contain `ISSUES`. A final `READY` response stops the loop and is not counted toward the cap.
 
 Planning synthesis pass:
-1. Immediately before each synthesis dispatch, prepare the `planning-synthesis` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-synthesis.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set-file PLANNING_FINDINGS_MEMO=<planning-findings-memo-temp-file>`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, `--require-nonempty-tag task_input_json`, and `--ignore-tag-for-placeholders planning_findings_memo`, then dispatch a fresh planning subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
+1. Immediately before each synthesis dispatch, prepare the `planning-synthesis` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-synthesis.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set FILE_LATER_WORK_COMMAND={FILE_LATER_WORK_COMMAND}`, `--set-file PLANNING_FINDINGS_MEMO=<planning-findings-memo-temp-file>`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, `--require-nonempty-tag task_input_json`, and `--ignore-tag-for-placeholders planning_findings_memo`, then dispatch a fresh planning subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
 2. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
 3. Wait for the planning synthesis subagent to return either a report containing `## Plan verdict`, `## Synthesis summary`, `## Plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
 4. If the planning synthesis subagent returns `USER DECISION REQUIRED:`, present that question to the user, run the user-intent freshness check, send the user's answer back to that active planning subagent, and wait again for either a synthesis report or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
@@ -266,14 +289,15 @@ Planning synthesis pass:
 
 If the plan still is not judged ready after the 5th planning review round: **STOP. Do NOT proceed to step 9.**
 1. Stop looping.
-2. Prepare the `nonconvergence-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-nonconvergence-review.md`, `--set TRYCYCLE_SKILL_PATH=<skill-directory>/SKILL.md`, `--set NONCONVERGENCE_CONTEXT="Planning issue-review and synthesis loop reached 5 review rounds without a READY verdict."`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH="Not built yet; the planning issue-review and synthesis loop did not converge before the test-plan phase."`, `--set-file PHASE_PROMPT_PATHS=<phase-prompt-paths-temp-file>`, `--set-file LOOP_OUTPUT_PATHS=<loop-outputs-temp-file>`, `--set IMPLEMENTATION_REPORT_PATHS="Not applicable; execution did not start."`, and `--set-file USER_INTENT={USER_INTENT_PATH}`, then dispatch a subagent with the returned `prompt_path`. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
-3. Present that report plus the latest issue-review and synthesis reports to the user and **await user instructions before taking any further action.**
+2. Prepare the `nonconvergence-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-nonconvergence-review.md`, `--set TRYCYCLE_SKILL_PATH=<skill-directory>/SKILL.md`, `--set NONCONVERGENCE_CONTEXT="Planning issue-review and synthesis loop reached 5 review rounds without a READY verdict."`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH="Not built yet; the planning issue-review and synthesis loop did not converge before the test-plan phase."`, `--set FILE_LATER_WORK_COMMAND={FILE_LATER_WORK_COMMAND}`, `--set-file PHASE_PROMPT_PATHS=<phase-prompt-paths-temp-file>`, `--set-file LOOP_OUTPUT_PATHS=<loop-outputs-temp-file>`, `--set IMPLEMENTATION_REPORT_PATHS="Not applicable; execution did not start."`, and `--set-file USER_INTENT={USER_INTENT_PATH}`, then dispatch a subagent with the returned `prompt_path`. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+3. Before presenting the report, read the later-work store by running `python3 <skill-directory>/orchestrator/later_work.py summarize --path {LATER_WORK_PATH}`. Include the output under `Other important work found during this run`; if it prints `No later work was filed.`, report that briefly instead.
+4. Present the nonconvergence report, the later-work summary, and the latest issue-review and synthesis reports to the user and **await user instructions before taking any further action.**
 
 ## 9) Build test plan (subagent-owned)
 
 Now that the implementation plan has passed the planning issue-review and synthesis loop and is finalized, dispatch a subagent to reconcile the testing strategy against the plan and produce the concrete test plan, starting from high-value existing automated checks where they exist and adding new tests where coverage is missing.
 
-Immediately before dispatch, prepare the `test-plan` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-test-plan.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--transcript-placeholder FULL_CONVERSATION_VERBATIM`, and `--require-nonempty-tag conversation`.
+Immediately before dispatch, prepare the `test-plan` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-test-plan.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set FILE_LATER_WORK_COMMAND={FILE_LATER_WORK_COMMAND}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--transcript-placeholder FULL_CONVERSATION_VERBATIM`, and `--require-nonempty-tag conversation`.
 
 Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 
@@ -303,7 +327,7 @@ Spawn a fresh implementation subagent and give it the final excellent plan.
 
 The implementation subagent stays in execute mode until the plan is complete, the work has gone through red/green/refactor cycles as needed, and all required automated tests are passing for legitimate reasons. Failed checks mean keep improving the code and tests unless there is a genuine blocker. Do not accept weakened or deleted valid tests as a shortcut to green.
 
-Immediately before dispatch, prepare the `executing` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, and `--set-file USER_INTENT={USER_INTENT_PATH}`, then dispatch the implementation subagent with the returned `prompt_path`. Start a phase prompt paths temp file if needed, and append the returned `prompt_path`.
+Immediately before dispatch, prepare the `executing` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set FILE_LATER_WORK_COMMAND={FILE_LATER_WORK_COMMAND}`, and `--set-file USER_INTENT={USER_INTENT_PATH}`, then dispatch the implementation subagent with the returned `prompt_path`. Start a phase prompt paths temp file if needed, and append the returned `prompt_path`.
 
 In fallback-runner mode, record the returned `dispatch.backend` as `{IMPLEMENTATION_BACKEND}` alongside the saved `session_id`.
 
@@ -320,7 +344,7 @@ After execution completes, deploy a new reviewer with no prior context and give 
 
 Create an empty temp file for `{REVIEW_LOOP_HISTORY}` before starting the first review round, then append the implementation subagent's initial implementation report to it.
 
-Immediately before dispatch, prepare the `post-implementation-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-post-impl-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set-file LATEST_IMPLEMENTATION_REPORT=<latest-implementation-report-temp-file>`, `--set-file USER_INTENT={USER_INTENT_PATH}`, and `--ignore-tag-for-placeholders latest_implementation_report`, then dispatch a review subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
+Immediately before dispatch, prepare the `post-implementation-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-post-impl-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set FILE_LATER_WORK_COMMAND={FILE_LATER_WORK_COMMAND}`, `--set-file LATEST_IMPLEMENTATION_REPORT=<latest-implementation-report-temp-file>`, `--set-file USER_INTENT={USER_INTENT_PATH}`, and `--ignore-tag-for-placeholders latest_implementation_report`, then dispatch a review subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
 
 Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
 
@@ -360,7 +384,7 @@ Start a loop outputs temp file if needed before appending review artifacts.
 If the normal first review response has `blocking_issue_count: 0`, do not run deepening. Close the completed review subagent and clear any saved handle or `session_id`.
 
 If any completed review pass has `blocking_issue_count > 0`, run same-agent post-implementation review deepening before deciding the fix-loop input. Before entering this loop, set the post-implementation review deepening count to 0 for this review subagent. If this loop halts for timeout, cap, or extraction failure, preserve the active review subagent or runner session where the host supports it. For each deepening pass:
-1. Prepare the `post-implementation-review-deepen` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-post-impl-review-deepen.md`, `--set-file USER_INTENT={USER_INTENT_PATH}`. Append the returned `prompt_path` to the phase prompt paths temp file.
+1. Prepare the `post-implementation-review-deepen` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-post-impl-review-deepen.md`, `--set FILE_LATER_WORK_COMMAND={FILE_LATER_WORK_COMMAND}`, `--set-file USER_INTENT={USER_INTENT_PATH}`. Append the returned `prompt_path` to the phase prompt paths temp file.
 2. In native mode, send the exact returned `prompt_path` contents verbatim to the same active review subagent. In fallback-runner mode, resume the same review session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using that review dispatch's saved `session_id`, its resolved backend, the wrapper-prepared `prompt_path`, and phase `post-implementation-review-deepen`.
 3. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and halt this Trycycle run as an unexpected deepening timeout. Surface all completed review reply paths, extracted observation paths, the timed-out attempt artifacts if available, and the active review session id if available. Await user instructions before taking any further action.
 4. Wait for either a completed review response containing a `<review_observations_json>...</review_observations_json>` block or a report beginning with `USER DECISION REQUIRED:`.
@@ -406,7 +430,7 @@ Before either dispatching another fix round or running nonconvergence review, ch
 - The loop has reached its configured stop point. This means nonconvergence review always runs after a plan-reconsideration checkpoint when the loop stops with blockers, even if the user chose a stop point that would not otherwise trigger the even-round cadence.
 
 If plan reconsideration is due, run this checkpoint before the next action:
-- Prepare the `planning-reconsider` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-reconsider.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set REVIEW_ROUND_NUMBER=<completed-review-round-number>`, `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<combined-review-observations-temp-file>`, `--set-file REVIEW_LOOP_HISTORY=<review-loop-history-temp-file>`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--transcript-placeholder FULL_CONVERSATION_VERBATIM`, `--require-nonempty-tag conversation`, `--require-nonempty-tag review_loop_history`, `--ignore-tag-for-placeholders conversation`, `--ignore-tag-for-placeholders post_implementation_review_observations_json`, and `--ignore-tag-for-placeholders review_loop_history`, then dispatch a fresh planning subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
+- Prepare the `planning-reconsider` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-reconsider.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set REVIEW_ROUND_NUMBER=<completed-review-round-number>`, `--set FILE_LATER_WORK_COMMAND={FILE_LATER_WORK_COMMAND}`, `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<combined-review-observations-temp-file>`, `--set-file REVIEW_LOOP_HISTORY=<review-loop-history-temp-file>`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--transcript-placeholder FULL_CONVERSATION_VERBATIM`, `--require-nonempty-tag conversation`, `--require-nonempty-tag review_loop_history`, `--ignore-tag-for-placeholders conversation`, `--ignore-tag-for-placeholders post_implementation_review_observations_json`, and `--ignore-tag-for-placeholders review_loop_history`, then dispatch a fresh planning subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
 - Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 - Wait for either a report containing `## Plan reconsideration verdict`, `## Implementation plan path`, `## Test plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
 - If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, run the user-intent freshness check, send the user's answer back to that active planning subagent, and wait again for either a plan-reconsideration report or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
@@ -422,11 +446,12 @@ Stop when either condition is met:
 
 If the combined review-round observation artifact still reports `blocking_issue_count > 0` after the configured stop point:
 1. Stop looping. Do not dispatch another implementation fix round.
-2. Prepare the `nonconvergence-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-nonconvergence-review.md`, `--set TRYCYCLE_SKILL_PATH=<skill-directory>/SKILL.md`, `--set NONCONVERGENCE_CONTEXT="Post-implementation review loop stopped after <completed-review-round-number> review rounds while blockers remained."`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set-file PHASE_PROMPT_PATHS=<phase-prompt-paths-temp-file>`, `--set-file LOOP_OUTPUT_PATHS=<loop-outputs-temp-file>`, `--set-file IMPLEMENTATION_REPORT_PATHS=<implementation-reports-temp-file>`, and `--set-file USER_INTENT={USER_INTENT_PATH}`, then dispatch a subagent with the returned `prompt_path`. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
-3. Present that report and the latest review output to the user and await user instructions.
+2. Prepare the `nonconvergence-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-nonconvergence-review.md`, `--set TRYCYCLE_SKILL_PATH=<skill-directory>/SKILL.md`, `--set NONCONVERGENCE_CONTEXT="Post-implementation review loop stopped after <completed-review-round-number> review rounds while blockers remained."`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set FILE_LATER_WORK_COMMAND={FILE_LATER_WORK_COMMAND}`, `--set-file PHASE_PROMPT_PATHS=<phase-prompt-paths-temp-file>`, `--set-file LOOP_OUTPUT_PATHS=<loop-outputs-temp-file>`, `--set-file IMPLEMENTATION_REPORT_PATHS=<implementation-reports-temp-file>`, and `--set-file USER_INTENT={USER_INTENT_PATH}`, then dispatch a subagent with the returned `prompt_path`. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+3. Before presenting the report, read the later-work store by running `python3 <skill-directory>/orchestrator/later_work.py summarize --path {LATER_WORK_PATH}`. Include the output under `Other important work found during this run`; if it prints `No later work was filed.`, report that briefly instead.
+4. Present the nonconvergence report, the later-work summary, and the latest review output to the user and await user instructions.
 
 If blockers remain and the configured stop point has not been reached, continue with the fix round:
-1. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<combined-review-observations-temp-file>`, `--set-file USER_INTENT={USER_INTENT_PATH}`, and `--ignore-tag-for-placeholders post_implementation_review_observations_json`. Append the returned `prompt_path` to the phase prompt paths temp file. The executing prompt must treat only `critical` and `major` observations as critical issues and required fix targets; `minor` and `nit` observations are not required fix targets.
+1. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set FILE_LATER_WORK_COMMAND={FILE_LATER_WORK_COMMAND}`, `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<combined-review-observations-temp-file>`, `--set-file USER_INTENT={USER_INTENT_PATH}`, and `--ignore-tag-for-placeholders post_implementation_review_observations_json`. Append the returned `prompt_path` to the phase prompt paths temp file. The executing prompt must treat only `critical` and `major` observations as critical issues and required fix targets; `minor` and `nit` observations are not required fix targets.
 2. In native mode, resume the same implementation subagent and send the exact returned `prompt_path` contents verbatim. In fallback-runner mode, resume the implementation session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using the saved `session_id`, `--backend {IMPLEMENTATION_BACKEND}`, and the wrapper-prepared `prompt_path`.
 3. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
 4. If you kill and retry this implementation round, create a fresh implementation subagent or runner session and replace the saved implementation handle. In fallback-runner mode, also replace the saved `session_id` and `{IMPLEMENTATION_BACKEND}` with the fresh dispatch values. Keep any paths already appended for the killed attempt; they are useful evidence if nonconvergence analysis is needed.
@@ -437,13 +462,21 @@ After each implementation-subagent fix round, save the returned implementation r
 
 Once the post-implementation review loop passes (`blocking_issue_count: 0`):
 
-Clean up temporary artifacts created during the loop (for example plan scratch files and temp notes), then run:
+Now, and only now for a successful run, read the later-work store by running:
+
+```bash
+python3 <skill-directory>/orchestrator/later_work.py summarize --path {LATER_WORK_PATH}
+```
+
+Include the summary under `Other important work found during this run`. If the command prints `No later work was filed.`, report that briefly instead.
+
+Clean up temporary artifacts created during the loop (for example plan scratch files and temp notes), except the later-work store and wrapper until after the summary above has been generated, then run:
 - `git -C {WORKTREE_PATH} status --short`
 - `git -C {WORKTREE_PATH} rev-parse --short HEAD`
 - `git -C {WORKTREE_PATH} diff --name-only main...HEAD`
 
 If the implementation subagent is still open, close it and clear its saved handle or `session_id` before handing off to finishing.
 
-Finally, in one paragraph, briefly describe what was built/accomplished/changed/fixed. Then Report the process to the user using concrete facts and returned artifacts: how many planning issue-review/synthesis rounds, how many code-review rounds, the current `HEAD`, the changed-file list, the implementation subagent's latest summary and verification results, and any reviewer-reported residual issues.
+Finally, in one paragraph, briefly describe what was built/accomplished/changed/fixed. Then report the process to the user using concrete facts and returned artifacts: how many planning issue-review/synthesis rounds, how many code-review rounds, the current `HEAD`, the changed-file list, the implementation subagent's latest summary and verification results, the later-work summary, and any reviewer-reported residual issues.
 
 Then read and follow `<skill-directory>/subskills/trycycle-finishing/SKILL.md` to present the user with options for integrating the implementation workspace (merge, PR, etc.).
