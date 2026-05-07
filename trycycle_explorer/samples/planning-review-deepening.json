@@ -44,6 +44,7 @@
         "text": "approved"
       }
     ],
+    "USER_INTENT": "# User Intent\n\n## Initial User Intent\n\nUse trycycle to build a static explorer that makes prompt gaps obvious.\nKeep the sidecar simple and derive as much as possible from SKILL.md and prompt templates.\n\n## User Intent Updates, Oldest First\n",
     "PLANNING_FINDINGS_MEMO": "## Issue 1\nFinding: The plan does not state the source of truth for gate ordering.\nEvidence:\n- The user asked to derive as much as possible from SKILL.md and prompt templates.\n- A static sidecar order could drift when SKILL.md changes.",
     "WORKTREE_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer",
     "IMPLEMENTATION_PLAN_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer/docs/plans/2026-03-10-trycycle-explorer.md",

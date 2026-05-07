@@ -60,6 +60,12 @@ digraph trycycle_information_flow {
     prompt_templates [label="Prompt templates\n(subagents/*.md)"];
     prompt_builder [label="Prompt builder\n(orchestrator/prompt_builder)"];
     worktree_manager [label="Worktree manager\n(subskills/trycycle-worktrees)"];
+    user_intent_extractor [label="User-intent extraction\nsubagent"];
+    user_intent_artifact [
+      label="User intent artifact\n(initial extraction + append-only updates)",
+      shape=note,
+      fillcolor="#ffffff"
+    ];
   }
 
   subgraph cluster_planning {
@@ -121,6 +127,7 @@ digraph trycycle_information_flow {
       shape=note,
       fillcolor="#ffffff"
     ];
+    nonconvergence_review [label="Nonconvergence reviewer"];
     integration [label="Integration options\n(merge, PR, keep, discard)"];
   }
 
@@ -145,6 +152,10 @@ digraph trycycle_information_flow {
   prompt_templates -> prompt_builder [label="template text"];
   transcript_builder -> prompt_builder [label="transcript excerpt"];
   worktree_manager -> prompt_builder [label="worktree path"];
+  prompt_builder -> user_intent_extractor [label="user-intent\nextraction prompt"];
+  user_intent_extractor -> user_intent_artifact [label="writes initial artifact"];
+  orchestrator -> user_intent_artifact [label="append user updates"];
+  user_intent_artifact -> prompt_builder [label="USER_INTENT binding"];
 
   prompt_builder -> planner [label="planning prompt"];
   worktree_manager -> planner [label="isolated repo view"];
@@ -230,6 +241,20 @@ digraph trycycle_information_flow {
     fontcolor="#b45309"
   ];
 
+  prompt_builder -> nonconvergence_review [label="nonconvergence prompt"];
+  planning_findings -> nonconvergence_review [
+    label="planning loop limit",
+    style=dashed,
+    color="#d97706",
+    fontcolor="#b45309"
+  ];
+  review_round_observations -> nonconvergence_review [
+    label="stop point with blockers",
+    style=dashed,
+    color="#d97706",
+    fontcolor="#b45309"
+  ];
+  nonconvergence_review -> finisher [label="report next action"];
   review_round_observations -> finisher [label="blocking_issue_count = 0"];
   finisher -> run_summary [label="collect final facts"];
   run_summary -> integration [label="present choices"];

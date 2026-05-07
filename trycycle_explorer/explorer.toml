@@ -9,6 +9,7 @@ gates = [
   "version-check",
   "ask-about-critical-unknowns-before-work",
   "testing-strategy",
+  "prepare-user-intent",
   "prepare-implementation-workspace",
   "workspace-hygiene-gate",
 ]
@@ -53,6 +54,12 @@ help = "Transcript JSON used when building the test plan and reconsidering plans
 widget = "textarea"
 source_category = "user-input"
 
+[bindings.USER_INTENT]
+label = "User intent artifact"
+help = "Append-only artifact containing initial exact user-intent extraction plus conductor-owned chronological updates."
+widget = "textarea"
+source_category = "user-input"
+
 [bindings.POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON]
 label = "Post-implementation review observations JSON"
 help = "Structured review observations fed back into the execution loop."
@@ -84,6 +91,7 @@ widget = "textarea"
 source_category = "derived-path"
 
 [prompt_labels]
+"subagents/prompt-user-intent.md" = "User intent extraction"
 "subagents/prompt-planning-review.md" = "Planning issue finder"
 "subagents/prompt-planning-review-deepen.md" = "Planning issue-finder deepening"
 "subagents/prompt-planning-synthesis.md" = "Planning synthesis"
@@ -92,6 +100,22 @@ source_category = "derived-path"
 "subagents/prompt-planning-reconsider.md" = "Post-review plan reconsideration"
 "subagents/prompt-executing.md" = "Implementation or fix execution"
 "subagents/prompt-nonconvergence-review.md" = "Nonconvergence review"
+
+[gate_details."prepare-user-intent"]
+title = "User intent preparation"
+
+[[gate_details."prepare-user-intent".items]]
+label = "1. Fresh extraction"
+body = "A fresh subagent writes the initial user-intent artifact from the full conversation. The conductor verifies the reported path and that the file is non-empty."
+prompt_source_path = "subagents/prompt-user-intent.md"
+
+[[gate_details."prepare-user-intent".items]]
+label = "2. Append-only freshness"
+body = "After the artifact exists, the conductor appends later user-intent updates before dispatching or resuming subagents. It does not rewrite the initial extraction."
+
+[[gate_details."prepare-user-intent".items]]
+label = "3. Downstream scope"
+body = "Downstream planning, test-plan, execution, review, reconsideration, and nonconvergence prompts receive USER_INTENT as the current scope and constraint record."
 
 [gate_details."planning-issue-review-and-synthesis-loop"]
 title = "Planning review cycle"
@@ -251,13 +275,19 @@ to = "testing-strategy"
 from = "testing-strategy"
 id = "approved"
 label = "Strategy approved"
-to = "prepare-implementation-workspace"
+to = "prepare-user-intent"
 
 [[outcomes]]
 from = "testing-strategy"
 id = "revise-strategy"
 label = "Revise strategy"
 to = "testing-strategy"
+
+[[outcomes]]
+from = "prepare-user-intent"
+id = "user-intent-ready"
+label = "User intent ready"
+to = "prepare-implementation-workspace"
 
 [[outcomes]]
 from = "prepare-implementation-workspace"
