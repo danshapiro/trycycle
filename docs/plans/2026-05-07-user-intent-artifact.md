@@ -28,13 +28,13 @@ The conductor must order a subagent to create the initial `USER_INTENT` artifact
 
 ### Updates are conductor-owned and append-only
 
-After the initial artifact exists, the conductor owns freshness because it is the only role that continuously receives live user messages. After every user message received after `{USER_INTENT_PATH}` has been created, before dispatching or resuming a subagent, the conductor checks whether the new message adds, removes, corrects, approves, rejects, narrows, broadens, prioritizes, or otherwise changes the user's intent, constraints, process requirements, scope, or acceptance criteria.
+After the initial artifact exists, the conductor owns freshness because it is the only role that continuously receives live user messages. After every user message received after `{USER_INTENT_PATH}` has been created, before dispatching or resuming a subagent, the conductor checks whether the new message adds, removes, corrects, approves, rejects, narrows, broadens, prioritizes, supports an assistant proposal, or otherwise changes the user's intent, constraints, process requirements, scope, or acceptance criteria.
 
 If it does, the conductor appends the new learning to the existing `USER_INTENT` file. It does not rewrite, regenerate, reorder, or summarize prior content. Later appended entries naturally supersede earlier conflicting text because the update section is chronological.
 
 ### Preserve exact user intent, not a summary
 
-The initial extraction prompt and conductor update rule should both preserve exact or minimally trimmed user-authored wording. They must not infer goals, resolve conflicts, normalize language, or convert examples into requirements. If a sentence contains both intent and non-intent material, keep the smallest exact contiguous span or spans that express intent.
+The initial extraction prompt and conductor update rule should both preserve exact or minimally trimmed source wording. User-authored text is always source material. Assistant-proposed text is also source material when a later user message clearly supports it, accepts it, corrects only part of it, or otherwise makes it part of the user's intent. They must not infer goals, resolve conflicts, normalize language, or convert examples into requirements. If a sentence contains both intent and non-intent material, keep the smallest exact contiguous span or spans that express intent.
 
 ### Raw transcript remains available for audit
 
@@ -57,7 +57,7 @@ The existing testing-strategy phase needs the raw conversation so it can propose
 - Modify: `SKILL.md`
   - Add `USER_INTENT_PATH` and `USER_INTENT` placeholder definitions.
   - Add a new user-intent preparation step after testing strategy approval and before implementation workspace preparation.
-  - Add the conductor append-only update rule after every user message and before every subagent dispatch/resume.
+  - Add the conductor append-only update rule after every user message received after the initial artifact exists and before every subagent dispatch/resume.
   - Pass `USER_INTENT` into all downstream phase wrapper calls.
 - Modify: prompt templates under `subagents/`
   - Add a `<user_intent>` input block and scope instructions to downstream subagent prompts.
@@ -103,13 +103,14 @@ Task:
 - Extract every detail that is explicitly part of the user's intent.
 - Do not paraphrase, summarize, interpret, infer, normalize, or resolve conflicts.
 - Remove only information that is not user intent.
-- Use only user-authored transcript turns as source material.
-- Preserve the user's exact wording and chronological order as much as possible.
-- If a user sentence contains both intent and non-intent material, keep the smallest exact contiguous span or spans that express user intent.
-- Include all explicit requests, constraints, preferences, corrections, approvals, disapprovals, scope boundaries, process requirements, output requirements, examples, and definitions supplied by the user.
-- Exclude assistant text, tool output, status chatter, implementation details introduced only by the assistant, and user text that does not express intent.
-- Do not add explanations, inferred goals, editorial commentary, or labels that change meaning.
-- If unsure whether a user-authored span is intent, include it exactly rather than omitting it.
+- If the agent proposes something, and the user appears to agree with it, that is also user intent.
+- Preserve the exact wording and chronological order as much as possible.
+- You may carefully restate if necessary to preserve clarity and continuity when editing.
+- Include all explicit and implicit requests, constraints, preferences, corrections, approvals, disapprovals, scope boundaries, process requirements, output requirements, examples, and definitions supplied by the user or proposed by the assistant and supported by the user.
+- Exclude tool output, status chatter, and user text that does not express intent.
+- For assistant messages, carefully examine if they express intent that is supported by the following user messages, or not. For example, if they list 10 items and the user objects to #4, then assume the rest are approved. If they propose something and the user changes topics, do not assume they are approved.
+- Do not add explanations, things *you* infer, editorial commentary, or labels that change meaning.
+- If unsure whether a given span is intent, include it exactly rather than omitting it.
 
 The file you write must use exactly this shape:
 
@@ -118,7 +119,7 @@ The file you write must use exactly this shape:
 
 ## Initial User Intent
 
-<extracted user-authored intent text, in chronological order>
+<extracted intent text, in chronological order>
 
 ## User Intent Updates, Oldest First
 ```
@@ -176,7 +177,7 @@ When a step below references `{USER_INTENT}`, bind the current contents of `{USE
 In the subagent defaults / user-instructions area, add a rule equivalent to:
 
 ```markdown
-- User intent freshness is conductor-owned after `{USER_INTENT_PATH}` exists. After every later user message, before dispatching or resuming any subagent, decide whether the new user message adds, removes, corrects, approves, rejects, narrows, broadens, prioritizes, or otherwise changes the user's intent, constraints, process requirements, scope, or acceptance criteria. If it does, append the exact or minimally trimmed user-authored intent to `{USER_INTENT_PATH}` under `## User Intent Updates, Oldest First`. Preserve chronological order. Do not rewrite, reorder, summarize, or regenerate earlier content.
+- User intent freshness is conductor-owned after `{USER_INTENT_PATH}` exists. After every later user message, before dispatching or resuming any subagent, decide whether the new user message adds, removes, corrects, approves, rejects, narrows, broadens, prioritizes, supports an assistant proposal, or otherwise changes the user's intent, constraints, process requirements, scope, or acceptance criteria. If it does, append the exact or minimally trimmed new intent to `{USER_INTENT_PATH}` under `## User Intent Updates, Oldest First`. This may include assistant-proposed text when the user has supported it. Preserve chronological order. Do not rewrite, reorder, summarize, or regenerate earlier content.
 ```
 
 Also state that the conductor must not create the initial artifact manually; the initial artifact is subagent-owned.
@@ -278,7 +279,7 @@ Use concise prompt text so the artifact changes behavior without bloating prompt
 For planning prompts:
 
 ```markdown
-- Treat `<user_intent>` as the current scope and constraint record. Use the transcript only as audit context. If they conflict, later entries in `<user_intent>` supersede earlier entries, and user intent supersedes assistant interpretation.
+- Treat `<user_intent>` as the current scope and constraint record. Use the transcript only as audit context. If they conflict, later entries in `<user_intent>` supersede earlier entries, and recorded user intent supersedes unsupported assistant interpretation.
 ```
 
 For the test-plan prompt:
@@ -290,7 +291,7 @@ For the test-plan prompt:
 For the execution prompt:
 
 ```markdown
-- Use `<user_intent>` to detect conflicts between the plan and the user's actual instructions. If the plan or test plan appears to contradict user intent in a way that changes the required outcome, stop with a blocker instead of guessing.
+- Use `<user_intent>` to detect conflicts between the plan and the recorded user intent. If the plan or test plan appears to contradict user intent in a way that changes the required outcome, stop with a blocker instead of guessing.
 ```
 
 For post-implementation review:
