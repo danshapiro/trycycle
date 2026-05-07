@@ -66,6 +66,14 @@ digraph trycycle_information_flow {
       shape=note,
       fillcolor="#ffffff"
     ];
+    later_work_tool [
+      label="Later-work filing command\n(write-only during run)"
+    ];
+    later_work_store [
+      label="Later-work store\n(read only at handoff)",
+      shape=note,
+      fillcolor="#ffffff"
+    ];
   }
 
   subgraph cluster_planning {
@@ -156,6 +164,8 @@ digraph trycycle_information_flow {
   user_intent_extractor -> user_intent_artifact [label="writes initial artifact"];
   orchestrator -> user_intent_artifact [label="append user updates"];
   user_intent_artifact -> prompt_builder [label="USER_INTENT binding"];
+  orchestrator -> later_work_tool [label="creates per-run Python wrapper"];
+  later_work_tool -> later_work_store [label="append only"];
 
   prompt_builder -> planner [label="planning prompt"];
   worktree_manager -> planner [label="isolated repo view"];
@@ -255,6 +265,7 @@ digraph trycycle_information_flow {
     fontcolor="#b45309"
   ];
   nonconvergence_review -> finisher [label="report next action"];
+  later_work_store -> finisher [label="handoff summary only"];
   review_round_observations -> finisher [label="blocking_issue_count = 0"];
   finisher -> run_summary [label="collect final facts"];
   run_summary -> integration [label="present choices"];

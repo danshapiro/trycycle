@@ -33,6 +33,7 @@
     ],
     "POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON": "",
     "USER_INTENT": "# User Intent\n\n## Initial User Intent\n\nUse trycycle --no-worktree to add a keyboard shortcut overlay to the desktop app.\n\n## User Intent Updates, Oldest First\n",
+    "FILE_LATER_WORK_COMMAND": "python3 /tmp/trycycle-run/file-later-work.py",
     "WORKTREE_PATH": "/Users/example/Library/Application Support/Conductor/workspaces/shortcut-overlay",
     "IMPLEMENTATION_PLAN_PATH": "/Users/example/Library/Application Support/Conductor/workspaces/shortcut-overlay/docs/plans/2026-03-12-shortcut-overlay.md",
     "TEST_PLAN_PATH": "/Users/example/Library/Application Support/Conductor/workspaces/shortcut-overlay/docs/plans/2026-03-12-shortcut-overlay-test-plan.md"

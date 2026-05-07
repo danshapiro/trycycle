@@ -60,6 +60,12 @@ help = "Append-only artifact containing initial exact user-intent extraction plu
 widget = "textarea"
 source_category = "user-input"
 
+[bindings.FILE_LATER_WORK_COMMAND]
+label = "File later work command"
+help = "Write-only command subagents can use to file valuable work outside the current user vision. The later-work store itself is not bound into prompts."
+widget = "text"
+source_category = "derived-path"
+
 [bindings.POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON]
 label = "Post-implementation review observations JSON"
 help = "Structured review observations fed back into the execution loop."
