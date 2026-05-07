@@ -112,7 +112,7 @@ When a step below references `{IMPLEMENTATION_BACKEND}`, use the resolved `dispa
 - User instructions still apply. When they are relevant, relay them.
 - If a subagent returns `USER DECISION REQUIRED:`, keep that same agent or session alive until the user's reply has been forwarded and the round has resolved.
 - The initial user-intent artifact is subagent-owned. Do not create it manually.
-- Later-work filing is a write-only sink during the run. Subagents may use `{FILE_LATER_WORK_COMMAND}` to file valuable findings outside the current user vision, but no phase may read, summarize, or reason from `{LATER_WORK_PATH}` until a user-facing handoff point.
+- Later-work filing is a write-only sink during the run. Subagents may use `{FILE_LATER_WORK_COMMAND}` to file valuable findings outside the user's current request, but no phase may read, summarize, or reason from `{LATER_WORK_PATH}` until a user-facing handoff point.
 - User intent freshness is conductor-owned after `{USER_INTENT_PATH}` exists. After every later user message, before dispatching or resuming any subagent, decide whether the new user message adds, removes, corrects, approves, rejects, narrows, broadens, prioritizes, supports an assistant proposal, or otherwise changes the user's intent, constraints, process requirements, scope, or acceptance criteria. If it does, append the exact or minimally trimmed new intent to `{USER_INTENT_PATH}` under `## User Intent Updates, Oldest First`. This may include assistant-proposed text when the user has supported it. Preserve chronological order. Do not rewrite, reorder, summarize, or regenerate earlier content.
 
 Example: if the user says "We're almost there, don't start over," relay that instruction.

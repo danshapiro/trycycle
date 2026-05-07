@@ -59,7 +59,7 @@ Severity standard:
   2. There is a materially better approach for realizing the user's current request.
 - Category 1 includes cases such as missed user intent, errors that will cause the wrong outcome, solving the wrong problem, violating a user constraint, depending on a false assumption, leaving an important edge case unhandled, missing error behavior, or lacking verification of the requested outcome. These are examples, not a comprehensive list.
 - Category 2 applies when there is a real engineering improvement that is clearly superior for this request, not merely a different set of tradeoffs or a broad repo-improvement opportunity. Examples include better adherence to DRY, YAGNI, SOLID, SoC, or POLA; robustness under realistic conditions; a simpler source of truth; stronger adherence to existing architecture; less duplicated logic; clearer ownership boundaries; better error behavior; better testability; or a cleaner abstraction that removes real complexity. These are examples, not a comprehensive list.
-- A severe issue with no causal path to the current user vision is later work. File it with `<file_later_work_command>` and ignore it for this phase, regardless of severity.
+- An issue without a direct causal path to the user's current request is later work. File it with `<file_later_work_command>` and ignore it for this phase, regardless of severity.
 - If you find one critical issue, there are probably more, so redouble your efforts. Continue investigating until you are confident you have found all critical issues.
 - Use `minor` or `nit` for valid observations that do not meet the critical-issue bar. Be rigorous and objective in your categorization.
 
@@ -101,8 +101,8 @@ Schema:
 
 Rules:
 - Preserve observed evidence. Prefer command output, artifacts, and precise mismatches over advice.
-- For every observation, explain the causal chain from user intent to the observed problem in `user_vision_relevance`.
-- If that causal chain is weak or absent, file it as later work and ignore it instead of putting it in the JSON.
+- For every observation, explain the direct causal path from the user's current request to the observed problem in `user_vision_relevance`.
+- If that direct causal path is weak or absent, file it as later work and ignore it instead of putting it in the JSON.
 - Required verification failures remain directly connected work when they test the current request, regressions introduced by this work, or repository constraints that make the requested result unacceptable. Unrelated existing failures are later work unless the current request depends on them.
 - Include `where.file` and `where.line` when possible.
 - Do not invent command output, tracebacks, or artifacts you did not actually inspect.

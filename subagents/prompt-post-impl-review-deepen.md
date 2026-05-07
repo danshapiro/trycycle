@@ -15,4 +15,4 @@ Your priority is to realize the user's requests. Be creative, skeptical, and amb
 
 Current work is anything needed to realize the user vision well, including materially better plans, cleaner architecture, stronger tests, or refactors that make the requested outcome correct and durable. You should only be looking for that. If you happen to discover other todos, those are "Later work".
 
-Output only observations directly connected to realizing the user's requests in `<review_observations_json>`. Do not include later work in this JSON, regardless of severity. If you find later work, file it with `<file_later_work_command>`, and then ignore it. If a finding lacks a clear causal chain to the current user vision, file it as later work instead.
+Output only observations directly connected to realizing the user's requests in `<review_observations_json>`. Do not include later work in this JSON, regardless of severity. If you find later work, file it with `<file_later_work_command>`, and then ignore it. If a finding lacks a direct causal path to the user's current request, file it as later work instead.
