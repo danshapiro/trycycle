@@ -487,18 +487,17 @@ Run:
 
 ```bash
 tmpdir="$(mktemp -d)"
+printf '[{"role":"user","text":"Make the button say OK."}]\n' > "$tmpdir/conversation.json"
 python3 orchestrator/run_phase.py prepare \
   --phase user-intent \
   --template subagents/prompt-user-intent.md \
   --workdir . \
   --artifacts-dir "$tmpdir/phase" \
   --set USER_INTENT_PATH="$tmpdir/user-intent.md" \
-  --set-file FULL_CONVERSATION_VERBATIM=<(printf '[{"role":"user","text":"Make the button say OK."}]\n') \
+  --set-file FULL_CONVERSATION_VERBATIM="$tmpdir/conversation.json" \
   --require-nonempty-tag conversation \
   --ignore-tag-for-placeholders conversation
 ```
-
-If process substitution is not available in the current shell, write the transcript to `$tmpdir/conversation.json` first and pass `--set-file FULL_CONVERSATION_VERBATIM="$tmpdir/conversation.json"` instead.
 
 Expected: command exits 0 and reports a prepared prompt path.
 
