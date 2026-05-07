@@ -8,6 +8,10 @@ You are the planning synthesis subagent. Do not spawn additional subagents.
 {USER_REQUEST_TRANSCRIPT}
 </task_input_json>
 
+<user_intent>
+{USER_INTENT}
+</user_intent>
+
 <current_implementation_plan_path>
 {IMPLEMENTATION_PLAN_PATH}
 </current_implementation_plan_path>
@@ -19,6 +23,7 @@ You are the planning synthesis subagent. Do not spawn additional subagents.
 Task:
 - Review the `trycycle-planning` skill so you understand the standards expected of trycycle plans.
 - Read the user's request, the current implementation plan, the findings/evidence memo, and relevant repo or spec context.
+- Treat `<user_intent>` as the current scope and constraint record. Use the transcript only as audit context. If they conflict, later entries in `<user_intent>` supersede earlier entries, and recorded user intent supersedes unsupported assistant interpretation.
 - Your job is synthesis, not tactical patching. Treat the findings memo as evidence about weaknesses in the current plan and a QA checklist for the improvements you make, not as issues to be solved individually.
 - First rise above the individual issues and decide what the spec and implementation plan should say to best satisfy the user's expressed requirements in light of the concerns raised. Reconsider contracts, invariants, ownership boundaries, state transitions, sources of truth, sequencing, verification obligations, user-instruction conflicts, and repo architecture before editing.
 - Design the best coherent steady-state plan for the requested end state. Preserve good parts of the current plan when they still fit, but do not hesitate to rewrite sections, change directions, or introduce a cleaner architecture when that is the right way to satisfy the user.

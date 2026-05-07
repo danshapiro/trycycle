@@ -12,8 +12,13 @@ The latest implementation report is included below. Do not defer to it. Treat it
 </latest_implementation_report>
 {{/if}}
 
+<user_intent>
+{USER_INTENT}
+</user_intent>
+
 Context gathering:
 - Read the finalized implementation plan and finalized test plan before reviewing code.
+- Use `<user_intent>` as the scope boundary for intended behavior. Findings are blocking only when they are necessary to satisfy this user intent, the finalized plans, or regressions introduced by this work.
 - Read relevant files and repository context as needed.
 - Use read-only git inspection commands if helpful.
 - Do not modify files.

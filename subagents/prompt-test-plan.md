@@ -10,6 +10,10 @@ You have transcript JSON from the current trycycle session at dispatch time, and
 {FULL_CONVERSATION_VERBATIM}
 </conversation>
 
+<user_intent>
+{USER_INTENT}
+</user_intent>
+
 The implementation plan is at `{IMPLEMENTATION_PLAN_PATH}`.
 
 Work in the implementation workspace at `{WORKTREE_PATH}`.
@@ -18,16 +22,17 @@ Work in the implementation workspace at `{WORKTREE_PATH}`.
 
 1. Read the transcript to understand the user's goals, the task, and the agreed testing strategy.
 2. Read the implementation plan thoroughly. Understand the architecture, interfaces, components, and task breakdown.
-3. **Reconcile the strategy against the plan.** Check whether the implementation plan invalidates any assumptions in the testing strategy:
+3. Use `<user_intent>` as the scope and acceptance source when reconciling the approved testing strategy against the implementation plan. Use the full conversation to recover testing-strategy details, not to broaden scope beyond user intent.
+4. **Reconcile the strategy against the plan.** Check whether the implementation plan invalidates any assumptions in the testing strategy:
    - Do the planned interfaces and architecture match what the strategy assumed about harnesses?
    - Is the interaction surface larger or different than expected?
    - Does the plan reveal external dependencies (paid APIs, infrastructure, services) that the strategy didn't account for?
    - Are there components or behaviors the strategy didn't anticipate?
    If the strategy still holds, note that briefly and proceed. If adjustments are needed that don't change the cost or scope the user agreed to, make them and document what changed and why. If adjustments would increase cost, require access to paid/external resources, or materially change scope, put them in a `## Strategy changes requiring user approval` section as the first section of the file — that section will be presented to the user before proceeding.
-4. Read the codebase: examine every file, directory, and artifact relevant to the task. If there are reference implementations, specs, API docs, or other sources of truth identified in the strategy, read those thoroughly.
-5. Identify the relevant existing automated checks and the full action space: every user-facing action, command, endpoint, interaction, or behavior that the task touches or could affect. Enumerate to the leaf: every clickable element, submittable form, callable endpoint, and executable command is a distinct action — not the page, screen, or feature that contains it.
-6. Build the plan around the highest-value existing relevant automated checks when they exist, and add new tests wherever user-visible behavior is weakly covered or uncovered. Prefer running the real system through the real user-facing surface with real collaborating components over mocks, stubs, or direct calls into internals.
-7. Do not include manual QA, human validation, or "ask a person whether this looks right" steps in the plan. Express user-visible checks as reproducible artifacts and assertions. When visual evidence is needed, prefer an explicit browser snapshot or screenshot comparison over an undecided/manual check.
+5. Read the codebase: examine every file, directory, and artifact relevant to the task. If there are reference implementations, specs, API docs, or other sources of truth identified in the strategy, read those thoroughly.
+6. Identify the relevant existing automated checks and the full action space: every user-facing action, command, endpoint, interaction, or behavior that the task touches or could affect. Enumerate to the leaf: every clickable element, submittable form, callable endpoint, and executable command is a distinct action — not the page, screen, or feature that contains it.
+7. Build the plan around the highest-value existing relevant automated checks when they exist, and add new tests wherever user-visible behavior is weakly covered or uncovered. Prefer running the real system through the real user-facing surface with real collaborating components over mocks, stubs, or direct calls into internals.
+8. Do not include manual QA, human validation, or "ask a person whether this looks right" steps in the plan. Express user-visible checks as reproducible artifacts and assertions. When visual evidence is needed, prefer an explicit browser snapshot or screenshot comparison over an undecided/manual check.
 
 ## Test structure
 

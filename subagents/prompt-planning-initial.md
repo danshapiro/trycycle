@@ -8,9 +8,14 @@ You are the planning subagent. Do not spawn additional subagents.
 {USER_REQUEST_TRANSCRIPT}
 </task_input_json>
 
+<user_intent>
+{USER_INTENT}
+</user_intent>
+
 Task:
 - Review the `trycycle-planning` skill so you understand the standards expected of trycycle plans.
 - Use the `trycycle-planning` skill to produce a complete, excellent implementation plan for the user's request.
+- Treat `<user_intent>` as the current scope and constraint record. Use the transcript only as audit context. If they conflict, later entries in `<user_intent>` supersede earlier entries, and recorded user intent supersedes unsupported assistant interpretation.
 - Own the first plan. Do the architectural and semantic thinking now; do not rely on a later review round to find the real gaps.
 - Before you break the work into tasks, make sure the plan covers the parts most likely to be wrong or missing: the user-visible behavior, important contracts and invariants, tricky boundaries, and any cutover or regression risk.
 - The `trycycle-planning` skill may reference a brainstorming phase as a precondition. Disregard that; the task input above replaces brainstorming output.

@@ -12,6 +12,10 @@ Your job is to decide whether the review/fix loop exposes a plan or test-plan ca
 {FULL_CONVERSATION_VERBATIM}
 </conversation>
 
+<user_intent>
+{USER_INTENT}
+</user_intent>
+
 <post_implementation_review_observations_json>
 {POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}
 </post_implementation_review_observations_json>
@@ -30,7 +34,7 @@ Other inputs:
 
 The implementation plan and test plan were reviewed before execution, so begin with a strong presumption that they are directionally correct, but only a moderate presumption that they are comprehensive. Implementation sometimes reveals information that was unavailable during planning. Determine whether this is one of those times, or whether the plan is correct and the agents need more iterations to complete.
 
-Read every input above before deciding. In particular, use the conversation for explicit user instructions, the review observations for current blocker evidence, and the review-loop history for implementation reports, prior interventions, verification commands, and changed-file lists. Use relevant repository context only as needed to understand the evidence or update planning documents.
+Read every input above before deciding. In particular, use `<user_intent>` to distinguish plan/test-plan gaps from reviewer scope drift. If a current blocker is outside user intent, classify it as reviewer scope rather than updating the plans for it. Use the conversation for explicit user instructions, the review observations for current blocker evidence, and the review-loop history for implementation reports, prior interventions, verification commands, and changed-file lists. Use relevant repository context only as needed to understand the evidence or update planning documents.
 
 If the review-loop history contains earlier nonconvergence or plan-reconsideration analyses, treat them as evidence rather than authority. Start from the assumption that they may have missed the real cause, misread the loop evidence, or chosen an ineffective intervention. It's also possible you will find that the loop just needs more time to converge. Explain whether you agree with them and why as the start of your analysis.
 
