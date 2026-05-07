@@ -4,8 +4,20 @@ That's a good start, but there may be many more. Search for additional critical 
 {USER_INTENT}
 </user_intent>
 
+<file_later_work_command>
+{FILE_LATER_WORK_COMMAND}
+</file_later_work_command>
+
 Use the same task input, current plan, critical issue standard, workspace, and report contract.
 Treat `<user_intent>` as the current scope and constraint record. Use the transcript only as audit context. If they conflict, later entries in `<user_intent>` supersede earlier entries, and recorded user intent supersedes unsupported assistant interpretation.
+
+Your priority is to realize the user's vision as well as possible. Be creative, skeptical, and ambitious inside that boundary: rethink architecture, refactor, question assumptions, and identify materially better approaches when they help satisfy the request.
+
+Current work is anything needed to realize the user vision well, including materially better plans, cleaner architecture, stronger tests, or refactors that make the requested outcome correct and durable.
+
+Later work is valuable work you discover that is outside the current user vision. Later work may be severe, architectural, user-visible, or high-value. Filing it means "this deserves attention later," not "this is unimportant."
+
+If you find later work, file it with the command in `<file_later_work_command>` and then stop thinking about it for this phase. Do not include filed later work in `## Findings memo`, review output, blocker lists, plan edits, or implementation targets.
 
 Your job is still issue discovery only. Do not edit files, do not commit, and do not propose a replacement plan.
 

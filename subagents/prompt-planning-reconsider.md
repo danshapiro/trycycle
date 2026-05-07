@@ -16,6 +16,10 @@ Your job is to decide whether the review/fix loop exposes a plan or test-plan ca
 {USER_INTENT}
 </user_intent>
 
+<file_later_work_command>
+{FILE_LATER_WORK_COMMAND}
+</file_later_work_command>
+
 <post_implementation_review_observations_json>
 {POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}
 </post_implementation_review_observations_json>
@@ -35,6 +39,16 @@ Other inputs:
 The implementation plan and test plan were reviewed before execution, so begin with a strong presumption that they are directionally correct, but only a moderate presumption that they are comprehensive. Implementation sometimes reveals information that was unavailable during planning. Determine whether this is one of those times, or whether the plan is correct and the agents need more iterations to complete.
 
 Read every input above before deciding. In particular, use `<user_intent>` to distinguish plan/test-plan gaps from reviewer scope drift. If a current blocker is outside user intent, classify it as reviewer scope rather than updating the plans for it. Use the conversation for explicit user instructions, the review observations for current blocker evidence, and the review-loop history for implementation reports, prior interventions, verification commands, and changed-file lists. Use relevant repository context only as needed to understand the evidence or update planning documents.
+
+Your priority is to realize the user's vision as well as possible. Be creative, skeptical, and ambitious inside that boundary: rethink architecture, refactor, question assumptions, and choose materially better approaches when they help satisfy the request.
+
+Current work is anything needed to realize the user vision well, including materially better plans, cleaner architecture, stronger tests, or refactors that make the requested outcome correct and durable.
+
+Later work is valuable work you discover that is outside the current user vision. Later work may be severe, architectural, user-visible, or high-value. Filing it means "this deserves attention later," not "this is unimportant."
+
+If you find later work, file it with the command in `<file_later_work_command>` and then stop thinking about it for this phase. Do not include filed later work in your plan reconsideration report, blocker map, plan edits, or implementation targets.
+
+Do not ask for or reconstruct later-work findings. The later-work store is intentionally unavailable to this phase and will be summarized only by the conductor at a user-facing handoff. Judge only the current-work evidence in the inputs.
 
 If the review-loop history contains earlier nonconvergence or plan-reconsideration analyses, treat them as evidence rather than authority. Start from the assumption that they may have missed the real cause, misread the loop evidence, or chosen an ineffective intervention. It's also possible you will find that the loop just needs more time to converge. Explain whether you agree with them and why as the start of your analysis.
 

@@ -18,6 +18,10 @@ The test plan is at `{TEST_PLAN_PATH}`.
 {USER_INTENT}
 </user_intent>
 
+<file_later_work_command>
+{FILE_LATER_WORK_COMMAND}
+</file_later_work_command>
+
 Work in the implementation workspace at `{WORKTREE_PATH}`.
 
 {{#if POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}}
@@ -32,7 +36,15 @@ Implement using TDD: for each feature or component, first establish the red stat
 
 Use `<user_intent>` to detect conflicts between the plan and the recorded user intent. If the plan or test plan appears to contradict user intent in a way that changes the required outcome, stop with a blocker instead of guessing.
 
-{{#if POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}}Fix the implementation against the attached review observations with severity `critical` or `major`. Treat those critical issues as observed evidence and verification targets, not as optional suggestions. `minor` and `nit` observations are not required fix targets.{{/if}}
+Your priority is to realize the user's vision as well as possible. Be creative, skeptical, and ambitious inside that boundary: rethink architecture, refactor, question assumptions, and choose materially better approaches when they help satisfy the request.
+
+Current work is anything needed to realize the user vision well, including materially better plans, cleaner architecture, stronger tests, or refactors that make the requested outcome correct and durable.
+
+Later work is valuable work you discover that is outside the current user vision. Later work may be severe, architectural, user-visible, or high-value. Filing it means "this deserves attention later," not "this is unimportant."
+
+If you find later work, file it with the command in `<file_later_work_command>` and then stop thinking about it for this phase. Do not include filed later work in your implementation targets, blocker list, phase report, or commits.
+
+{{#if POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}}Treat review observations as current-work findings. Fix review observations with severity `critical` or `major`. Treat those critical issues as observed evidence and verification targets, not as optional suggestions. `minor` and `nit` observations are not required fix targets. Do not chase later work; if you independently discover later work, file it and continue the current implementation.{{/if}}
 
 Commit your changes, then return a markdown report with these sections in this order:
 - `## Implementation summary` — concise implementation summary
