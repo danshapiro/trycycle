@@ -28,15 +28,13 @@ Loop outputs may include prior plan-reconsideration or nonconvergence analyses. 
 
 Use `<user_intent>` to judge whether unresolved work was truly required by the user or whether the loop was chasing scope outside the user's intent.
 
-Your priority is to explain how the run did or did not realize the user's vision. Be creative, skeptical, and ambitious inside that boundary: question assumptions and identify materially better next moves when they help satisfy the request.
+Your priority is to explain how the run did or did not realize the user's requests. Be creative, skeptical, and ambitious inside that boundary: question assumptions and identify materially better next moves when they help satisfy the request.
 
-Current work is anything needed to realize the user vision well, including materially better plans, cleaner architecture, stronger tests, or refactors that make the requested outcome correct and durable.
+Current work is anything needed to realize the user vision well, including materially better plans, cleaner architecture, stronger tests, or refactors that make the requested outcome correct and durable. You should only be looking for that. If you happen to discover other todos, those are "Later work".
 
-Later work is valuable work you discover that is outside the current user vision. Later work may be severe, architectural, user-visible, or high-value. Filing it means "this deserves attention later," not "this is unimportant."
+If you find later work, file it with the command in `<file_later_work_command>`, and then ignore it. Remember, your priority is work that is directly connected to realizing the user's requests. Do not include filed later work in the nonconvergence report, blocker analysis, plan edits, or implementation targets.
 
-If you find later work, file it with the command in `<file_later_work_command>` and then stop thinking about it for this phase. Do not include filed later work in the nonconvergence report, blocker analysis, plan edits, or implementation targets.
-
-Do not ask for or reconstruct later-work findings. The later-work store is intentionally unavailable to this phase and will be summarized only by the conductor at a user-facing handoff. Judge only the current-work evidence in the inputs.
+Do not ask for or reconstruct later-work findings. The later-work store is intentionally unavailable to this phase and will be summarized only by the conductor at a user-facing handoff. Judge only the evidence directly connected to realizing the user's requests.
 
 Return a concise markdown report with:
 - `## Why This Run Did Not Converge`

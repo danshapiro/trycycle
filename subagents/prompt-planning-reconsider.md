@@ -40,15 +40,13 @@ The implementation plan and test plan were reviewed before execution, so begin w
 
 Read every input above before deciding. In particular, use `<user_intent>` to distinguish plan/test-plan gaps from reviewer scope drift. If a current blocker is outside user intent, classify it as reviewer scope rather than updating the plans for it. Use the conversation for explicit user instructions, the review observations for current blocker evidence, and the review-loop history for implementation reports, prior interventions, verification commands, and changed-file lists. Use relevant repository context only as needed to understand the evidence or update planning documents.
 
-Your priority is to realize the user's vision as well as possible. Be creative, skeptical, and ambitious inside that boundary: rethink architecture, refactor, question assumptions, and choose materially better approaches when they help satisfy the request.
+Your priority is to realize the user's requests. Be creative, skeptical, and ambitious inside that boundary: rethink architecture, refactor, question assumptions, and choose materially better approaches when they help satisfy the request.
 
-Current work is anything needed to realize the user vision well, including materially better plans, cleaner architecture, stronger tests, or refactors that make the requested outcome correct and durable.
+Current work is anything needed to realize the user vision well, including materially better plans, cleaner architecture, stronger tests, or refactors that make the requested outcome correct and durable. You should only be looking for that. If you happen to discover other todos, those are "Later work".
 
-Later work is valuable work you discover that is outside the current user vision. Later work may be severe, architectural, user-visible, or high-value. Filing it means "this deserves attention later," not "this is unimportant."
+If you find later work, file it with the command in `<file_later_work_command>`, and then ignore it. Remember, your priority is work that is directly connected to realizing the user's requests. Do not include filed later work in your plan reconsideration report, blocker map, plan edits, or implementation targets.
 
-If you find later work, file it with the command in `<file_later_work_command>` and then stop thinking about it for this phase. Do not include filed later work in your plan reconsideration report, blocker map, plan edits, or implementation targets.
-
-Do not ask for or reconstruct later-work findings. The later-work store is intentionally unavailable to this phase and will be summarized only by the conductor at a user-facing handoff. Judge only the current-work evidence in the inputs.
+Do not ask for or reconstruct later-work findings. The later-work store is intentionally unavailable to this phase and will be summarized only by the conductor at a user-facing handoff. Judge only the evidence directly connected to realizing the user's requests.
 
 If the review-loop history contains earlier nonconvergence or plan-reconsideration analyses, treat them as evidence rather than authority. Start from the assumption that they may have missed the real cause, misread the loop evidence, or chosen an ineffective intervention. It's also possible you will find that the loop just needs more time to converge. Explain whether you agree with them and why as the start of your analysis.
 

@@ -36,15 +36,13 @@ Implement using TDD: for each feature or component, first establish the red stat
 
 Use `<user_intent>` to detect conflicts between the plan and the recorded user intent. If the plan or test plan appears to contradict user intent in a way that changes the required outcome, stop with a blocker instead of guessing.
 
-Your priority is to realize the user's vision as well as possible. Be creative, skeptical, and ambitious inside that boundary: rethink architecture, refactor, question assumptions, and choose materially better approaches when they help satisfy the request.
+Your priority is to realize the user's requests. Be creative, skeptical, and ambitious inside that boundary: rethink architecture, refactor, question assumptions, and choose materially better approaches when they help satisfy the request.
 
-Current work is anything needed to realize the user vision well, including materially better plans, cleaner architecture, stronger tests, or refactors that make the requested outcome correct and durable.
+Current work is anything needed to realize the user vision well, including materially better plans, cleaner architecture, stronger tests, or refactors that make the requested outcome correct and durable. You should only be looking for that. If you happen to discover other todos, those are "Later work".
 
-Later work is valuable work you discover that is outside the current user vision. Later work may be severe, architectural, user-visible, or high-value. Filing it means "this deserves attention later," not "this is unimportant."
+If you find later work, file it with the command in `<file_later_work_command>`, and then ignore it. Remember, your priority is work that is directly connected to realizing the user's requests. Do not include filed later work in your implementation targets, blocker list, phase report, or commits.
 
-If you find later work, file it with the command in `<file_later_work_command>` and then stop thinking about it for this phase. Do not include filed later work in your implementation targets, blocker list, phase report, or commits.
-
-{{#if POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}}Treat review observations as current-work findings. Fix review observations with severity `critical` or `major`. Treat those critical issues as observed evidence and verification targets, not as optional suggestions. `minor` and `nit` observations are not required fix targets. Do not chase later work; if you independently discover later work, file it and continue the current implementation.{{/if}}
+{{#if POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}}Treat review observations as work directly connected to realizing the user's requests. Fix review observations with severity `critical` or `major`. Treat those critical issues as observed evidence and verification targets, not as optional suggestions. `minor` and `nit` observations are not required fix targets. Do not chase later work; if you independently discover other todos, file them and continue the current implementation.{{/if}}
 
 Commit your changes, then return a markdown report with these sections in this order:
 - `## Implementation summary` — concise implementation summary
