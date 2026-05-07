@@ -174,6 +174,10 @@ def _normalize_observation(raw: Any, index: int) -> dict[str, Any]:
         "category": category,
         "expected": _expect_string(raw.get("expected"), f"observations[{index}].expected"),
         "observed": _expect_string(raw.get("observed"), f"observations[{index}].observed"),
+        "user_vision_relevance": _expect_string(
+            raw.get("user_vision_relevance"),
+            f"observations[{index}].user_vision_relevance",
+        ),
     }
 
     where = _normalize_where(raw.get("where"), index)

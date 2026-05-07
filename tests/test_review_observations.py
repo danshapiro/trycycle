@@ -50,6 +50,10 @@ class ReviewObservationsTests(unittest.TestCase):
                 "category": "correctness",
                 "expected": "first expected",
                 "observed": "first observed",
+                "user_vision_relevance": (
+                    "The first behavior is current work because it blocks the "
+                    "requested output from being correct."
+                ),
                 "where": {"file": "src/a.py", "line": 10},
                 "evidence": {"commands": ["pytest"], "notes": "first evidence"},
             }
@@ -59,6 +63,10 @@ class ReviewObservationsTests(unittest.TestCase):
                 "category": "missing_test",
                 "expected": "second expected",
                 "observed": "second observed",
+                "user_vision_relevance": (
+                    "The second behavior is current work because the requested "
+                    "output lacks required verification."
+                ),
                 "where": {"file": "tests/test_a.py", "line": 20},
                 "evidence": {
                     "commands": ["pytest tests/test_a.py"],
@@ -97,6 +105,11 @@ class ReviewObservationsTests(unittest.TestCase):
             self.assertEqual([item["id"] for item in payload["observations"]], ["R1", "R2"])
             self.assertEqual(payload["observations"][0]["expected"], "first expected")
             self.assertEqual(payload["observations"][1]["expected"], "second expected")
+            self.assertEqual(
+                payload["observations"][0]["user_vision_relevance"],
+                "The first behavior is current work because it blocks the "
+                "requested output from being correct.",
+            )
 
             stdout_payload = json.loads(result.stdout)
             self.assertEqual(stdout_payload["status"], "ok")
@@ -124,6 +137,34 @@ class ReviewObservationsTests(unittest.TestCase):
             self.assertEqual(payload["observations"], [])
             self.assertEqual(payload["issue_count"], 0)
             self.assertEqual(payload["blocking_issue_count"], 0)
+
+    def test_extract_rejects_observation_without_user_vision_relevance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            reply_path = tmp_path / "reply.txt"
+            obs_path = tmp_path / "obs.json"
+            reply_path.write_text(
+                _reply(
+                    [
+                        {
+                            "id": "R1",
+                            "severity": "major",
+                            "category": "behavior",
+                            "expected": "The requested command palette text is visible.",
+                            "observed": "The requested text is clipped.",
+                            "where": {"file": "ui/command_palette.py", "line": 42},
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = _run_review_observations(
+                "extract", "--reply", str(reply_path), "--output", str(obs_path)
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("user_vision_relevance", result.stderr)
 
 
 if __name__ == "__main__":
