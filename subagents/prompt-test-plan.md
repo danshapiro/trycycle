@@ -14,6 +14,12 @@ You have the user-intent artifact, the agreed testing strategy, and the implemen
 {TESTING_STRATEGY}
 </testing_strategy>
 
+{{#if PLAN_LOAD_BEARING_LEDGER}}
+<plan_load_bearing_ledger>
+{PLAN_LOAD_BEARING_LEDGER}
+</plan_load_bearing_ledger>
+{{/if}}
+
 The implementation plan is at `{IMPLEMENTATION_PLAN_PATH}`.
 
 Work in the implementation workspace at `{WORKTREE_PATH}`.
@@ -24,17 +30,18 @@ Work in the implementation workspace at `{WORKTREE_PATH}`.
 2. Read the agreed testing strategy.
 3. Read the implementation plan thoroughly. Understand the architecture, interfaces, components, and task breakdown.
 4. Use `<user_intent>` as the scope and acceptance source when reconciling the approved testing strategy against the implementation plan. Use `<testing_strategy>` for the agreed testing priorities and harness choices; do not broaden scope beyond user intent.
-5. **Reconcile the strategy against the plan.** Check whether the implementation plan invalidates any assumptions in the testing strategy:
+5. If `<plan_load_bearing_ledger>` is present, use verified and falsified load-bearing findings as sources of truth for test priorities, source-of-truth notes, and acceptance artifacts. Do not broaden scope beyond user intent; use the ledger to make the existing plan and strategy more reliable.
+6. **Reconcile the strategy against the plan.** Check whether the implementation plan invalidates any assumptions in the testing strategy:
    - Do the planned interfaces and architecture match what the strategy assumed about harnesses?
    - Is the interaction surface larger or different than expected?
    - Does the plan reveal external dependencies (paid APIs, infrastructure, services) that the strategy didn't account for?
    - Are there components or behaviors the strategy didn't anticipate?
    If the strategy still holds, note that briefly and proceed. If adjustments are needed that don't change the cost or scope the user agreed to, make them and document what changed and why. If adjustments would increase cost, require access to paid/external resources, or materially change scope, put them in a `## Strategy changes requiring user approval` section as the first section of the file — that section will be presented to the user before proceeding.
-6. Read the codebase: examine every file, directory, and artifact relevant to the task. If there are reference implementations, specs, API docs, or other sources of truth identified in the strategy, read those thoroughly.
-7. Identify the relevant existing automated checks and the full action space: every user-facing action, command, endpoint, interaction, or behavior that the task touches or could affect. Enumerate to the leaf: every clickable element, submittable form, callable endpoint, and executable command is a distinct action — not the page, screen, or feature that contains it.
-8. Build the plan around the highest-value existing relevant automated checks when they exist, and add new tests wherever user-visible behavior is weakly covered or uncovered. Prefer running the real system through the real user-facing surface with real collaborating components over mocks, stubs, or direct calls into internals.
-9. Include an acceptance-artifact review section in every test plan. The implementation subagent must run the checks and preserve artifacts; a later fresh blank-slate subagent will inspect the user request, this test plan, the implementation report, and those artifacts to determine whether the evidence demonstrates the requested outcome. The acceptance reviewer must not rerun tests or recreate artifacts.
-10. Do not include human validation, "ask a person whether this looks right", or manual QA by the user. Agent-inspected acceptance artifacts are mandatory, but they do not replace automated tests that should exist.
+7. Read the codebase: examine every file, directory, and artifact relevant to the task. If there are reference implementations, specs, API docs, or other sources of truth identified in the strategy, read those thoroughly.
+8. Identify the relevant existing automated checks and the full action space: every user-facing action, command, endpoint, interaction, or behavior that the task touches or could affect. Enumerate to the leaf: every clickable element, submittable form, callable endpoint, and executable command is a distinct action — not the page, screen, or feature that contains it.
+9. Build the plan around the highest-value existing relevant automated checks when they exist, and add new tests wherever user-visible behavior is weakly covered or uncovered. Prefer running the real system through the real user-facing surface with real collaborating components over mocks, stubs, or direct calls into internals.
+10. Include an acceptance-artifact review section in every test plan. The implementation subagent must run the checks and preserve artifacts; a later fresh blank-slate subagent will inspect the user request, this test plan, the implementation report, and those artifacts to determine whether the evidence demonstrates the requested outcome. The acceptance reviewer must not rerun tests or recreate artifacts.
+11. Do not include human validation, "ask a person whether this looks right", or manual QA by the user. Agent-inspected acceptance artifacts are mandatory, but they do not replace automated tests that should exist.
 
 ## Test structure
 

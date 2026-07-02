@@ -32,6 +32,12 @@ Work in the implementation workspace at `{WORKTREE_PATH}`.
 </acceptance_artifact_review_observations_json>
 {{/if}}
 
+{{#if LOAD_BEARING_REVIEW_OBSERVATIONS_JSON}}
+<load_bearing_review_observations_json>
+{LOAD_BEARING_REVIEW_OBSERVATIONS_JSON}
+</load_bearing_review_observations_json>
+{{/if}}
+
 A skipped test is a failed test — there are no "legitimate" skips in a final run. After running tests, if ANY test was skipped: identify why it skipped, then make it run and pass. Exhaust every option to make it run. If after genuine effort a test still cannot run and pass without weakening it, halt immediately, write a postmortem of what you tried, and escalate to the user. Never report success while any tests remain skipped.
 
 Implement using TDD: for each feature or component, first establish the red state with the highest-priority automated check or checks from the test plan. Reuse or extend high-value existing tests when they already cover the behavior; when coverage is missing, write the new failing test or tests first. If the test plan specifies harnesses to build, build those first.
@@ -42,6 +48,7 @@ After automated tests/checks pass, produce the acceptance artifacts required by 
 
 {{#if POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}}Fix the implementation against the attached review observations with severity `critical` or `major`. Treat those critical issues as observed evidence and verification targets, not as optional suggestions. `minor` and `nit` observations are not required fix targets.{{/if}}
 {{#if ACCEPTANCE_ARTIFACT_REVIEW_OBSERVATIONS_JSON}}Fix the implementation or acceptance artifacts against the attached acceptance-artifact review observations with severity `critical` or `major`. Treat those gaps as failed verification: either the implementation must change, the tests/checks must produce better evidence, or both. `minor` and `nit` observations are not required fix targets.{{/if}}
+{{#if LOAD_BEARING_REVIEW_OBSERVATIONS_JSON}}Fix the implementation, tests, or acceptance artifacts against the attached load-bearing observations with severity `critical` or `major`. Treat those observations as failed verification targets: either remove the invalid assumption, produce stronger evidence, update the relevant artifact provenance, or stop with a real blocker. `minor` and `nit` observations are not required fix targets.{{/if}}
 
 Commit your changes, then return a markdown report with these sections in this order:
 - `## Implementation summary` — concise implementation summary

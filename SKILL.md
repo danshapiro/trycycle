@@ -78,7 +78,25 @@ When a step below references `{ACCEPTANCE_ARTIFACT_REVIEW_OBSERVATIONS_JSON}`, u
 
 When a step below references `{LATEST_IMPLEMENTATION_REPORT}`, use the most recent implementation report returned by the implementation subagent. Bind it with `--set-file` from the temp-file path where you saved that report.
 
-When a step below references `{REVIEW_LOOP_HISTORY}`, use the accumulated acceptance-artifact and post-implementation review-loop history artifact from the current trycycle session.
+When a step below references `{REVIEW_LOOP_HISTORY}`, use the accumulated post-execution load-bearing, acceptance-artifact, and post-implementation review-loop history artifact from the current trycycle session.
+
+When a step below references `{PLAN_LOAD_BEARING_LEDGER_PATH}`, use the latest accepted plan-time load-bearing ledger path from the current trycycle session.
+
+When a step below references `{POST_EXECUTION_LOAD_BEARING_LEDGER_PATH}`, use the latest accepted post-execution load-bearing ledger path from the current trycycle session.
+
+When a step below references `{LOAD_BEARING_LEDGER_PATH}`, use the current load-bearing gate's canonical ledger output path. The curator creates this file and the evaluator updates it in place.
+
+When a step below references `{LOAD_BEARING_SCOPE}`, use exactly `plan` for the plan-time gate or `post-execution` for the post-execution gate.
+
+When a step below references `{LOAD_BEARING_VALIDATION_REPORTS}`, use the current load-bearing gate's temp file containing newline-delimited absolute validator report paths. It may be empty when no validation targets exist.
+
+When a step below references `{LOAD_BEARING_EVALUATION_REPORT}`, use the latest saved load-bearing evaluator report for the current gate.
+
+When a step below references `{PREVIOUS_LOAD_BEARING_STRATEGY}`, bind the prior rejected load-bearing strategy report only during a strategy-revision round.
+
+When a step below references `{LOAD_BEARING_STRATEGY_REVIEW_REPORT}`, bind the latest load-bearing strategy-review correction report only during a strategy-revision round.
+
+When a step below references `{LOAD_BEARING_REVIEW_OBSERVATIONS_JSON}`, use the extracted post-execution load-bearing review observations JSON exactly as the placeholder value.
 
 When a step below references `{IMPLEMENTATION_PLAN_PATH}`, use the latest absolute plan path returned by the planning subagent in the current trycycle session. Update it after the initial planning result, after every plan-edit result, and after every post-review plan-reconsideration result.
 
@@ -107,7 +125,7 @@ When a step below references `{IMPLEMENTATION_BACKEND}`, use the resolved `dispa
 - In native mode, implementation subagents are persistent: create one implementation agent, then resume it for every implementation-fix round.
 - In fallback-runner mode, implementation subagents are persistent through the runner: create one implementation session, record its `session_id`, then resume it through the runner for every implementation-fix round.
 - In fallback-runner mode, record the resolved `dispatch.backend` for persistent sessions and reuse that same backend on every `resume`.
-- Review subagents are ephemeral: create a fresh acceptance-artifact reviewer and, when the acceptance gate passes, a fresh code reviewer for each verification round.
+- Review and load-bearing gate subagents are ephemeral: create fresh load-bearing finder, curator, strategist, strategy-review, validator, and evaluator subagents for each gate; create a fresh acceptance-artifact reviewer and, when the acceptance gate passes, a fresh code reviewer for each verification round.
 - The user-intent extraction phase is the only phase that receives raw conversation transcript. All later phases receive `{USER_INTENT}` plus explicit artifacts such as the testing strategy, implementation plan, test plan, implementation report, review observations, and review-loop history.
 - Render the prompt template with the prompt builder and pass the rendered prompt verbatim.
 - User instructions still apply. When they are relevant, relay them.
@@ -139,6 +157,39 @@ The script extracts:
 If the script returns "(no extractable content found in subagent session parts)", escalate to the user. If the script exits with a non-zero status (database not found, session not found, schema error), note the error and escalate as well — the orchestrator cannot recover those cases without user input.
 
 The script auto-detects the OpenCode database location. If that fails, pass `--db-path` explicitly or direct the user to set `OPENCODE_DB_PATH` or `OPENCODE_DATA_DIR`.
+
+## Load-Bearing Gate Helper
+
+When a workflow step says to run a full load-bearing gate, use this helper exactly. The helper returns a saved evaluator report path, a normalized review-observations JSON path, the canonical `{LOAD_BEARING_LEDGER_PATH}`, the evaluator verdict, and the normalized `blocking_issue_count`.
+
+Before starting, create a temp path for `{LOAD_BEARING_LEDGER_PATH}` and an empty temp file for `{LOAD_BEARING_VALIDATION_REPORTS}`. Start the phase prompt paths temp file and loop outputs temp file if needed. Append every load-bearing phase `prompt_path` to the phase prompt paths temp file, and save every subagent reply to a temp file before using it in another phase. Append load-bearing reports to the loop outputs temp file with clear labels such as `load-bearing-plan finder report:`, `load-bearing-plan evaluator report:`, `load-bearing-post-execution validator report:`, and `load-bearing-post-execution evaluator report:`. Monitor every load-bearing subagent by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+
+1. Set `{LOAD_BEARING_SCOPE}` to `plan` for the plan-time gate or `post-execution` for the post-execution gate.
+2. Prepare and dispatch the finder phase.
+   - For `plan`, use template `<skill-directory>/subagents/prompt-load-bearing-finder-plan.md` with `--set LOAD_BEARING_SCOPE=plan`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--require-nonempty-tag user_intent`, and `--ignore-tag-for-placeholders user_intent`.
+   - For `post-execution`, use template `<skill-directory>/subagents/prompt-load-bearing-finder-execution.md` with `--set LOAD_BEARING_SCOPE=post-execution`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set-file LATEST_IMPLEMENTATION_REPORT=<latest-implementation-report-temp-file>`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--require-nonempty-tag user_intent`, `--require-nonempty-tag latest_implementation_report`, `--ignore-tag-for-placeholders user_intent`, and `--ignore-tag-for-placeholders latest_implementation_report`.
+3. Prepare and dispatch the curator phase with template `<skill-directory>/subagents/prompt-load-bearing-curate.md`, `--set LOAD_BEARING_SCOPE={LOAD_BEARING_SCOPE}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set LOAD_BEARING_LEDGER_PATH={LOAD_BEARING_LEDGER_PATH}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--set-file FINDER_REPORT=<finder-report-temp-file>`, `--require-nonempty-tag user_intent`, `--require-nonempty-tag finder_report`, `--ignore-tag-for-placeholders user_intent`, and `--ignore-tag-for-placeholders finder_report`.
+4. Prepare and dispatch the strategist phase with template `<skill-directory>/subagents/prompt-load-bearing-strategist.md`, `--set LOAD_BEARING_SCOPE={LOAD_BEARING_SCOPE}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file LOAD_BEARING_LEDGER={LOAD_BEARING_LEDGER_PATH}`, `--require-nonempty-tag load_bearing_ledger`, and `--ignore-tag-for-placeholders load_bearing_ledger`.
+5. Prepare and dispatch the strategy-review phase with template `<skill-directory>/subagents/prompt-load-bearing-strategy-review.md`, `--set LOAD_BEARING_SCOPE={LOAD_BEARING_SCOPE}`, `--set-file LOAD_BEARING_LEDGER={LOAD_BEARING_LEDGER_PATH}`, `--set-file LOAD_BEARING_STRATEGY=<latest-strategy-report-temp-file>`, `--require-nonempty-tag load_bearing_ledger`, `--require-nonempty-tag load_bearing_strategy`, `--ignore-tag-for-placeholders load_bearing_ledger`, and `--ignore-tag-for-placeholders load_bearing_strategy`.
+6. If the strategy-review verdict is `REVISE`, rerun the strategist phase with the same scope, worktree, and ledger bindings, plus `--set-file PREVIOUS_LOAD_BEARING_STRATEGY=<latest-strategy-report-temp-file>`, `--set-file LOAD_BEARING_STRATEGY_REVIEW_REPORT=<latest-strategy-review-report-temp-file>`, `--require-nonempty-tag previous_load_bearing_strategy`, `--require-nonempty-tag load_bearing_strategy_review_report`, `--ignore-tag-for-placeholders previous_load_bearing_strategy`, and `--ignore-tag-for-placeholders load_bearing_strategy_review_report`. Then rerun strategy-review. Repeat until the strategy-review verdict is `READY`, up to 3 strategy-review rounds.
+7. If strategy review is still not `READY` after 3 rounds, prepare `nonconvergence-review` with template `<skill-directory>/subagents/prompt-nonconvergence-review.md`, `--set TRYCYCLE_SKILL_PATH=<skill-directory>/SKILL.md`, `--set NONCONVERGENCE_CONTEXT="Load-bearing strategy-review loop reached 3 rounds without a READY verdict."`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH=<current TEST_PLAN_PATH or "Not built yet; the plan load-bearing gate did not converge before the test-plan phase.">`, `--set-file PHASE_PROMPT_PATHS=<phase-prompt-paths-temp-file>`, `--set-file LOOP_OUTPUT_PATHS=<loop-outputs-temp-file>`, `--set-file USER_INTENT={USER_INTENT_PATH}`, and `--ignore-tag-for-placeholders user_intent`. If execution has started, bind `IMPLEMENTATION_REPORT_PATHS` with `--set-file IMPLEMENTATION_REPORT_PATHS=<implementation-reports-temp-file>`; otherwise bind `--set IMPLEMENTATION_REPORT_PATHS="Not applicable; execution did not start."`. Present that report and the latest strategy-review report to the user and await instructions.
+8. Copy each fenced `load-bearing-validation-target` block from the accepted strategy to its own temp file. If there are no fenced target blocks, leave `{LOAD_BEARING_VALIDATION_REPORTS}` empty and skip validators so the evaluator can return `NO_TARGETS`.
+9. If target blocks exist, dispatch one fresh validator per target in parallel using template `<skill-directory>/subagents/prompt-load-bearing-validator.md`, `--set LOAD_BEARING_SCOPE={LOAD_BEARING_SCOPE}`, `--set-file LOAD_BEARING_VALIDATION_TARGET=<validation-target-temp-file>`, `--require-nonempty-tag validation_target`, and `--ignore-tag-for-placeholders validation_target`. Save each validator reply to a temp file and rewrite `{LOAD_BEARING_VALIDATION_REPORTS}` as a newline-delimited list of those absolute reply paths.
+10. Prepare and dispatch the evaluator phase with template `<skill-directory>/subagents/prompt-load-bearing-evaluate.md`, `--set LOAD_BEARING_SCOPE={LOAD_BEARING_SCOPE}`, `--set LOAD_BEARING_LEDGER_PATH={LOAD_BEARING_LEDGER_PATH}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--set-file LOAD_BEARING_LEDGER={LOAD_BEARING_LEDGER_PATH}`, `--set-file LOAD_BEARING_STRATEGY=<latest-strategy-report-temp-file>`, `--set-file LOAD_BEARING_VALIDATION_REPORTS={LOAD_BEARING_VALIDATION_REPORTS}`, `--require-nonempty-tag user_intent`, `--require-nonempty-tag load_bearing_ledger`, `--require-nonempty-tag load_bearing_strategy`, `--ignore-tag-for-placeholders user_intent`, `--ignore-tag-for-placeholders load_bearing_ledger`, `--ignore-tag-for-placeholders load_bearing_strategy`, and `--ignore-tag-for-placeholders load_bearing_validation_reports`. Do not require `load_bearing_validation_reports` to be non-empty.
+11. Save the evaluator reply to a temp file and extract the structured observations:
+
+```bash
+python3 <skill-directory>/orchestrator/review_observations.py extract \
+  --reply <load-bearing-evaluator-reply-temp-file> \
+  --output <load-bearing-review-observations-temp-file>
+```
+
+12. Check that the evaluator markdown verdict and normalized JSON are self-consistent before routing:
+   - `VERIFIED` and `NO_TARGETS` require normalized `status: "no_issues"` and `blocking_issue_count: 0`.
+   - `FALSIFIED` and `INCONCLUSIVE` require normalized `status: "issues_found"` and `blocking_issue_count > 0`.
+   - `NEEDS_USER_APPROVAL` requires normalized `status: "issues_found"`, `blocking_issue_count > 0`, and at least one critical or major `other` observation naming the blocked state-changing validation.
+   If the verdict and JSON conflict, stop and surface the evaluator report plus extractor output to the user rather than guessing.
+13. Route by the self-consistent evaluator verdict. Use normalized `blocking_issue_count` as the machine-readable blocker count after consistency has been checked.
 
 ## 1) Version check
 
@@ -180,7 +231,7 @@ Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only
 
 When the subagent returns a proposed strategy, save the exact returned strategy to a temp file and set `{TESTING_STRATEGY_PATH}` to that path, then present it to the user verbatim and ask for explicit approval or edits. Then close that completed test-strategy subagent and clear any saved handle or `session_id` for it. Do not proceed unless the user explicitly accepts it or provides changes. Silence, implied approval, or the subagent's own recommendation does not count as agreement. The strategy and any later test plan must not rely on user/human validation; every test plan must include acceptance artifacts for a later blank-slate subagent to inspect against the user request without rerunning or recreating checks. Put the strongest weight on high-value automated checks that verify real user-visible behavior through the actual UI, CLI, HTTP surface, or other outputs the user consumes, rather than tests that only show the implementation is internally self-consistent. Prefer reusing or extending those checks when they already exist, and add new tests wherever the existing suite leaves meaningful gaps in coverage, fidelity, or diagnosis. If the problem statement or prior investigation already identifies automated checks that are red and must go green, the strategy and any later test plan must include them explicitly. After every user response to the strategy, run the user-intent freshness check before proceeding or redispatching. If the user requests changes or redirects the approach, rerun the same `test-strategy` phase wrapper command immediately before redispatching. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry. Save the revised strategy to `{TESTING_STRATEGY_PATH}` and present it verbatim. Repeat until the user explicitly approves a strategy.
 
-The agreed testing strategy is used in step 9 through `{TESTING_STRATEGY_PATH}`.
+The agreed testing strategy is used in step 10 through `{TESTING_STRATEGY_PATH}`.
 
 ## 5) Prepare implementation workspace
 
@@ -208,7 +259,7 @@ Do not continue until the branch is correct and the status is clean.
 
 ## 6) Workspace hygiene gate (mandatory)
 
-Before and after each major phase (`plan-editing`, `execution`, `acceptance-artifact review`, `post-implementation review`), run:
+Before and after each major phase (`plan-editing`, `plan load-bearing`, `execution`, `post-execution load-bearing`, `acceptance-artifact review`, `post-implementation review`), run:
 - `git -C {WORKTREE_PATH} branch --show-current`
 - `git -C {WORKTREE_PATH} status --short`
 
@@ -256,20 +307,34 @@ After each edit round:
 3. Update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path` in the latest planning report.
 4. Run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
 5. Start a loop outputs temp file if needed, save the returned planning report to a temp file, append that path, then close that planning subagent for the completed round and clear any saved handle or `session_id` for it.
-6. If `## Plan verdict` is `READY`, continue to step 9 with the current `{IMPLEMENTATION_PLAN_PATH}`. **If the verdict is NOT `READY`, do NOT proceed to step 9 - continue to step 8 for another planning round.**
+6. If `## Plan verdict` is `READY`, continue to step 9, the plan load-bearing gate, with the current `{IMPLEMENTATION_PLAN_PATH}`. **If the verdict is NOT `READY`, do NOT proceed to the step 9 plan load-bearing gate - continue to step 8 for another planning round.**
 7. If `## Plan verdict` is `REVISED`, repeat with a fresh planning subagent.
 8. Repeat up to 5 rounds.
 
-If the plan still is not judged ready after the 5th editor round: **STOP. Do NOT proceed to step 9.**
+If the plan still is not judged ready after the 5th editor round: **STOP. Do NOT proceed to the step 9 plan load-bearing gate.**
 1. Stop looping.
 2. Prepare the `nonconvergence-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-nonconvergence-review.md`, `--set TRYCYCLE_SKILL_PATH=<skill-directory>/SKILL.md`, `--set NONCONVERGENCE_CONTEXT="Plan-editor loop reached 5 rounds without a READY verdict."`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH="Not built yet; the plan-editor loop did not converge before the test-plan phase."`, `--set-file PHASE_PROMPT_PATHS=<phase-prompt-paths-temp-file>`, `--set-file LOOP_OUTPUT_PATHS=<loop-outputs-temp-file>`, `--set IMPLEMENTATION_REPORT_PATHS="Not applicable; execution did not start."`, `--set-file USER_INTENT={USER_INTENT_PATH}`, and `--ignore-tag-for-placeholders user_intent`, then dispatch a subagent with the returned `prompt_path`. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 3. Present that report and the latest planning report to the user and **await user instructions before taking any further action.**
 
-## 9) Build test plan (subagent-owned)
+## 9) Build and run plan load-bearing gate
+
+Run this gate after the plan-editor loop has returned `READY` and before building the test plan. Start a plan load-bearing blocking-result counter at 0.
+
+Run the full load-bearing gate helper with `{LOAD_BEARING_SCOPE}` set to `plan`.
+
+If the self-consistent evaluator verdict is `VERIFIED` or `NO_TARGETS`, set `{PLAN_LOAD_BEARING_LEDGER_PATH}` to `{LOAD_BEARING_LEDGER_PATH}`, save the evaluator report to the loop outputs temp file with the label `load-bearing-plan evaluator report:`, and continue to step 10.
+
+If the self-consistent evaluator verdict is `FALSIFIED` or `INCONCLUSIVE`, increment the plan load-bearing blocking-result counter. If this is the third blocking plan load-bearing result, stop before test-plan construction and prepare the `nonconvergence-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-nonconvergence-review.md`, `--set TRYCYCLE_SKILL_PATH=<skill-directory>/SKILL.md`, `--set NONCONVERGENCE_CONTEXT="Plan load-bearing gate reached 3 blocking rounds before test-plan construction."`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH="Not built yet; the plan load-bearing gate did not pass before test-plan construction."`, `--set-file PHASE_PROMPT_PATHS=<phase-prompt-paths-temp-file>`, `--set-file LOOP_OUTPUT_PATHS=<loop-outputs-temp-file>`, `--set IMPLEMENTATION_REPORT_PATHS="Not applicable; execution did not start."`, `--set-file USER_INTENT={USER_INTENT_PATH}`, and `--ignore-tag-for-placeholders user_intent`, then dispatch a subagent with the returned `prompt_path`. Present that nonconvergence report, the latest evaluator report, and the latest planning report to the user and await instructions.
+
+If the self-consistent evaluator verdict is `FALSIFIED` or `INCONCLUSIVE` and the gate has not reached the third blocking result, run a fresh planning subagent with template `<skill-directory>/subagents/prompt-load-bearing-plan-revision.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--set-file LOAD_BEARING_EVALUATION_REPORT=<load-bearing-evaluator-report-temp-file>`, `--require-nonempty-tag user_intent`, `--require-nonempty-tag load_bearing_evaluation_report`, `--ignore-tag-for-placeholders user_intent`, and `--ignore-tag-for-placeholders load_bearing_evaluation_report`. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry. If the plan-revision subagent returns `USER DECISION REQUIRED:`, present it to the user, run the user-intent freshness check after the user replies, send the answer back to that active subagent, and wait again for either an `UPDATED` report or another `USER DECISION REQUIRED:` report. If it returns `UPDATED`, update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path`, run the workspace hygiene gate, verify the latest commit hash plus changed-file list match the subagent report, save the plan-revision report to the loop outputs temp file, close that planning subagent, and return to step 8 with the revised plan.
+
+If the self-consistent evaluator verdict is `NEEDS_USER_APPROVAL`, present the blocked approval report to the user and await instructions.
+
+## 10) Build test plan (subagent-owned)
 
 Now that the implementation plan has passed the plan-editor loop and is finalized, dispatch a subagent to reconcile the testing strategy against the plan and produce the concrete test plan, starting from high-value existing automated checks where they exist and adding new tests where coverage is missing.
 
-Immediately before dispatch, prepare the `test-plan` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-test-plan.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--set-file TESTING_STRATEGY={TESTING_STRATEGY_PATH}`, `--require-nonempty-tag user_intent`, `--require-nonempty-tag testing_strategy`, `--ignore-tag-for-placeholders user_intent`, and `--ignore-tag-for-placeholders testing_strategy`.
+Immediately before dispatch, prepare the `test-plan` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-test-plan.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--set-file TESTING_STRATEGY={TESTING_STRATEGY_PATH}`, `--require-nonempty-tag user_intent`, `--require-nonempty-tag testing_strategy`, `--ignore-tag-for-placeholders user_intent`, and `--ignore-tag-for-placeholders testing_strategy`. If `{PLAN_LOAD_BEARING_LEDGER_PATH}` exists, also pass `--set-file PLAN_LOAD_BEARING_LEDGER={PLAN_LOAD_BEARING_LEDGER_PATH}`, `--require-nonempty-tag plan_load_bearing_ledger`, and `--ignore-tag-for-placeholders plan_load_bearing_ledger`.
 
 Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 
@@ -282,7 +347,7 @@ When the subagent returns:
 5. Run the workspace hygiene gate checks, verify the latest commit hash plus changed-file list match the test-plan subagent's report, and verify the test plan file exists at `{TEST_PLAN_PATH}`.
 6. Close the completed test-plan subagent for the approved report and clear any saved handle or `session_id` for it.
 
-## 10) Execute with trycycle-executing (subagent-owned)
+## 11) Execute with trycycle-executing (subagent-owned)
 
 Code implementation must be done by a new, dedicated subagent.
 
@@ -310,15 +375,21 @@ Do not proceed to acceptance-artifact review until the implementation subagent h
 
 After implementation completes, run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before launching acceptance-artifact review.
 
-## 11) Acceptance-artifact and post-implementation review loop (up to 8 rounds by default)
+## 12) Acceptance-artifact and post-implementation review loop (up to 8 rounds by default)
 
-After execution completes, start the verification loop. Every loop round begins with a fresh acceptance-artifact reviewer with no prior context. It receives the user intent, finalized test plan, latest implementation report, and produced artifacts. It must not rerun tests, recreate screenshots, launch services, regenerate files, or inspect implementation internals. Its only job is to decide whether the artifacts conclusively demonstrate that the user request was satisfied.
+After execution completes, start the verification loop. Every loop round begins with a post-execution load-bearing gate over the latest implementation report and acceptance artifacts. If that gate passes, continue to a fresh acceptance-artifact reviewer with no prior context. The acceptance-artifact reviewer receives the user intent, finalized test plan, latest implementation report, and produced artifacts. It must not rerun tests, recreate screenshots, launch services, regenerate files, or inspect implementation internals. Its only job is to decide whether the artifacts conclusively demonstrate that the user request was satisfied.
 
 If the acceptance-artifact reviewer finds blocking gaps, treat them exactly like failed tests: skip the code-review subagent for that round and send the extracted observations back to the implementation subagent. If the acceptance-artifact reviewer passes, then deploy a fresh code reviewer with no prior context and give it the finalized implementation plan plus the finalized test plan.
 
 Create an empty temp file for `{REVIEW_LOOP_HISTORY}` before starting the first verification round, then append the implementation subagent's initial implementation report to it.
 
-At the start of every verification round, run the acceptance-artifact review gate:
+At the start of every verification round, run the post-execution load-bearing gate:
+1. Run the full load-bearing gate helper with `{LOAD_BEARING_SCOPE}` set to `post-execution`.
+2. If the self-consistent evaluator verdict is `VERIFIED` or `NO_TARGETS`, set `{POST_EXECUTION_LOAD_BEARING_LEDGER_PATH}` to `{LOAD_BEARING_LEDGER_PATH}`, append the evaluator report and ledger path to `{REVIEW_LOOP_HISTORY}`, and continue to acceptance-artifact review for this same verification round.
+3. If the self-consistent evaluator verdict is `FALSIFIED` or `INCONCLUSIVE`, use the evaluator's normalized observations as the fix-loop input for this verification round. Append the evaluator report and normalized observations to `{REVIEW_LOOP_HISTORY}` as a completed verification round of type `load-bearing-post-execution`. Do not dispatch acceptance-artifact review or code review for this round.
+4. If the self-consistent evaluator verdict is `NEEDS_USER_APPROVAL`, present the blocked approval report to the user and await instructions.
+
+When the post-execution load-bearing gate passes for a round, run the acceptance-artifact review gate:
 1. Immediately before dispatch, prepare the `acceptance-artifact-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-acceptance-artifact-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set-file LATEST_IMPLEMENTATION_REPORT=<latest-implementation-report-temp-file>`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--ignore-tag-for-placeholders latest_implementation_report`, and `--ignore-tag-for-placeholders user_intent`, then dispatch a fresh acceptance-artifact review subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
 2. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 3. Save the acceptance-artifact reviewer's raw stdout to a temp file immediately and extract a structured review-observations artifact from it using the extractor command below.
@@ -349,9 +420,9 @@ Treat the extractor's JSON stdout as authoritative for:
 
 If extraction fails, stop and surface the review reply plus the extractor failure to the user rather than guessing.
 
-Start a loop outputs temp file if needed. Append each acceptance-artifact review or code-review reply path and extracted review-observations path to it.
+Start a loop outputs temp file if needed. Append each acceptance-artifact review, code-review, or post-execution load-bearing evaluator reply path and extracted review-observations path to it.
 
-After extraction succeeds, append the completed verification round number, the review type (`acceptance-artifact` or `code-review`), the reviewer's raw stdout, and the normalized review-observations JSON to `{REVIEW_LOOP_HISTORY}`.
+After extraction succeeds, append the completed verification round number, the review type (`load-bearing-post-execution`, `acceptance-artifact`, or `code-review`), the reviewer's raw stdout, and the normalized review-observations JSON to `{REVIEW_LOOP_HISTORY}`.
 
 When blocking issues remain after a verification round, first check whether the loop has reached its stop point. The default stop point is 8 completed verification rounds, but the user can override that like any other instruction.
 
@@ -360,6 +431,7 @@ Before either dispatching another fix round or running nonconvergence review, ch
 - The loop has reached its configured stop point. This means nonconvergence review always runs after a plan-reconsideration checkpoint when the loop stops with blockers, even if the user chose a stop point that would not otherwise trigger the even-round cadence.
 
 If plan reconsideration is due, run this checkpoint before the next action:
+- The latest blocking observations may come from post-execution load-bearing validation, acceptance-artifact review, or code review. All three use the same normalized review-observations schema, and all are passed through the existing `{POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}` binding for plan reconsideration.
 - Prepare the `planning-reconsider` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-reconsider.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set REVIEW_ROUND_NUMBER=<completed-verification-round-number>`, `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>`, `--set-file REVIEW_LOOP_HISTORY=<review-loop-history-temp-file>`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--require-nonempty-tag user_intent`, `--require-nonempty-tag review_loop_history`, `--ignore-tag-for-placeholders user_intent`, `--ignore-tag-for-placeholders post_implementation_review_observations_json`, and `--ignore-tag-for-placeholders review_loop_history`, then dispatch a fresh planning subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
 - Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 - Wait for either a report containing `## Plan reconsideration verdict`, `## Implementation plan path`, `## Test plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
@@ -374,7 +446,7 @@ Stop when either condition is met:
 1. The extracted review-observations artifact reports `blocking_issue_count: 0`.
 2. The configured stop point has been reached. By default, this is 8 completed verification rounds.
 
-Evaluate the stop condition only after the round's final review-observations artifact: the acceptance-artifact artifact if acceptance blocked and code review was skipped, or the code-review artifact if acceptance passed and code review ran. Do not finish the loop merely because acceptance-artifact review passed; code review must also pass for the same latest implementation report.
+Evaluate the stop condition only after the round's final review-observations artifact: the load-bearing artifact if post-execution load-bearing blocked before acceptance, the acceptance-artifact artifact if acceptance blocked and code review was skipped, or the code-review artifact if acceptance passed and code review ran. Do not finish the loop merely because post-execution load-bearing or acceptance-artifact review passed; code review must also pass for the same latest implementation report.
 
 If the latest extracted review-observations artifact still reports `blocking_issue_count > 0` after the configured stop point:
 1. Stop looping. Do not dispatch another implementation fix round.
@@ -385,16 +457,17 @@ If blockers remain and the configured stop point has not been reached, continue 
 1. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--ignore-tag-for-placeholders user_intent`, and the latest blocking observation file:
    - If the latest blocking observations came from acceptance-artifact review, pass `--set-file ACCEPTANCE_ARTIFACT_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>` and `--ignore-tag-for-placeholders acceptance_artifact_review_observations_json`.
    - If the latest blocking observations came from code review, pass `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>` and `--ignore-tag-for-placeholders post_implementation_review_observations_json`.
+   - If the latest blocking observations came from post-execution load-bearing validation, pass `--set-file LOAD_BEARING_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>` and `--ignore-tag-for-placeholders load_bearing_review_observations_json`.
    Append the returned `prompt_path` to the phase prompt paths temp file. The executing prompt must treat only `critical` and `major` observations as critical issues and required fix targets; `minor` and `nit` observations are not required fix targets.
 2. In native mode, resume the same implementation subagent and send the exact returned `prompt_path` contents verbatim. In fallback-runner mode, resume the implementation session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using the saved `session_id`, `--backend {IMPLEMENTATION_BACKEND}`, and the wrapper-prepared `prompt_path`.
 3. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
 4. If you kill and retry this implementation round, create a fresh implementation subagent or runner session and replace the saved implementation handle. In fallback-runner mode, also replace the saved `session_id` and `{IMPLEMENTATION_BACKEND}` with the fresh dispatch values. Keep any paths already appended for the killed attempt; they are useful evidence if nonconvergence analysis is needed.
 
-After each implementation-subagent fix round, save the returned implementation report to a temp file, append that path to the implementation reports temp file, treat that saved file as the latest implementation report for the next acceptance-artifact review prompt, append the report to `{REVIEW_LOOP_HISTORY}`, then run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next verification round. Every new verification round starts with acceptance-artifact review; do not dispatch another code-review subagent until acceptance-artifact review passes for the latest implementation report.
+After each implementation-subagent fix round, save the returned implementation report to a temp file, append that path to the implementation reports temp file, treat that saved file as the latest implementation report for the next post-execution load-bearing and acceptance-artifact review prompts, append the report to `{REVIEW_LOOP_HISTORY}`, then run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next verification round. Every new verification round starts with the post-execution load-bearing gate; do not dispatch another code-review subagent until post-execution load-bearing and acceptance-artifact review both pass for the latest implementation report.
 
-## 12) Finish
+## 13) Finish
 
-Once the acceptance-artifact and post-implementation review loop passes (`blocking_issue_count: 0`):
+Once the post-execution load-bearing, acceptance-artifact, and post-implementation review loop passes (`blocking_issue_count: 0`):
 
 Clean up temporary artifacts created during the loop (for example plan scratch files and temp notes), then run:
 - `git -C {WORKTREE_PATH} status --short`
@@ -403,6 +476,6 @@ Clean up temporary artifacts created during the loop (for example plan scratch f
 
 If the implementation subagent is still open, close it and clear its saved handle or `session_id` before handing off to finishing.
 
-Finally, in one paragraph, briefly describe what was built/accomplished/changed/fixed. Then Report the process to the user using concrete facts and returned artifacts: how many plan-editor rounds, how many acceptance-artifact review rounds, how many code-review rounds, the current `HEAD`, the changed-file list, the implementation subagent's latest summary, verification results, acceptance artifacts, and any reviewer-reported residual issues.
+Finally, in one paragraph, briefly describe what was built/accomplished/changed/fixed. Then Report the process to the user using concrete facts and returned artifacts: how many plan-editor rounds, how many plan load-bearing rounds, how many post-execution load-bearing rounds, how many acceptance-artifact review rounds, how many code-review rounds, the current `HEAD`, the changed-file list, the implementation subagent's latest summary, verification results, acceptance artifacts, and any reviewer-reported residual issues.
 
 Then read and follow `<skill-directory>/subskills/trycycle-finishing/SKILL.md` to present the user with options for integrating the implementation workspace (merge, PR, etc.).
