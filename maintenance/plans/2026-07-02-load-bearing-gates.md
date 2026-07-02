@@ -28,7 +28,7 @@
 - Create `subagents/prompt-load-bearing-curate.md`: prunes and normalizes finder output into a canonical load-bearing ledger.
 - Create `subagents/prompt-load-bearing-strategist.md`: assigns validation methods and fallback chains to the curated ledger.
 - Create `subagents/prompt-load-bearing-strategy-review.md`: independently checks the strategist output for unsafe, weak, or wasteful validation assignments.
-- Create `subagents/prompt-load-bearing-validator.md`: validates one target or grouped target and reports evidence.
+- Create `subagents/prompt-load-bearing-validator.md`: validates one target or grouped target and reports evidence, with stricter post-execution rules that forbid rerunning checks or recreating acceptance artifacts.
 - Create `subagents/prompt-load-bearing-evaluate.md`: judges validator evidence, emits the updated ledger, and emits structured blocking observations when assumptions are falsified or still too weak to rely on.
 - Create `subagents/prompt-load-bearing-plan-revision.md`: revises the implementation plan when plan-time load-bearing validation falsifies or weakens assumptions.
 - Modify `subagents/prompt-test-plan.md`: accept an optional plan-time load-bearing ledger and require the test plan to incorporate verified/falsified assumptions where relevant.
@@ -154,6 +154,8 @@ Write `subagents/prompt-load-bearing-strategy-review.md` so it receives `{LOAD_B
 
 Write `subagents/prompt-load-bearing-validator.md` so it receives `{LOAD_BEARING_SCOPE}` and one self-contained `<validation_target>` block copied verbatim from a fenced `load-bearing-validation-target` block. It must run only read-only/non-destructive commands, follow the assigned fallback chain, and return verdict, evidence, confidence, new assumptions, and blocked approval needs. It must not modify files or install dependencies.
 
+For `{LOAD_BEARING_SCOPE}=post-execution`, the validator must not rerun tests, launch apps or services, call external APIs, regenerate screenshots, recreate browser sessions, or produce replacement artifacts. It may inspect existing files, metadata, logs, transcripts, screenshots, and source code with read-only commands such as `ls`, `stat`, `sed`, `rg`, image/document viewing, and checksum commands. If the assigned method would require rerunning or recreating acceptance evidence, the validator must return `INCONCLUSIVE` with `BLOCKED ON APPROVAL` or `BLOCKED BY SCOPE`, not perform the action. The strategy-review prompt must reject any post-execution validation strategy whose first method is to rerun or recreate the evidence.
+
 - [ ] **Step 7: Create the evaluator prompt**
 
 Write `subagents/prompt-load-bearing-evaluate.md` so it receives the canonical ledger file, validation strategy, all validator reports, `{USER_INTENT}`, `{LOAD_BEARING_SCOPE}`, and `{LOAD_BEARING_LEDGER_PATH}`. It must judge whether evidence really proves each claim, update ledger statuses, write the updated canonical ledger back to `{LOAD_BEARING_LEDGER_PATH}`, and return:
@@ -256,6 +258,8 @@ Add a section before numbered workflow steps named `## Load-bearing gate helper`
 9. Extract `<review_observations_json>` with `review_observations.py extract`.
 10. Verify evaluator verdict and normalized JSON are self-consistent. If they conflict, stop and surface both artifacts.
 11. Treat the self-consistent normalized JSON's `blocking_issue_count` as the gate decision.
+12. For plan-time gates, count each evaluator result with blocking observations as one plan load-bearing gate round.
+13. For post-execution gates, count each evaluator result with blocking observations as one completed verification round of type `load-bearing-post-execution`.
 
 - [ ] **Step 3: Insert plan-time gate after plan-editor `READY`**
 
@@ -263,6 +267,8 @@ After Step 8 produces `READY` and before Step 9 builds the test plan, insert a n
 - `VERIFIED` or `NO_TARGETS`: save the evaluator report as `{PLAN_LOAD_BEARING_LEDGER_PATH}` and continue.
 - `FALSIFIED` or `INCONCLUSIVE`: run a fresh planning subagent with `prompt-load-bearing-plan-revision.md`, passing `--set-file LOAD_BEARING_EVALUATION_REPORT=<evaluator-report-temp-file>` and `--ignore-tag-for-placeholders load_bearing_evaluation_report`, then return to the plan-editor loop with the revised implementation plan path.
 - `NEEDS_USER_APPROVAL`: present the blocked approval report to the user and await instructions.
+
+Limit this plan-time load-bearing gate cycle to 3 blocking evaluator results. If the third plan-time load-bearing evaluator result still has blocking observations, stop before test-plan construction and run `prompt-nonconvergence-review.md` with context `Plan load-bearing gate reached 3 blocking rounds before test-plan construction.` Present that nonconvergence report, the latest evaluator report, and the latest planning report to the user and await instructions.
 
 - [ ] **Step 4: Feed the ledger into test-plan construction**
 
@@ -312,7 +318,7 @@ In Step 11, after each implementation report is saved and workspace hygiene pass
 
 If the self-consistent post-execution load-bearing evaluator result is:
 - `VERIFIED` or `NO_TARGETS`: save the evaluator report as `{POST_EXECUTION_LOAD_BEARING_LEDGER_PATH}`, append it to `{REVIEW_LOOP_HISTORY}`, then start acceptance-artifact review.
-- `FALSIFIED` or `INCONCLUSIVE`: treat the normalized observations like failed verification and resume the implementation subagent with `prompt-executing.md`, passing `--set-file LOAD_BEARING_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>` and `--ignore-tag-for-placeholders load_bearing_review_observations_json`.
+- `FALSIFIED` or `INCONCLUSIVE`: treat the normalized observations like failed verification, append the evaluator report and normalized observations to `{REVIEW_LOOP_HISTORY}` as a completed verification round of type `load-bearing-post-execution`, then apply the same stop-point and plan-reconsideration checks used after acceptance-artifact or code-review blockers. If the stop point has not been reached and no user decision is required, resume the implementation subagent with `prompt-executing.md`, passing `--set-file LOAD_BEARING_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>` and `--ignore-tag-for-placeholders load_bearing_review_observations_json`.
 - `NEEDS_USER_APPROVAL`: present the blocked approval report to the user and await instructions.
 
 - [ ] **Step 3: Add execution prompt conditional**
