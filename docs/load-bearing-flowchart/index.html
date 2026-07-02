@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Flowchart</title>
+  <title>Trycycle Load-Bearing Change</title>
   <style>
     @font-face {
       font-family: "Space Grotesk";
@@ -510,6 +510,32 @@
     }
 
     .node-action-badge.subgraph { border-color: var(--accent); color: var(--accent-press); }
+
+    .failure-option {
+      position: absolute;
+      display: grid;
+      place-items: center;
+      width: 76px;
+      min-height: 34px;
+      padding: 4px 7px;
+      border: 1px solid #f04438;
+      border-radius: 7px;
+      background: #fee2e2;
+      color: #7a271a;
+      font-size: 11.5px;
+      line-height: 1.15;
+      text-align: center;
+      box-shadow: 0 5px 12px -7px rgba(122, 39, 26, 0.5), 0 0 0 2px rgba(255, 255, 255, 0.82);
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    .failure-option-line {
+      position: absolute;
+      border-color: #d92d20;
+      pointer-events: none;
+      z-index: 2;
+    }
 
     /* floating chips on the stage */
     .graph-hint {
@@ -1159,8 +1185,8 @@
   </div>
 
   <script id="flowchart-data" type="application/json">{
-  "title": "Trycycle Load-Bearing Gates",
-  "subtitle": "Before and after the checkin that wired load-bearing validation into the plan and verification loops.",
+  "title": "Trycycle Load-Bearing Change",
+  "subtitle": "Red loop nodes show failure paths back to an earlier input.",
   "metadata": {
     "purpose": "change-planning",
     "sourceRoot": "/home/dan/code/trycycle/.worktrees/load-bearing-flowchart",
@@ -1171,60 +1197,78 @@
     {
       "id": "overview",
       "label": "Overview",
-      "description": "Shows the changed process slice before and after the load-bearing gate wiring."
+      "description": "Shows plan, build, review, and finish. Red loop nodes show failure paths back to an earlier input."
     },
     {
       "id": "new-gates",
-      "label": "New Gates",
-      "description": "Highlights the two inserted load-bearing gates and their downstream routing.",
+      "label": "New Checks",
+      "description": "Highlights where the load-bearing checks were added and preserves the drill-down detail.",
       "highlightNodeIds": [
         "plan-gate",
         "post-gate",
         "after-test-plan",
-        "after-fix-or-finish"
+        "after-finish",
+        "after-plan-gate-revise",
+        "after-plan-gate-plan-loop",
+        "after-post-gate-fix"
       ]
     }
   ],
   "colorGroups": {
-    "before": {
-      "label": "Before path",
+    "planning": {
+      "label": "Plan writing and review",
+      "color": "#c7ddff"
+    },
+    "testing": {
+      "label": "Test planning",
+      "color": "#ddd6fe"
+    },
+    "build": {
+      "label": "Build work",
+      "color": "#fde68a"
+    },
+    "review": {
+      "label": "Review and finish",
       "color": "#e5e7eb"
     },
-    "after": {
-      "label": "After path",
-      "color": "#dbeafe"
-    },
     "inserted": {
-      "label": "New load-bearing gate",
-      "color": "#dcfce7"
-    },
-    "shared": {
-      "label": "Mostly unchanged",
-      "color": "#fef3c7"
-    },
-    "artifact": {
-      "label": "Ledger artifact",
-      "color": "#ede9fe"
+      "label": "New load-bearing check",
+      "color": "#bbf7d0"
     },
     "risk": {
-      "label": "Blocked or fix route",
-      "color": "#fee2e2"
+      "label": "Fix or revise loop",
+      "color": "#fecaca"
     }
   },
   "nodes": [
     {
-      "id": "before-plan-ready",
-      "label": "Plan",
+      "id": "before-write-plan",
+      "label": "Write Plan",
       "type": "entry",
       "position": {
-        "x": 80,
-        "y": 150
+        "x": 120,
+        "y": 260
       },
-      "summary": "The plan-editor loop has accepted the current implementation plan.",
-      "description": "This is the point immediately before the changed process begins. Before the checkin, a ready plan moved directly into test-plan construction with no separate assumption-validation stop.",
-      "colorGroup": "before",
+      "summary": "Trycycle writes the implementation plan.",
+      "description": "This is where the plan is drafted before any implementation work starts. This step existed before the load-bearing change.",
+      "colorGroup": "planning",
       "badges": [
         "before"
+      ]
+    },
+    {
+      "id": "before-plan-ready",
+      "label": "Plan Review\nLoop",
+      "type": "phase",
+      "position": {
+        "x": 480,
+        "y": 260
+      },
+      "summary": "A dedicated planning subagent reviews and revises the plan until it is ready.",
+      "description": "This block represents the plan-editor loop. Trycycle can revise and review the implementation plan for up to 5 rounds. A READY verdict exits the block and continues to test planning.",
+      "colorGroup": "planning",
+      "badges": [
+        "loop"
       ]
     },
     {
@@ -1232,86 +1276,89 @@
       "label": "Tests",
       "type": "phase",
       "position": {
-        "x": 270,
-        "y": 150
+        "x": 840,
+        "y": 260
       },
-      "summary": "A test-plan subagent turns the strategy and implementation plan into concrete checks.",
-      "description": "The earlier process asked the test-plan worker to reconcile the approved strategy with the plan. It did not receive a load-bearing ledger, so hidden plan assumptions could survive into execution.",
-      "colorGroup": "before"
+      "summary": "A test-plan subagent turns the reviewed plan into concrete checks.",
+      "description": "Before the checkin, the reviewed plan moved straight into test-plan construction. There was no separate load-bearing check between review and test planning.",
+      "colorGroup": "testing"
     },
     {
       "id": "before-execute",
       "label": "Build",
       "type": "phase",
       "position": {
-        "x": 460,
-        "y": 150
+        "x": 1200,
+        "y": 260
       },
       "summary": "The implementation subagent builds, tests, and reports the requested work.",
-      "description": "Execution used the finalized plan and test plan, then produced a work report and preserved proof for later review. This part still exists, but its inputs are now filtered by the new plan-time gate.",
-      "colorGroup": "shared"
+      "description": "Execution used the finalized plan and test plan, then produced a work report and preserved proof for later review. This build step still exists after the change.",
+      "colorGroup": "build"
     },
     {
       "id": "before-acceptance",
       "label": "Accept",
       "type": "decision",
       "position": {
-        "x": 650,
-        "y": 150
+        "x": 1560,
+        "y": 260
       },
       "summary": "A fresh reviewer checks whether artifacts prove the user-facing result.",
       "description": "Before the checkin, every verification round began here. If artifacts had weak provenance or relied on untested assumptions, the reviewer might catch that only indirectly.",
-      "colorGroup": "before"
+      "colorGroup": "review"
     },
     {
       "id": "before-code-review",
       "label": "Code Review",
       "type": "decision",
       "position": {
-        "x": 840,
-        "y": 150
+        "x": 1920,
+        "y": 260
       },
       "summary": "Code review runs only after acceptance artifacts pass.",
       "description": "This review checks code quality against the plan and test plan. It remains in the after process, but it now runs only after the evidence gate and acceptance review both pass.",
-      "colorGroup": "shared"
+      "colorGroup": "review"
     },
     {
-      "id": "before-fix-or-finish",
-      "label": "Fix",
-      "type": "decision",
-      "position": {
-        "x": 1030,
-        "y": 150
-      },
-      "summary": "Blocking observations return to execution; a clean round finishes.",
-      "description": "The old loop fed acceptance or code-review blockers back to the builder. The new loop adds load-bearing observations as a third possible fix input.",
-      "colorGroup": "before"
-    },
-    {
-      "id": "after-plan-ready",
-      "label": "Plan",
+      "id": "after-write-plan",
+      "label": "Write Plan",
       "type": "entry",
       "position": {
-        "x": 80,
-        "y": 430
+        "x": 300,
+        "y": 1140
       },
-      "summary": "The same ready-plan handoff now enters an assumption gate first.",
-      "description": "The plan-editor loop still has to mark the plan ready. The checkin changes what happens next by adding a separate plan-time load-bearing gate before test-plan construction.",
-      "colorGroup": "after",
+      "summary": "Trycycle writes the implementation plan.",
+      "description": "This is the same plan-writing step as before. The change happens after plan review accepts the plan.",
+      "colorGroup": "planning",
       "badges": [
         "after"
       ]
     },
     {
-      "id": "plan-gate",
-      "label": "Plan Gate",
+      "id": "after-plan-ready",
+      "label": "Plan Review\nLoop",
       "type": "phase",
       "position": {
-        "x": 245,
-        "y": 430
+        "x": 660,
+        "y": 1140
       },
-      "summary": "The new plan-time gate validates decision-controlling assumptions before test planning.",
-      "description": "This gate finds assumptions that could change the plan if false, curates a ledger, validates targets, and routes the outcome. Passing creates a ledger that the test-plan worker can use as a source of truth.",
+      "summary": "A dedicated planning subagent reviews and revises the plan until it is ready.",
+      "description": "This block represents the same plan-editor loop as before. Trycycle can revise and review the implementation plan for up to 5 rounds. A READY verdict exits the block and enters the new plan-time load-bearing check.",
+      "colorGroup": "planning",
+      "badges": [
+        "loop"
+      ]
+    },
+    {
+      "id": "plan-gate",
+      "label": "LB Check",
+      "type": "phase",
+      "position": {
+        "x": 1020,
+        "y": 1140
+      },
+      "summary": "We added a load-bearing check here. It can send the plan back to the Plan Review Loop.",
+      "description": "After the plan has been written and reviewed, this new check validates the assumptions the plan depends on before test planning starts. If it is falsified or inconclusive, Trycycle revises the plan and returns to the Plan Review Loop. The load-bearing gate stops after 3 blocking rounds.",
       "colorGroup": "inserted",
       "badges": [
         "new",
@@ -1331,12 +1378,12 @@
       "label": "Tests",
       "type": "phase",
       "position": {
-        "x": 430,
-        "y": 430
+        "x": 1380,
+        "y": 1140
       },
-      "summary": "The test-plan subagent can now receive the verified plan ledger.",
-      "description": "The test-plan prompt was changed to use the plan load-bearing ledger when present. That lets verified and falsified findings guide test priorities, source-of-truth notes, and acceptance artifacts.",
-      "colorGroup": "after",
+      "summary": "A test-plan subagent can now use the load-bearing ledger.",
+      "description": "The test-plan prompt was changed to use the plan load-bearing ledger when present, so test planning is shaped by the new check.",
+      "colorGroup": "testing",
       "evidence": [
         {
           "label": "Test plan prompt",
@@ -1350,12 +1397,12 @@
       "label": "Build",
       "type": "phase",
       "position": {
-        "x": 615,
-        "y": 430
+        "x": 1740,
+        "y": 1140
       },
       "summary": "Execution proceeds with a plan and test plan shaped by the first gate.",
       "description": "The builder still changes the product, runs checks, and reports the work. Later fix rounds can now receive load-bearing observations as direct verification failures.",
-      "colorGroup": "shared",
+      "colorGroup": "build",
       "evidence": [
         {
           "label": "Executing prompt",
@@ -1366,14 +1413,14 @@
     },
     {
       "id": "post-gate",
-      "label": "Evidence Gate",
+      "label": "LB Check",
       "type": "phase",
       "position": {
-        "x": 800,
-        "y": 430
+        "x": 2100,
+        "y": 1140
       },
-      "summary": "Every verification round now starts by validating assumptions in the produced evidence.",
-      "description": "This post-execution gate checks whether the work report and saved proof are trustworthy. It can stop the round before acceptance review when evidence rests on a false or unproven assumption.",
+      "summary": "We added a load-bearing check here.",
+      "description": "After the build finishes, this new check validates assumptions in the produced evidence before acceptance review starts.",
       "colorGroup": "inserted",
       "badges": [
         "new",
@@ -1393,36 +1440,24 @@
       "label": "Accept",
       "type": "decision",
       "position": {
-        "x": 985,
-        "y": 360
+        "x": 2460,
+        "y": 1140
       },
       "summary": "Acceptance review runs only after the evidence gate passes.",
       "description": "This reviewer still checks whether preserved proof demonstrates the user request. The difference is that provenance and load-bearing evidence risks have already had a dedicated gate.",
-      "colorGroup": "after"
+      "colorGroup": "review"
     },
     {
       "id": "after-code-review",
       "label": "Code Review",
       "type": "decision",
       "position": {
-        "x": 1170,
-        "y": 360
+        "x": 2820,
+        "y": 1140
       },
       "summary": "Code review still runs after acceptance artifacts pass.",
       "description": "The code reviewer keeps its prior role. The route to it is narrower because both the post-execution load-bearing gate and acceptance review must pass first.",
-      "colorGroup": "shared"
-    },
-    {
-      "id": "after-fix-or-finish",
-      "label": "Fix",
-      "type": "decision",
-      "position": {
-        "x": 1170,
-        "y": 520
-      },
-      "summary": "Fix rounds now accept load-bearing, acceptance, or code-review blockers.",
-      "description": "If load-bearing validation blocks, the builder receives those observations and must remove the invalid assumption, strengthen evidence, update provenance, or stop on a real blocker.",
-      "colorGroup": "after"
+      "colorGroup": "review"
     },
     {
       "id": "plan-finder",
@@ -1446,7 +1481,7 @@
           "language": "markdown",
           "sourcePath": "subagents/prompt-load-bearing-finder-plan.md",
           "summary": "This prompt asks the plan-time finder to list currently unproven assumptions that control plan decisions.",
-          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the plan-time load-bearing assumption finder. Do not spawn additional subagents.\n\n<user_intent>\n{USER_INTENT}\n<\/user_intent>\n\nThe finalized implementation plan is at `{IMPLEMENTATION_PLAN_PATH}`.\nThe implementation workspace is `{WORKTREE_PATH}`.\n\nTask:\n- Read the user-intent artifact and finalized implementation plan.\n- Inspect only repository context needed to understand the plan's decisions.\n- Find every falsifiable, currently unproven, decision-controlling assumption the plan depends on.\n- Include only assumptions with medium, high, or critical late-falsification cost; record low-cost details only when they are naturally grouped with a higher-cost assumption.\n- Do not validate assumptions in this phase.\n- Do not include opinions, already-proven facts, or small implementation details that would not change the plan.\n\nReturn a markdown report with:\n- `## Scope` - `plan`\n- `## Assumptions` - one numbered item per assumption, each with claim, decision controlled, current evidence or uncertainty, late-falsification cost, what changes if false, and why currently unproven\n- `## Non-load-bearing notes` - relevant but pruned facts, or `None`\n"
+          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the plan-time load-bearing assumption finder. Do not spawn additional subagents.\n\n<user_intent>\n{USER_INTENT}\n</user_intent>\n\nThe finalized implementation plan is at `{IMPLEMENTATION_PLAN_PATH}`.\nThe implementation workspace is `{WORKTREE_PATH}`.\n\nTask:\n- Read the user-intent artifact and finalized implementation plan.\n- Inspect only repository context needed to understand the plan's decisions.\n- Find every falsifiable, currently unproven, decision-controlling assumption the plan depends on.\n- Include only assumptions with medium, high, or critical late-falsification cost; record low-cost details only when they are naturally grouped with a higher-cost assumption.\n- Do not validate assumptions in this phase.\n- Do not include opinions, already-proven facts, or small implementation details that would not change the plan.\n\nReturn a markdown report with:\n- `## Scope` - `plan`\n- `## Assumptions` - one numbered item per assumption, each with claim, decision controlled, current evidence or uncertainty, late-falsification cost, what changes if false, and why currently unproven\n- `## Non-load-bearing notes` - relevant but pruned facts, or `None`\n"
         }
       ]
     },
@@ -1472,7 +1507,7 @@
           "language": "markdown",
           "sourcePath": "subagents/prompt-load-bearing-curate.md",
           "summary": "This prompt asks the curator to write the canonical load-bearing ledger.",
-          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the load-bearing assumption curator. Do not spawn additional subagents.\n\n<user_intent>\n{USER_INTENT}\n<\/user_intent>\n\n<finder_report>\n{FINDER_REPORT}\n<\/finder_report>\n\nThe load-bearing scope is `{LOAD_BEARING_SCOPE}`.\nThe implementation workspace is `{WORKTREE_PATH}`.\nWrite the canonical load-bearing ledger to `{LOAD_BEARING_LEDGER_PATH}`.\n\nTask:\n- Read the user-intent artifact and finder report.\n- Inspect only repository context needed to clarify whether a candidate assumption is decision-controlling, currently unproven, and falsifiable.\n- Prune anything that is not decision-controlling, currently unproven, and falsifiable.\n- Keep only medium, high, or critical late-falsification cost assumptions unless a low-cost detail naturally belongs with a higher-cost assumption.\n- Merge assumptions when one safe validation can answer them together; split assumptions when they require different evidence or would cause different routing if false.\n- Assign stable IDs in ledger order: `LB1`, `LB2`, `LB3`, and so on.\n- Do not validate assumptions and do not mark anything verified or falsified in this phase.\n\nLedger requirements:\n- Write a canonical markdown table to `{LOAD_BEARING_LEDGER_PATH}`.\n- Use exactly these columns, in this order: `ID`, `Assumption`, `Decision controlled`, `Current evidence / uncertainty`, `Late-falsification cost`, `What changes if false`, `Status`.\n- Set `Status` to `unverified` for each retained assumption.\n- Preserve enough wording that downstream validators can understand what would prove or falsify each claim without reading the finder report.\n\nReturn a short markdown report with:\n- `## Load-bearing ledger path` - `{LOAD_BEARING_LEDGER_PATH}`\n- `## Byte count` - byte count of the ledger file after writing it\n- `## Pruned notes` - any relevant pruned notes, or `None`\n\nDownstream prompts consume the canonical ledger file, not this prose report.\n"
+          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the load-bearing assumption curator. Do not spawn additional subagents.\n\n<user_intent>\n{USER_INTENT}\n</user_intent>\n\n<finder_report>\n{FINDER_REPORT}\n</finder_report>\n\nThe load-bearing scope is `{LOAD_BEARING_SCOPE}`.\nThe implementation workspace is `{WORKTREE_PATH}`.\nWrite the canonical load-bearing ledger to `{LOAD_BEARING_LEDGER_PATH}`.\n\nTask:\n- Read the user-intent artifact and finder report.\n- Inspect only repository context needed to clarify whether a candidate assumption is decision-controlling, currently unproven, and falsifiable.\n- Prune anything that is not decision-controlling, currently unproven, and falsifiable.\n- Keep only medium, high, or critical late-falsification cost assumptions unless a low-cost detail naturally belongs with a higher-cost assumption.\n- Merge assumptions when one safe validation can answer them together; split assumptions when they require different evidence or would cause different routing if false.\n- Assign stable IDs in ledger order: `LB1`, `LB2`, `LB3`, and so on.\n- Do not validate assumptions and do not mark anything verified or falsified in this phase.\n\nLedger requirements:\n- Write a canonical markdown table to `{LOAD_BEARING_LEDGER_PATH}`.\n- Use exactly these columns, in this order: `ID`, `Assumption`, `Decision controlled`, `Current evidence / uncertainty`, `Late-falsification cost`, `What changes if false`, `Status`.\n- Set `Status` to `unverified` for each retained assumption.\n- Preserve enough wording that downstream validators can understand what would prove or falsify each claim without reading the finder report.\n\nReturn a short markdown report with:\n- `## Load-bearing ledger path` - `{LOAD_BEARING_LEDGER_PATH}`\n- `## Byte count` - byte count of the ledger file after writing it\n- `## Pruned notes` - any relevant pruned notes, or `None`\n\nDownstream prompts consume the canonical ledger file, not this prose report.\n"
         }
       ]
     },
@@ -1487,7 +1522,7 @@
       "summary": "The ledger tracks the claims, controlled decisions, uncertainty, cost, and status.",
       "description": "This evidence file is the handoff between discovery and validation. The evaluator updates the same ledger after proof from the validators has been judged.",
       "parent": "plan-gate",
-      "colorGroup": "artifact",
+      "colorGroup": "inserted",
       "badges": [
         "artifact"
       ]
@@ -1514,7 +1549,7 @@
           "language": "markdown",
           "sourcePath": "subagents/prompt-load-bearing-strategist.md",
           "summary": "This prompt asks the strategist to assign each assumption a safe validation method or deferral reason.",
-          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the load-bearing validation strategist. Do not spawn additional subagents.\n\n<load_bearing_ledger>\n{LOAD_BEARING_LEDGER}\n<\/load_bearing_ledger>\n\n{{#if PREVIOUS_LOAD_BEARING_STRATEGY}}\n<previous_load_bearing_strategy>\n{PREVIOUS_LOAD_BEARING_STRATEGY}\n<\/previous_load_bearing_strategy>\n{{/if}}\n\n{{#if LOAD_BEARING_STRATEGY_REVIEW_REPORT}}\n<load_bearing_strategy_review_report>\n{LOAD_BEARING_STRATEGY_REVIEW_REPORT}\n<\/load_bearing_strategy_review_report>\n{{/if}}\n\nThe load-bearing scope is `{LOAD_BEARING_SCOPE}`.\nThe implementation workspace is `{WORKTREE_PATH}`.\n\nTask:\n- Read the canonical ledger and account for every retained assumption.\n- Assign each assumption one of: `validate now`, `grouped with`, or `defer`.\n- Choose the cheapest reliable validation method and fallback chain for each validation target.\n- Prefer validation methods in this order: run code when safe and decisive, inspect local code or artifacts, consult official docs, then use broader internet only when no stronger source is available.\n- Mark any state-changing validation as `needs user approval` and do not assign it as a normal runnable method.\n- Group assumptions only when the same safe validation can answer every assumption in the group.\n- Defer assumptions only when validating them now would not change the current plan, execution, or artifact-routing decision. High or critical assumptions should almost never be deferred.\n- Do not validate assumptions in this phase.\n\nIf `<previous_load_bearing_strategy>` or `<load_bearing_strategy_review_report>` is present, revise the previous strategy against the reviewer's concrete objections instead of starting over from the ledger alone.\n\nThe strategy must include strict fenced target blocks so the conductor can create one temp file per validator without parsing free prose. Use exactly this shape for every target:\n\n```load-bearing-validation-target\nTarget: LBT1\nAssumptions: LB1, LB3\nDecision controlled: Name the architecture, boundary, data, lifecycle, safety, or verification decision that depends on these assumptions.\nCurrent evidence / uncertainty: State what is currently known and what remains unproven.\nLate-falsification cost: high\nWhat would have to change if false: State the concrete plan, test-plan, execution, or artifact-routing change required if validation falsifies the assumptions.\nAssigned method + fallback chain: inspect the named local files first, then run the named read-only command if inspection is inconclusive.\nContext needed: List the repository path, relevant file paths, commands, and any artifact paths required to validate this target.\nSafety constraints: read-only/non-destructive; report blocked state-changing actions\n```\n\nOutput format:\n- `## Scope` - the value of `{LOAD_BEARING_SCOPE}`\n- `## Strategy summary` - concise rationale for the chosen grouping and validation order\n- `## Validation targets` - one fenced `load-bearing-validation-target` block per target, using IDs `LBT1`, `LBT2`, `LBT3`, and so on\n- `## Deferred assumptions` - each deferred assumption ID with a one-sentence reason, or `None`\n- `## Strategy notes` - safety constraints, state-changing actions that need user approval, or `None`\n"
+          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the load-bearing validation strategist. Do not spawn additional subagents.\n\n<load_bearing_ledger>\n{LOAD_BEARING_LEDGER}\n</load_bearing_ledger>\n\n{{#if PREVIOUS_LOAD_BEARING_STRATEGY}}\n<previous_load_bearing_strategy>\n{PREVIOUS_LOAD_BEARING_STRATEGY}\n</previous_load_bearing_strategy>\n{{/if}}\n\n{{#if LOAD_BEARING_STRATEGY_REVIEW_REPORT}}\n<load_bearing_strategy_review_report>\n{LOAD_BEARING_STRATEGY_REVIEW_REPORT}\n</load_bearing_strategy_review_report>\n{{/if}}\n\nThe load-bearing scope is `{LOAD_BEARING_SCOPE}`.\nThe implementation workspace is `{WORKTREE_PATH}`.\n\nTask:\n- Read the canonical ledger and account for every retained assumption.\n- Assign each assumption one of: `validate now`, `grouped with`, or `defer`.\n- Choose the cheapest reliable validation method and fallback chain for each validation target.\n- Prefer validation methods in this order: run code when safe and decisive, inspect local code or artifacts, consult official docs, then use broader internet only when no stronger source is available.\n- Mark any state-changing validation as `needs user approval` and do not assign it as a normal runnable method.\n- Group assumptions only when the same safe validation can answer every assumption in the group.\n- Defer assumptions only when validating them now would not change the current plan, execution, or artifact-routing decision. High or critical assumptions should almost never be deferred.\n- Do not validate assumptions in this phase.\n\nIf `<previous_load_bearing_strategy>` or `<load_bearing_strategy_review_report>` is present, revise the previous strategy against the reviewer's concrete objections instead of starting over from the ledger alone.\n\nThe strategy must include strict fenced target blocks so the conductor can create one temp file per validator without parsing free prose. Use exactly this shape for every target:\n\n```load-bearing-validation-target\nTarget: LBT1\nAssumptions: LB1, LB3\nDecision controlled: Name the architecture, boundary, data, lifecycle, safety, or verification decision that depends on these assumptions.\nCurrent evidence / uncertainty: State what is currently known and what remains unproven.\nLate-falsification cost: high\nWhat would have to change if false: State the concrete plan, test-plan, execution, or artifact-routing change required if validation falsifies the assumptions.\nAssigned method + fallback chain: inspect the named local files first, then run the named read-only command if inspection is inconclusive.\nContext needed: List the repository path, relevant file paths, commands, and any artifact paths required to validate this target.\nSafety constraints: read-only/non-destructive; report blocked state-changing actions\n```\n\nOutput format:\n- `## Scope` - the value of `{LOAD_BEARING_SCOPE}`\n- `## Strategy summary` - concise rationale for the chosen grouping and validation order\n- `## Validation targets` - one fenced `load-bearing-validation-target` block per target, using IDs `LBT1`, `LBT2`, `LBT3`, and so on\n- `## Deferred assumptions` - each deferred assumption ID with a one-sentence reason, or `None`\n- `## Strategy notes` - safety constraints, state-changing actions that need user approval, or `None`\n"
         }
       ]
     },
@@ -1540,7 +1575,7 @@
           "language": "markdown",
           "sourcePath": "subagents/prompt-load-bearing-strategy-review.md",
           "summary": "This prompt asks an independent reviewer to approve or reject the validation strategy.",
-          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the load-bearing validation strategy reviewer. Do not spawn additional subagents.\n\n<load_bearing_ledger>\n{LOAD_BEARING_LEDGER}\n<\/load_bearing_ledger>\n\n<load_bearing_strategy>\n{LOAD_BEARING_STRATEGY}\n<\/load_bearing_strategy>\n\nThe load-bearing scope is `{LOAD_BEARING_SCOPE}`.\nThe implementation workspace is `{WORKTREE_PATH}`.\n\nTask:\n- Read the curated ledger and validation strategy.\n- Check that every ledger assumption is accounted for as `validate now`, `grouped with`, or `defer`.\n- Reject validation methods that will not isolate the answer to the assumption being tested.\n- Reject unsafe run commands, state-changing commands assigned without `needs user approval`, and any method that could mutate the repository, services, credentials, or external systems.\n- Reject unnecessary fan-out where one safe validation can answer grouped assumptions.\n- Reject missing fallback chains or fallback chains that do not get stronger or more direct.\n- Reject missing or malformed fenced `load-bearing-validation-target` blocks.\n- Reject accidental deferral of high or critical assumptions unless the strategy gives a concrete reason validation cannot affect the current routing decision.\n- Do not validate assumptions in this phase.\n\nFor `{LOAD_BEARING_SCOPE}=post-execution`, reject any validation strategy whose first method is to rerun tests, launch apps or services, call external APIs, regenerate screenshots, recreate browser sessions, or otherwise recreate acceptance evidence. Post-execution validators may inspect only existing files, metadata, logs, transcripts, screenshots, source code, and other already-produced evidence.\n\nReturn a markdown report with:\n- `## Strategy review verdict` - `READY` or `REVISE`\n- `## Required corrections` - for `REVISE`, list every concrete correction needed; for `READY`, write `None`\n- `## Notes` - any non-blocking observations, or `None`\n"
+          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the load-bearing validation strategy reviewer. Do not spawn additional subagents.\n\n<load_bearing_ledger>\n{LOAD_BEARING_LEDGER}\n</load_bearing_ledger>\n\n<load_bearing_strategy>\n{LOAD_BEARING_STRATEGY}\n</load_bearing_strategy>\n\nThe load-bearing scope is `{LOAD_BEARING_SCOPE}`.\nThe implementation workspace is `{WORKTREE_PATH}`.\n\nTask:\n- Read the curated ledger and validation strategy.\n- Check that every ledger assumption is accounted for as `validate now`, `grouped with`, or `defer`.\n- Reject validation methods that will not isolate the answer to the assumption being tested.\n- Reject unsafe run commands, state-changing commands assigned without `needs user approval`, and any method that could mutate the repository, services, credentials, or external systems.\n- Reject unnecessary fan-out where one safe validation can answer grouped assumptions.\n- Reject missing fallback chains or fallback chains that do not get stronger or more direct.\n- Reject missing or malformed fenced `load-bearing-validation-target` blocks.\n- Reject accidental deferral of high or critical assumptions unless the strategy gives a concrete reason validation cannot affect the current routing decision.\n- Do not validate assumptions in this phase.\n\nFor `{LOAD_BEARING_SCOPE}=post-execution`, reject any validation strategy whose first method is to rerun tests, launch apps or services, call external APIs, regenerate screenshots, recreate browser sessions, or otherwise recreate acceptance evidence. Post-execution validators may inspect only existing files, metadata, logs, transcripts, screenshots, source code, and other already-produced evidence.\n\nReturn a markdown report with:\n- `## Strategy review verdict` - `READY` or `REVISE`\n- `## Required corrections` - for `REVISE`, list every concrete correction needed; for `READY`, write `None`\n- `## Notes` - any non-blocking observations, or `None`\n"
         }
       ]
     },
@@ -1566,7 +1601,7 @@
           "language": "markdown",
           "sourcePath": "subagents/prompt-load-bearing-validator.md",
           "summary": "This prompt tells each validator to check only its assigned target and report evidence without changing state.",
-          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the load-bearing assumption validator. Do not spawn additional subagents.\n\n<validation_target>\n{LOAD_BEARING_VALIDATION_TARGET}\n<\/validation_target>\n\nThe load-bearing scope is `{LOAD_BEARING_SCOPE}`.\n\nTask:\n- Validate only the assumptions named in `<validation_target>`.\n- Follow the assigned method and fallback chain in order.\n- Run only read-only, non-destructive commands.\n- Do not modify files, install dependencies, update lockfiles, start migrations, call mutating endpoints, write new artifacts, or change repository or system state.\n- If the assigned method requires a state-changing action, do not perform it. Return `INCONCLUSIVE` and name the action under `BLOCKED ON APPROVAL`.\n- Report evidence precisely. Do not invent command output, file contents, artifact metadata, or conclusions you did not actually inspect.\n- If validation reveals new load-bearing assumptions, report them instead of silently relying on them.\n\nFor `{LOAD_BEARING_SCOPE}=post-execution`, stricter evidence rules apply:\n- Do not rerun tests.\n- Do not launch apps or services.\n- Do not call external APIs.\n- Do not regenerate screenshots, videos, generated files, browser sessions, service transcripts, or other acceptance evidence.\n- Do not produce replacement artifacts.\n- You may inspect existing files, metadata, logs, transcripts, screenshots, source code, and artifacts with read-only commands such as `ls`, `stat`, `sed`, `rg`, image/document viewing, checksum commands, and other non-mutating inspection.\n- If the assigned method would require rerunning or recreating acceptance evidence, return `INCONCLUSIVE` with `BLOCKED BY SCOPE` or `BLOCKED ON APPROVAL`, not a rerun.\n\nReturn a markdown report with:\n- `## Validation target` - target ID and assumption IDs\n- `## Verdict` - `VERIFIED`, `FALSIFIED`, `INCONCLUSIVE`, or `NEEDS_USER_APPROVAL`\n- `## Evidence` - concrete evidence inspected, including relevant paths, command outputs, artifact metadata, or source references\n- `## Confidence` - `high`, `medium`, or `low`, with one sentence explaining why\n- `## New assumptions` - newly discovered load-bearing assumptions, or `None`\n- `## Blocked approval needs` - `None`, `BLOCKED ON APPROVAL: ...`, or `BLOCKED BY SCOPE: ...`\n- `## Commands run` - exact read-only commands run, or `None`\n"
+          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the load-bearing assumption validator. Do not spawn additional subagents.\n\n<validation_target>\n{LOAD_BEARING_VALIDATION_TARGET}\n</validation_target>\n\nThe load-bearing scope is `{LOAD_BEARING_SCOPE}`.\n\nTask:\n- Validate only the assumptions named in `<validation_target>`.\n- Follow the assigned method and fallback chain in order.\n- Run only read-only, non-destructive commands.\n- Do not modify files, install dependencies, update lockfiles, start migrations, call mutating endpoints, write new artifacts, or change repository or system state.\n- If the assigned method requires a state-changing action, do not perform it. Return `INCONCLUSIVE` and name the action under `BLOCKED ON APPROVAL`.\n- Report evidence precisely. Do not invent command output, file contents, artifact metadata, or conclusions you did not actually inspect.\n- If validation reveals new load-bearing assumptions, report them instead of silently relying on them.\n\nFor `{LOAD_BEARING_SCOPE}=post-execution`, stricter evidence rules apply:\n- Do not rerun tests.\n- Do not launch apps or services.\n- Do not call external APIs.\n- Do not regenerate screenshots, videos, generated files, browser sessions, service transcripts, or other acceptance evidence.\n- Do not produce replacement artifacts.\n- You may inspect existing files, metadata, logs, transcripts, screenshots, source code, and artifacts with read-only commands such as `ls`, `stat`, `sed`, `rg`, image/document viewing, checksum commands, and other non-mutating inspection.\n- If the assigned method would require rerunning or recreating acceptance evidence, return `INCONCLUSIVE` with `BLOCKED BY SCOPE` or `BLOCKED ON APPROVAL`, not a rerun.\n\nReturn a markdown report with:\n- `## Validation target` - target ID and assumption IDs\n- `## Verdict` - `VERIFIED`, `FALSIFIED`, `INCONCLUSIVE`, or `NEEDS_USER_APPROVAL`\n- `## Evidence` - concrete evidence inspected, including relevant paths, command outputs, artifact metadata, or source references\n- `## Confidence` - `high`, `medium`, or `low`, with one sentence explaining why\n- `## New assumptions` - newly discovered load-bearing assumptions, or `None`\n- `## Blocked approval needs` - `None`, `BLOCKED ON APPROVAL: ...`, or `BLOCKED BY SCOPE: ...`\n- `## Commands run` - exact read-only commands run, or `None`\n"
         }
       ]
     },
@@ -1592,7 +1627,7 @@
           "language": "markdown",
           "sourcePath": "subagents/prompt-load-bearing-evaluate.md",
           "summary": "This prompt asks the evaluator to judge the validation reports and emit normalized observations.",
-          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the load-bearing validation evaluator. Do not spawn additional subagents.\n\n<user_intent>\n{USER_INTENT}\n<\/user_intent>\n\n<load_bearing_ledger>\n{LOAD_BEARING_LEDGER}\n<\/load_bearing_ledger>\n\n<load_bearing_strategy>\n{LOAD_BEARING_STRATEGY}\n<\/load_bearing_strategy>\n\n<load_bearing_validation_reports>\n{LOAD_BEARING_VALIDATION_REPORTS}\n<\/load_bearing_validation_reports>\n\nThe load-bearing scope is `{LOAD_BEARING_SCOPE}`.\nThe canonical ledger path is `{LOAD_BEARING_LEDGER_PATH}`.\n\nTask:\n- Read the canonical ledger file and validation strategy.\n- Read every validator report path listed in `<load_bearing_validation_reports>`. The block contains newline-delimited absolute paths and may be empty.\n- Judge whether the validator evidence really proves, falsifies, or leaves unresolved each ledger assumption. Do not defer to validator labels without checking their evidence.\n- Update every ledger row status and write the updated canonical ledger back to `{LOAD_BEARING_LEDGER_PATH}`.\n- Use only these assumption statuses in the ledger: `verified`, `falsified`, `inconclusive`, `accepted-risk-needed`, or `deferred`.\n- Do not rerun validation or recreate evidence in this phase.\n\nIf `<load_bearing_validation_reports>` contains no report paths because the accepted strategy produced no fenced validation targets, return `NO_TARGETS` with JSON `status: \"no_issues\"` and an empty observations array. This is a valid gate pass, not an error.\n\nReturn this markdown structure:\n\n```markdown\n## Load-bearing verdict\nVERIFIED | NO_TARGETS | FALSIFIED | INCONCLUSIVE | NEEDS_USER_APPROVAL\n\n## Load-bearing ledger path\n{LOAD_BEARING_LEDGER_PATH}\n\n## Ledger\nThe evaluator must include the updated canonical ledger table, with every assumption status set to verified, falsified, inconclusive, accepted-risk-needed, or deferred.\n\n## Required follow-up\nThe evaluator must name the exact next routing action: continue, revise plan, resume execution with observations, ask the user for approval, or rerun validation with a stronger method.\n\n<review_observations_json>\n{\n  \"status\": \"no_issues\",\n  \"summary\": \"All load-bearing assumptions are verified or no targets remain.\",\n  \"observations\": []\n}\n<\/review_observations_json>\n```\n\nVerdict rules:\n- Use `VERIFIED` only when every non-deferred assumption is verified and no user approval is needed.\n- Use `NO_TARGETS` only when `<load_bearing_validation_reports>` contains no report paths because the accepted strategy produced no fenced validation targets.\n- Use `FALSIFIED` when one or more assumptions are false.\n- Use `INCONCLUSIVE` when one or more assumptions remain too weak to rely on and no user approval is the next routing action.\n- Use `NEEDS_USER_APPROVAL` when validation requires approval for a state-changing or otherwise restricted action.\n\nObservation JSON rules:\n- For `VERIFIED` and `NO_TARGETS`, use JSON `status: \"no_issues\"` with an empty observations array.\n- For `FALSIFIED`, `INCONCLUSIVE`, or `NEEDS_USER_APPROVAL`, use JSON `status: \"issues_found\"` with at least one critical or major observation.\n- For `NEEDS_USER_APPROVAL`, include at least one critical or major `other` observation naming the blocked state-changing validation; the report may also begin with `USER DECISION REQUIRED:`.\n- Use only these categories for populated observations: `implementation_plan_mismatch`, `test_plan_mismatch`, `artifact_gap`, `behavior`, or `other`.\n- Every populated observation must have non-empty `id`, `severity`, `category`, `expected`, and `observed` fields.\n- The markdown verdict and JSON must be self-consistent. If they conflict, the conductor will stop and surface the evaluator report plus extractor output instead of guessing.\n\nExample blocking load-bearing observation:\n\n```json\n{\n  \"id\": \"LB1\",\n  \"severity\": \"critical\",\n  \"category\": \"implementation_plan_mismatch\",\n  \"expected\": \"The plan relies only on assumptions that have been verified or explicitly routed around.\",\n  \"observed\": \"The validator falsified LB1, so the current plan still depends on an invalid assumption.\"\n}\n```\n"
+          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the load-bearing validation evaluator. Do not spawn additional subagents.\n\n<user_intent>\n{USER_INTENT}\n</user_intent>\n\n<load_bearing_ledger>\n{LOAD_BEARING_LEDGER}\n</load_bearing_ledger>\n\n<load_bearing_strategy>\n{LOAD_BEARING_STRATEGY}\n</load_bearing_strategy>\n\n<load_bearing_validation_reports>\n{LOAD_BEARING_VALIDATION_REPORTS}\n</load_bearing_validation_reports>\n\nThe load-bearing scope is `{LOAD_BEARING_SCOPE}`.\nThe canonical ledger path is `{LOAD_BEARING_LEDGER_PATH}`.\n\nTask:\n- Read the canonical ledger file and validation strategy.\n- Read every validator report path listed in `<load_bearing_validation_reports>`. The block contains newline-delimited absolute paths and may be empty.\n- Judge whether the validator evidence really proves, falsifies, or leaves unresolved each ledger assumption. Do not defer to validator labels without checking their evidence.\n- Update every ledger row status and write the updated canonical ledger back to `{LOAD_BEARING_LEDGER_PATH}`.\n- Use only these assumption statuses in the ledger: `verified`, `falsified`, `inconclusive`, `accepted-risk-needed`, or `deferred`.\n- Do not rerun validation or recreate evidence in this phase.\n\nIf `<load_bearing_validation_reports>` contains no report paths because the accepted strategy produced no fenced validation targets, return `NO_TARGETS` with JSON `status: \"no_issues\"` and an empty observations array. This is a valid gate pass, not an error.\n\nReturn this markdown structure:\n\n```markdown\n## Load-bearing verdict\nVERIFIED | NO_TARGETS | FALSIFIED | INCONCLUSIVE | NEEDS_USER_APPROVAL\n\n## Load-bearing ledger path\n{LOAD_BEARING_LEDGER_PATH}\n\n## Ledger\nThe evaluator must include the updated canonical ledger table, with every assumption status set to verified, falsified, inconclusive, accepted-risk-needed, or deferred.\n\n## Required follow-up\nThe evaluator must name the exact next routing action: continue, revise plan, resume execution with observations, ask the user for approval, or rerun validation with a stronger method.\n\n<review_observations_json>\n{\n  \"status\": \"no_issues\",\n  \"summary\": \"All load-bearing assumptions are verified or no targets remain.\",\n  \"observations\": []\n}\n</review_observations_json>\n```\n\nVerdict rules:\n- Use `VERIFIED` only when every non-deferred assumption is verified and no user approval is needed.\n- Use `NO_TARGETS` only when `<load_bearing_validation_reports>` contains no report paths because the accepted strategy produced no fenced validation targets.\n- Use `FALSIFIED` when one or more assumptions are false.\n- Use `INCONCLUSIVE` when one or more assumptions remain too weak to rely on and no user approval is the next routing action.\n- Use `NEEDS_USER_APPROVAL` when validation requires approval for a state-changing or otherwise restricted action.\n\nObservation JSON rules:\n- For `VERIFIED` and `NO_TARGETS`, use JSON `status: \"no_issues\"` with an empty observations array.\n- For `FALSIFIED`, `INCONCLUSIVE`, or `NEEDS_USER_APPROVAL`, use JSON `status: \"issues_found\"` with at least one critical or major observation.\n- For `NEEDS_USER_APPROVAL`, include at least one critical or major `other` observation naming the blocked state-changing validation; the report may also begin with `USER DECISION REQUIRED:`.\n- Use only these categories for populated observations: `implementation_plan_mismatch`, `test_plan_mismatch`, `artifact_gap`, `behavior`, or `other`.\n- Every populated observation must have non-empty `id`, `severity`, `category`, `expected`, and `observed` fields.\n- The markdown verdict and JSON must be self-consistent. If they conflict, the conductor will stop and surface the evaluator report plus extractor output instead of guessing.\n\nExample blocking load-bearing observation:\n\n```json\n{\n  \"id\": \"LB1\",\n  \"severity\": \"critical\",\n  \"category\": \"implementation_plan_mismatch\",\n  \"expected\": \"The plan relies only on assumptions that have been verified or explicitly routed around.\",\n  \"observed\": \"The validator falsified LB1, so the current plan still depends on an invalid assumption.\"\n}\n```\n"
         }
       ]
     },
@@ -1634,7 +1669,7 @@
           "language": "markdown",
           "sourcePath": "subagents/prompt-load-bearing-plan-revision.md",
           "summary": "This prompt asks the planning subagent to revise the plan against load-bearing findings.",
-          "content": "IMPORTANT: As a trycycle subagent, use ONLY your designated skills: `trycycle-planning`.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nUse ONLY skills scoped to trycycle with the `trycycle-` prefix. NEVER invoke other skills.\n\nYou are the plan-time load-bearing plan revision subagent. Do not spawn additional subagents.\n\n<user_intent>\n{USER_INTENT}\n<\/user_intent>\n\n<load_bearing_evaluation_report>\n{LOAD_BEARING_EVALUATION_REPORT}\n<\/load_bearing_evaluation_report>\n\nThe current implementation plan is at `{IMPLEMENTATION_PLAN_PATH}`.\nThe implementation workspace is `{WORKTREE_PATH}`.\n\nTask:\n- Review the `trycycle-planning` skill so you understand the standards expected of trycycle plans.\n- Read the user-intent artifact, current implementation plan, and load-bearing evaluation report.\n- Use only the `trycycle-planning` subskill.\n- Revise the implementation plan to remove, verify, or explicitly route around falsified or inconclusive plan-time load-bearing assumptions.\n- Address every critical or major load-bearing observation in the evaluation report.\n- Do not change product code, tests, generated subskills, or unrelated files.\n- If user judgment is genuinely required because there is no safe plan revision without it, return a report beginning `USER DECISION REQUIRED:` and do not modify files.\n- Otherwise, commit the revised implementation plan in the implementation workspace.\n\nReturn a markdown report with:\n- `## Plan revision verdict` - `UPDATED` or `USER_DECISION_REQUIRED`\n- `## Load-bearing issues addressed` - list every critical or major load-bearing observation addressed and the plan section changed for it\n- `## Plan path` - absolute path to the revised implementation plan\n- `## Commit` - latest short commit hash after committing the revised plan\n- `## Changed files` - one changed path per line\n"
+          "content": "IMPORTANT: As a trycycle subagent, use ONLY your designated skills: `trycycle-planning`.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nUse ONLY skills scoped to trycycle with the `trycycle-` prefix. NEVER invoke other skills.\n\nYou are the plan-time load-bearing plan revision subagent. Do not spawn additional subagents.\n\n<user_intent>\n{USER_INTENT}\n</user_intent>\n\n<load_bearing_evaluation_report>\n{LOAD_BEARING_EVALUATION_REPORT}\n</load_bearing_evaluation_report>\n\nThe current implementation plan is at `{IMPLEMENTATION_PLAN_PATH}`.\nThe implementation workspace is `{WORKTREE_PATH}`.\n\nTask:\n- Review the `trycycle-planning` skill so you understand the standards expected of trycycle plans.\n- Read the user-intent artifact, current implementation plan, and load-bearing evaluation report.\n- Use only the `trycycle-planning` subskill.\n- Revise the implementation plan to remove, verify, or explicitly route around falsified or inconclusive plan-time load-bearing assumptions.\n- Address every critical or major load-bearing observation in the evaluation report.\n- Do not change product code, tests, generated subskills, or unrelated files.\n- If user judgment is genuinely required because there is no safe plan revision without it, return a report beginning `USER DECISION REQUIRED:` and do not modify files.\n- Otherwise, commit the revised implementation plan in the implementation workspace.\n\nReturn a markdown report with:\n- `## Plan revision verdict` - `UPDATED` or `USER_DECISION_REQUIRED`\n- `## Load-bearing issues addressed` - list every critical or major load-bearing observation addressed and the plan section changed for it\n- `## Plan path` - absolute path to the revised implementation plan\n- `## Commit` - latest short commit hash after committing the revised plan\n- `## Changed files` - one changed path per line\n"
         }
       ]
     },
@@ -1660,7 +1695,7 @@
           "language": "markdown",
           "sourcePath": "subagents/prompt-load-bearing-finder-execution.md",
           "summary": "This prompt asks the finder to identify assumptions in the implementation report and acceptance artifacts.",
-          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the post-execution load-bearing assumption finder. Do not spawn additional subagents.\n\n<user_intent>\n{USER_INTENT}\n<\/user_intent>\n\nThe finalized implementation plan is at `{IMPLEMENTATION_PLAN_PATH}`.\nThe finalized test plan is at `{TEST_PLAN_PATH}`.\n\n<latest_implementation_report>\n{LATEST_IMPLEMENTATION_REPORT}\n<\/latest_implementation_report>\n\nThe implementation workspace is `{WORKTREE_PATH}`.\n\nTask:\n- Read the user-intent artifact, finalized plan, finalized test plan, latest implementation report, and named acceptance artifacts.\n- Find assumptions that must be true for the implementation report and artifacts to be trustworthy evidence that the requested outcome is done.\n- Focus on artifact provenance, whether checks exercised the real user-facing path, mock or fixture substitution risks, external API or service contracts, config or feature-flag paths, migration or rollback safety, state/concurrency boundaries, and evidence gaps that would invalidate acceptance.\n- Treat a missing, incomplete, stale, or unclear acceptance-artifact manifest as a blocking load-bearing assumption/gap. The report does not have to be mechanically schema-enforced; this phase must fail closed when provenance is not inspectable.\n- Do not perform acceptance-artifact review or code review. Do not rerun tests or recreate artifacts in this phase.\n- Do not validate assumptions in this phase.\n\nReturn a markdown report with:\n- `## Scope` - `post-execution`\n- `## Assumptions` - one numbered item per assumption, each with claim, decision controlled, current evidence or uncertainty, late-falsification cost, what changes if false, and why currently unproven\n- `## Non-load-bearing notes` - relevant but pruned facts, or `None`\n"
+          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the post-execution load-bearing assumption finder. Do not spawn additional subagents.\n\n<user_intent>\n{USER_INTENT}\n</user_intent>\n\nThe finalized implementation plan is at `{IMPLEMENTATION_PLAN_PATH}`.\nThe finalized test plan is at `{TEST_PLAN_PATH}`.\n\n<latest_implementation_report>\n{LATEST_IMPLEMENTATION_REPORT}\n</latest_implementation_report>\n\nThe implementation workspace is `{WORKTREE_PATH}`.\n\nTask:\n- Read the user-intent artifact, finalized plan, finalized test plan, latest implementation report, and named acceptance artifacts.\n- Find assumptions that must be true for the implementation report and artifacts to be trustworthy evidence that the requested outcome is done.\n- Focus on artifact provenance, whether checks exercised the real user-facing path, mock or fixture substitution risks, external API or service contracts, config or feature-flag paths, migration or rollback safety, state/concurrency boundaries, and evidence gaps that would invalidate acceptance.\n- Treat a missing, incomplete, stale, or unclear acceptance-artifact manifest as a blocking load-bearing assumption/gap. The report does not have to be mechanically schema-enforced; this phase must fail closed when provenance is not inspectable.\n- Do not perform acceptance-artifact review or code review. Do not rerun tests or recreate artifacts in this phase.\n- Do not validate assumptions in this phase.\n\nReturn a markdown report with:\n- `## Scope` - `post-execution`\n- `## Assumptions` - one numbered item per assumption, each with claim, decision controlled, current evidence or uncertainty, late-falsification cost, what changes if false, and why currently unproven\n- `## Non-load-bearing notes` - relevant but pruned facts, or `None`\n"
         }
       ]
     },
@@ -1686,7 +1721,7 @@
           "language": "markdown",
           "sourcePath": "subagents/prompt-load-bearing-curate.md",
           "summary": "This prompt asks the curator to write the canonical post-execution load-bearing ledger.",
-          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the load-bearing assumption curator. Do not spawn additional subagents.\n\n<user_intent>\n{USER_INTENT}\n<\/user_intent>\n\n<finder_report>\n{FINDER_REPORT}\n<\/finder_report>\n\nThe load-bearing scope is `{LOAD_BEARING_SCOPE}`.\nThe implementation workspace is `{WORKTREE_PATH}`.\nWrite the canonical load-bearing ledger to `{LOAD_BEARING_LEDGER_PATH}`.\n\nTask:\n- Read the user-intent artifact and finder report.\n- Inspect only repository context needed to clarify whether a candidate assumption is decision-controlling, currently unproven, and falsifiable.\n- Prune anything that is not decision-controlling, currently unproven, and falsifiable.\n- Keep only medium, high, or critical late-falsification cost assumptions unless a low-cost detail naturally belongs with a higher-cost assumption.\n- Merge assumptions when one safe validation can answer them together; split assumptions when they require different evidence or would cause different routing if false.\n- Assign stable IDs in ledger order: `LB1`, `LB2`, `LB3`, and so on.\n- Do not validate assumptions and do not mark anything verified or falsified in this phase.\n\nLedger requirements:\n- Write a canonical markdown table to `{LOAD_BEARING_LEDGER_PATH}`.\n- Use exactly these columns, in this order: `ID`, `Assumption`, `Decision controlled`, `Current evidence / uncertainty`, `Late-falsification cost`, `What changes if false`, `Status`.\n- Set `Status` to `unverified` for each retained assumption.\n- Preserve enough wording that downstream validators can understand what would prove or falsify each claim without reading the finder report.\n\nReturn a short markdown report with:\n- `## Load-bearing ledger path` - `{LOAD_BEARING_LEDGER_PATH}`\n- `## Byte count` - byte count of the ledger file after writing it\n- `## Pruned notes` - any relevant pruned notes, or `None`\n\nDownstream prompts consume the canonical ledger file, not this prose report.\n"
+          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the load-bearing assumption curator. Do not spawn additional subagents.\n\n<user_intent>\n{USER_INTENT}\n</user_intent>\n\n<finder_report>\n{FINDER_REPORT}\n</finder_report>\n\nThe load-bearing scope is `{LOAD_BEARING_SCOPE}`.\nThe implementation workspace is `{WORKTREE_PATH}`.\nWrite the canonical load-bearing ledger to `{LOAD_BEARING_LEDGER_PATH}`.\n\nTask:\n- Read the user-intent artifact and finder report.\n- Inspect only repository context needed to clarify whether a candidate assumption is decision-controlling, currently unproven, and falsifiable.\n- Prune anything that is not decision-controlling, currently unproven, and falsifiable.\n- Keep only medium, high, or critical late-falsification cost assumptions unless a low-cost detail naturally belongs with a higher-cost assumption.\n- Merge assumptions when one safe validation can answer them together; split assumptions when they require different evidence or would cause different routing if false.\n- Assign stable IDs in ledger order: `LB1`, `LB2`, `LB3`, and so on.\n- Do not validate assumptions and do not mark anything verified or falsified in this phase.\n\nLedger requirements:\n- Write a canonical markdown table to `{LOAD_BEARING_LEDGER_PATH}`.\n- Use exactly these columns, in this order: `ID`, `Assumption`, `Decision controlled`, `Current evidence / uncertainty`, `Late-falsification cost`, `What changes if false`, `Status`.\n- Set `Status` to `unverified` for each retained assumption.\n- Preserve enough wording that downstream validators can understand what would prove or falsify each claim without reading the finder report.\n\nReturn a short markdown report with:\n- `## Load-bearing ledger path` - `{LOAD_BEARING_LEDGER_PATH}`\n- `## Byte count` - byte count of the ledger file after writing it\n- `## Pruned notes` - any relevant pruned notes, or `None`\n\nDownstream prompts consume the canonical ledger file, not this prose report.\n"
         }
       ]
     },
@@ -1701,7 +1736,7 @@
       "summary": "The ledger records assumptions about artifacts, checks, and report provenance.",
       "description": "This evidence file keeps risks about saved proof separate from ordinary acceptance review. The evaluator updates it before the conductor decides whether the round can continue.",
       "parent": "post-gate",
-      "colorGroup": "artifact",
+      "colorGroup": "inserted",
       "badges": [
         "artifact"
       ]
@@ -1728,7 +1763,7 @@
           "language": "markdown",
           "sourcePath": "subagents/prompt-load-bearing-strategist.md",
           "summary": "This prompt asks the strategist to assign validation methods for the post-execution ledger.",
-          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the load-bearing validation strategist. Do not spawn additional subagents.\n\n<load_bearing_ledger>\n{LOAD_BEARING_LEDGER}\n<\/load_bearing_ledger>\n\n{{#if PREVIOUS_LOAD_BEARING_STRATEGY}}\n<previous_load_bearing_strategy>\n{PREVIOUS_LOAD_BEARING_STRATEGY}\n<\/previous_load_bearing_strategy>\n{{/if}}\n\n{{#if LOAD_BEARING_STRATEGY_REVIEW_REPORT}}\n<load_bearing_strategy_review_report>\n{LOAD_BEARING_STRATEGY_REVIEW_REPORT}\n<\/load_bearing_strategy_review_report>\n{{/if}}\n\nThe load-bearing scope is `{LOAD_BEARING_SCOPE}`.\nThe implementation workspace is `{WORKTREE_PATH}`.\n\nTask:\n- Read the canonical ledger and account for every retained assumption.\n- Assign each assumption one of: `validate now`, `grouped with`, or `defer`.\n- Choose the cheapest reliable validation method and fallback chain for each validation target.\n- Prefer validation methods in this order: run code when safe and decisive, inspect local code or artifacts, consult official docs, then use broader internet only when no stronger source is available.\n- Mark any state-changing validation as `needs user approval` and do not assign it as a normal runnable method.\n- Group assumptions only when the same safe validation can answer every assumption in the group.\n- Defer assumptions only when validating them now would not change the current plan, execution, or artifact-routing decision. High or critical assumptions should almost never be deferred.\n- Do not validate assumptions in this phase.\n\nIf `<previous_load_bearing_strategy>` or `<load_bearing_strategy_review_report>` is present, revise the previous strategy against the reviewer's concrete objections instead of starting over from the ledger alone.\n\nThe strategy must include strict fenced target blocks so the conductor can create one temp file per validator without parsing free prose. Use exactly this shape for every target:\n\n```load-bearing-validation-target\nTarget: LBT1\nAssumptions: LB1, LB3\nDecision controlled: Name the architecture, boundary, data, lifecycle, safety, or verification decision that depends on these assumptions.\nCurrent evidence / uncertainty: State what is currently known and what remains unproven.\nLate-falsification cost: high\nWhat would have to change if false: State the concrete plan, test-plan, execution, or artifact-routing change required if validation falsifies the assumptions.\nAssigned method + fallback chain: inspect the named local files first, then run the named read-only command if inspection is inconclusive.\nContext needed: List the repository path, relevant file paths, commands, and any artifact paths required to validate this target.\nSafety constraints: read-only/non-destructive; report blocked state-changing actions\n```\n\nOutput format:\n- `## Scope` - the value of `{LOAD_BEARING_SCOPE}`\n- `## Strategy summary` - concise rationale for the chosen grouping and validation order\n- `## Validation targets` - one fenced `load-bearing-validation-target` block per target, using IDs `LBT1`, `LBT2`, `LBT3`, and so on\n- `## Deferred assumptions` - each deferred assumption ID with a one-sentence reason, or `None`\n- `## Strategy notes` - safety constraints, state-changing actions that need user approval, or `None`\n"
+          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the load-bearing validation strategist. Do not spawn additional subagents.\n\n<load_bearing_ledger>\n{LOAD_BEARING_LEDGER}\n</load_bearing_ledger>\n\n{{#if PREVIOUS_LOAD_BEARING_STRATEGY}}\n<previous_load_bearing_strategy>\n{PREVIOUS_LOAD_BEARING_STRATEGY}\n</previous_load_bearing_strategy>\n{{/if}}\n\n{{#if LOAD_BEARING_STRATEGY_REVIEW_REPORT}}\n<load_bearing_strategy_review_report>\n{LOAD_BEARING_STRATEGY_REVIEW_REPORT}\n</load_bearing_strategy_review_report>\n{{/if}}\n\nThe load-bearing scope is `{LOAD_BEARING_SCOPE}`.\nThe implementation workspace is `{WORKTREE_PATH}`.\n\nTask:\n- Read the canonical ledger and account for every retained assumption.\n- Assign each assumption one of: `validate now`, `grouped with`, or `defer`.\n- Choose the cheapest reliable validation method and fallback chain for each validation target.\n- Prefer validation methods in this order: run code when safe and decisive, inspect local code or artifacts, consult official docs, then use broader internet only when no stronger source is available.\n- Mark any state-changing validation as `needs user approval` and do not assign it as a normal runnable method.\n- Group assumptions only when the same safe validation can answer every assumption in the group.\n- Defer assumptions only when validating them now would not change the current plan, execution, or artifact-routing decision. High or critical assumptions should almost never be deferred.\n- Do not validate assumptions in this phase.\n\nIf `<previous_load_bearing_strategy>` or `<load_bearing_strategy_review_report>` is present, revise the previous strategy against the reviewer's concrete objections instead of starting over from the ledger alone.\n\nThe strategy must include strict fenced target blocks so the conductor can create one temp file per validator without parsing free prose. Use exactly this shape for every target:\n\n```load-bearing-validation-target\nTarget: LBT1\nAssumptions: LB1, LB3\nDecision controlled: Name the architecture, boundary, data, lifecycle, safety, or verification decision that depends on these assumptions.\nCurrent evidence / uncertainty: State what is currently known and what remains unproven.\nLate-falsification cost: high\nWhat would have to change if false: State the concrete plan, test-plan, execution, or artifact-routing change required if validation falsifies the assumptions.\nAssigned method + fallback chain: inspect the named local files first, then run the named read-only command if inspection is inconclusive.\nContext needed: List the repository path, relevant file paths, commands, and any artifact paths required to validate this target.\nSafety constraints: read-only/non-destructive; report blocked state-changing actions\n```\n\nOutput format:\n- `## Scope` - the value of `{LOAD_BEARING_SCOPE}`\n- `## Strategy summary` - concise rationale for the chosen grouping and validation order\n- `## Validation targets` - one fenced `load-bearing-validation-target` block per target, using IDs `LBT1`, `LBT2`, `LBT3`, and so on\n- `## Deferred assumptions` - each deferred assumption ID with a one-sentence reason, or `None`\n- `## Strategy notes` - safety constraints, state-changing actions that need user approval, or `None`\n"
         }
       ]
     },
@@ -1754,7 +1789,7 @@
           "language": "markdown",
           "sourcePath": "subagents/prompt-load-bearing-strategy-review.md",
           "summary": "This prompt asks the reviewer to enforce safe post-execution validation boundaries.",
-          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the load-bearing validation strategy reviewer. Do not spawn additional subagents.\n\n<load_bearing_ledger>\n{LOAD_BEARING_LEDGER}\n<\/load_bearing_ledger>\n\n<load_bearing_strategy>\n{LOAD_BEARING_STRATEGY}\n<\/load_bearing_strategy>\n\nThe load-bearing scope is `{LOAD_BEARING_SCOPE}`.\nThe implementation workspace is `{WORKTREE_PATH}`.\n\nTask:\n- Read the curated ledger and validation strategy.\n- Check that every ledger assumption is accounted for as `validate now`, `grouped with`, or `defer`.\n- Reject validation methods that will not isolate the answer to the assumption being tested.\n- Reject unsafe run commands, state-changing commands assigned without `needs user approval`, and any method that could mutate the repository, services, credentials, or external systems.\n- Reject unnecessary fan-out where one safe validation can answer grouped assumptions.\n- Reject missing fallback chains or fallback chains that do not get stronger or more direct.\n- Reject missing or malformed fenced `load-bearing-validation-target` blocks.\n- Reject accidental deferral of high or critical assumptions unless the strategy gives a concrete reason validation cannot affect the current routing decision.\n- Do not validate assumptions in this phase.\n\nFor `{LOAD_BEARING_SCOPE}=post-execution`, reject any validation strategy whose first method is to rerun tests, launch apps or services, call external APIs, regenerate screenshots, recreate browser sessions, or otherwise recreate acceptance evidence. Post-execution validators may inspect only existing files, metadata, logs, transcripts, screenshots, source code, and other already-produced evidence.\n\nReturn a markdown report with:\n- `## Strategy review verdict` - `READY` or `REVISE`\n- `## Required corrections` - for `REVISE`, list every concrete correction needed; for `READY`, write `None`\n- `## Notes` - any non-blocking observations, or `None`\n"
+          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the load-bearing validation strategy reviewer. Do not spawn additional subagents.\n\n<load_bearing_ledger>\n{LOAD_BEARING_LEDGER}\n</load_bearing_ledger>\n\n<load_bearing_strategy>\n{LOAD_BEARING_STRATEGY}\n</load_bearing_strategy>\n\nThe load-bearing scope is `{LOAD_BEARING_SCOPE}`.\nThe implementation workspace is `{WORKTREE_PATH}`.\n\nTask:\n- Read the curated ledger and validation strategy.\n- Check that every ledger assumption is accounted for as `validate now`, `grouped with`, or `defer`.\n- Reject validation methods that will not isolate the answer to the assumption being tested.\n- Reject unsafe run commands, state-changing commands assigned without `needs user approval`, and any method that could mutate the repository, services, credentials, or external systems.\n- Reject unnecessary fan-out where one safe validation can answer grouped assumptions.\n- Reject missing fallback chains or fallback chains that do not get stronger or more direct.\n- Reject missing or malformed fenced `load-bearing-validation-target` blocks.\n- Reject accidental deferral of high or critical assumptions unless the strategy gives a concrete reason validation cannot affect the current routing decision.\n- Do not validate assumptions in this phase.\n\nFor `{LOAD_BEARING_SCOPE}=post-execution`, reject any validation strategy whose first method is to rerun tests, launch apps or services, call external APIs, regenerate screenshots, recreate browser sessions, or otherwise recreate acceptance evidence. Post-execution validators may inspect only existing files, metadata, logs, transcripts, screenshots, source code, and other already-produced evidence.\n\nReturn a markdown report with:\n- `## Strategy review verdict` - `READY` or `REVISE`\n- `## Required corrections` - for `REVISE`, list every concrete correction needed; for `READY`, write `None`\n- `## Notes` - any non-blocking observations, or `None`\n"
         }
       ]
     },
@@ -1780,7 +1815,7 @@
           "language": "markdown",
           "sourcePath": "subagents/prompt-load-bearing-validator.md",
           "summary": "This prompt tells validators to inspect existing evidence without producing replacement artifacts.",
-          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the load-bearing assumption validator. Do not spawn additional subagents.\n\n<validation_target>\n{LOAD_BEARING_VALIDATION_TARGET}\n<\/validation_target>\n\nThe load-bearing scope is `{LOAD_BEARING_SCOPE}`.\n\nTask:\n- Validate only the assumptions named in `<validation_target>`.\n- Follow the assigned method and fallback chain in order.\n- Run only read-only, non-destructive commands.\n- Do not modify files, install dependencies, update lockfiles, start migrations, call mutating endpoints, write new artifacts, or change repository or system state.\n- If the assigned method requires a state-changing action, do not perform it. Return `INCONCLUSIVE` and name the action under `BLOCKED ON APPROVAL`.\n- Report evidence precisely. Do not invent command output, file contents, artifact metadata, or conclusions you did not actually inspect.\n- If validation reveals new load-bearing assumptions, report them instead of silently relying on them.\n\nFor `{LOAD_BEARING_SCOPE}=post-execution`, stricter evidence rules apply:\n- Do not rerun tests.\n- Do not launch apps or services.\n- Do not call external APIs.\n- Do not regenerate screenshots, videos, generated files, browser sessions, service transcripts, or other acceptance evidence.\n- Do not produce replacement artifacts.\n- You may inspect existing files, metadata, logs, transcripts, screenshots, source code, and artifacts with read-only commands such as `ls`, `stat`, `sed`, `rg`, image/document viewing, checksum commands, and other non-mutating inspection.\n- If the assigned method would require rerunning or recreating acceptance evidence, return `INCONCLUSIVE` with `BLOCKED BY SCOPE` or `BLOCKED ON APPROVAL`, not a rerun.\n\nReturn a markdown report with:\n- `## Validation target` - target ID and assumption IDs\n- `## Verdict` - `VERIFIED`, `FALSIFIED`, `INCONCLUSIVE`, or `NEEDS_USER_APPROVAL`\n- `## Evidence` - concrete evidence inspected, including relevant paths, command outputs, artifact metadata, or source references\n- `## Confidence` - `high`, `medium`, or `low`, with one sentence explaining why\n- `## New assumptions` - newly discovered load-bearing assumptions, or `None`\n- `## Blocked approval needs` - `None`, `BLOCKED ON APPROVAL: ...`, or `BLOCKED BY SCOPE: ...`\n- `## Commands run` - exact read-only commands run, or `None`\n"
+          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the load-bearing assumption validator. Do not spawn additional subagents.\n\n<validation_target>\n{LOAD_BEARING_VALIDATION_TARGET}\n</validation_target>\n\nThe load-bearing scope is `{LOAD_BEARING_SCOPE}`.\n\nTask:\n- Validate only the assumptions named in `<validation_target>`.\n- Follow the assigned method and fallback chain in order.\n- Run only read-only, non-destructive commands.\n- Do not modify files, install dependencies, update lockfiles, start migrations, call mutating endpoints, write new artifacts, or change repository or system state.\n- If the assigned method requires a state-changing action, do not perform it. Return `INCONCLUSIVE` and name the action under `BLOCKED ON APPROVAL`.\n- Report evidence precisely. Do not invent command output, file contents, artifact metadata, or conclusions you did not actually inspect.\n- If validation reveals new load-bearing assumptions, report them instead of silently relying on them.\n\nFor `{LOAD_BEARING_SCOPE}=post-execution`, stricter evidence rules apply:\n- Do not rerun tests.\n- Do not launch apps or services.\n- Do not call external APIs.\n- Do not regenerate screenshots, videos, generated files, browser sessions, service transcripts, or other acceptance evidence.\n- Do not produce replacement artifacts.\n- You may inspect existing files, metadata, logs, transcripts, screenshots, source code, and artifacts with read-only commands such as `ls`, `stat`, `sed`, `rg`, image/document viewing, checksum commands, and other non-mutating inspection.\n- If the assigned method would require rerunning or recreating acceptance evidence, return `INCONCLUSIVE` with `BLOCKED BY SCOPE` or `BLOCKED ON APPROVAL`, not a rerun.\n\nReturn a markdown report with:\n- `## Validation target` - target ID and assumption IDs\n- `## Verdict` - `VERIFIED`, `FALSIFIED`, `INCONCLUSIVE`, or `NEEDS_USER_APPROVAL`\n- `## Evidence` - concrete evidence inspected, including relevant paths, command outputs, artifact metadata, or source references\n- `## Confidence` - `high`, `medium`, or `low`, with one sentence explaining why\n- `## New assumptions` - newly discovered load-bearing assumptions, or `None`\n- `## Blocked approval needs` - `None`, `BLOCKED ON APPROVAL: ...`, or `BLOCKED BY SCOPE: ...`\n- `## Commands run` - exact read-only commands run, or `None`\n"
         }
       ]
     },
@@ -1806,7 +1841,7 @@
           "language": "markdown",
           "sourcePath": "subagents/prompt-load-bearing-evaluate.md",
           "summary": "This prompt asks the evaluator to judge post-execution evidence and emit normalized observations.",
-          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the load-bearing validation evaluator. Do not spawn additional subagents.\n\n<user_intent>\n{USER_INTENT}\n<\/user_intent>\n\n<load_bearing_ledger>\n{LOAD_BEARING_LEDGER}\n<\/load_bearing_ledger>\n\n<load_bearing_strategy>\n{LOAD_BEARING_STRATEGY}\n<\/load_bearing_strategy>\n\n<load_bearing_validation_reports>\n{LOAD_BEARING_VALIDATION_REPORTS}\n<\/load_bearing_validation_reports>\n\nThe load-bearing scope is `{LOAD_BEARING_SCOPE}`.\nThe canonical ledger path is `{LOAD_BEARING_LEDGER_PATH}`.\n\nTask:\n- Read the canonical ledger file and validation strategy.\n- Read every validator report path listed in `<load_bearing_validation_reports>`. The block contains newline-delimited absolute paths and may be empty.\n- Judge whether the validator evidence really proves, falsifies, or leaves unresolved each ledger assumption. Do not defer to validator labels without checking their evidence.\n- Update every ledger row status and write the updated canonical ledger back to `{LOAD_BEARING_LEDGER_PATH}`.\n- Use only these assumption statuses in the ledger: `verified`, `falsified`, `inconclusive`, `accepted-risk-needed`, or `deferred`.\n- Do not rerun validation or recreate evidence in this phase.\n\nIf `<load_bearing_validation_reports>` contains no report paths because the accepted strategy produced no fenced validation targets, return `NO_TARGETS` with JSON `status: \"no_issues\"` and an empty observations array. This is a valid gate pass, not an error.\n\nReturn this markdown structure:\n\n```markdown\n## Load-bearing verdict\nVERIFIED | NO_TARGETS | FALSIFIED | INCONCLUSIVE | NEEDS_USER_APPROVAL\n\n## Load-bearing ledger path\n{LOAD_BEARING_LEDGER_PATH}\n\n## Ledger\nThe evaluator must include the updated canonical ledger table, with every assumption status set to verified, falsified, inconclusive, accepted-risk-needed, or deferred.\n\n## Required follow-up\nThe evaluator must name the exact next routing action: continue, revise plan, resume execution with observations, ask the user for approval, or rerun validation with a stronger method.\n\n<review_observations_json>\n{\n  \"status\": \"no_issues\",\n  \"summary\": \"All load-bearing assumptions are verified or no targets remain.\",\n  \"observations\": []\n}\n<\/review_observations_json>\n```\n\nVerdict rules:\n- Use `VERIFIED` only when every non-deferred assumption is verified and no user approval is needed.\n- Use `NO_TARGETS` only when `<load_bearing_validation_reports>` contains no report paths because the accepted strategy produced no fenced validation targets.\n- Use `FALSIFIED` when one or more assumptions are false.\n- Use `INCONCLUSIVE` when one or more assumptions remain too weak to rely on and no user approval is the next routing action.\n- Use `NEEDS_USER_APPROVAL` when validation requires approval for a state-changing or otherwise restricted action.\n\nObservation JSON rules:\n- For `VERIFIED` and `NO_TARGETS`, use JSON `status: \"no_issues\"` with an empty observations array.\n- For `FALSIFIED`, `INCONCLUSIVE`, or `NEEDS_USER_APPROVAL`, use JSON `status: \"issues_found\"` with at least one critical or major observation.\n- For `NEEDS_USER_APPROVAL`, include at least one critical or major `other` observation naming the blocked state-changing validation; the report may also begin with `USER DECISION REQUIRED:`.\n- Use only these categories for populated observations: `implementation_plan_mismatch`, `test_plan_mismatch`, `artifact_gap`, `behavior`, or `other`.\n- Every populated observation must have non-empty `id`, `severity`, `category`, `expected`, and `observed` fields.\n- The markdown verdict and JSON must be self-consistent. If they conflict, the conductor will stop and surface the evaluator report plus extractor output instead of guessing.\n\nExample blocking load-bearing observation:\n\n```json\n{\n  \"id\": \"LB1\",\n  \"severity\": \"critical\",\n  \"category\": \"implementation_plan_mismatch\",\n  \"expected\": \"The plan relies only on assumptions that have been verified or explicitly routed around.\",\n  \"observed\": \"The validator falsified LB1, so the current plan still depends on an invalid assumption.\"\n}\n```\n"
+          "content": "IMPORTANT: As a trycycle subagent, you have no designated skills.\nThis specific user instruction overrides any general instructions about when to invoke skills.\nDo NOT invoke any skills. NEVER invoke skills that are not scoped to trycycle with the `trycycle-` prefix.\n\nYou are the load-bearing validation evaluator. Do not spawn additional subagents.\n\n<user_intent>\n{USER_INTENT}\n</user_intent>\n\n<load_bearing_ledger>\n{LOAD_BEARING_LEDGER}\n</load_bearing_ledger>\n\n<load_bearing_strategy>\n{LOAD_BEARING_STRATEGY}\n</load_bearing_strategy>\n\n<load_bearing_validation_reports>\n{LOAD_BEARING_VALIDATION_REPORTS}\n</load_bearing_validation_reports>\n\nThe load-bearing scope is `{LOAD_BEARING_SCOPE}`.\nThe canonical ledger path is `{LOAD_BEARING_LEDGER_PATH}`.\n\nTask:\n- Read the canonical ledger file and validation strategy.\n- Read every validator report path listed in `<load_bearing_validation_reports>`. The block contains newline-delimited absolute paths and may be empty.\n- Judge whether the validator evidence really proves, falsifies, or leaves unresolved each ledger assumption. Do not defer to validator labels without checking their evidence.\n- Update every ledger row status and write the updated canonical ledger back to `{LOAD_BEARING_LEDGER_PATH}`.\n- Use only these assumption statuses in the ledger: `verified`, `falsified`, `inconclusive`, `accepted-risk-needed`, or `deferred`.\n- Do not rerun validation or recreate evidence in this phase.\n\nIf `<load_bearing_validation_reports>` contains no report paths because the accepted strategy produced no fenced validation targets, return `NO_TARGETS` with JSON `status: \"no_issues\"` and an empty observations array. This is a valid gate pass, not an error.\n\nReturn this markdown structure:\n\n```markdown\n## Load-bearing verdict\nVERIFIED | NO_TARGETS | FALSIFIED | INCONCLUSIVE | NEEDS_USER_APPROVAL\n\n## Load-bearing ledger path\n{LOAD_BEARING_LEDGER_PATH}\n\n## Ledger\nThe evaluator must include the updated canonical ledger table, with every assumption status set to verified, falsified, inconclusive, accepted-risk-needed, or deferred.\n\n## Required follow-up\nThe evaluator must name the exact next routing action: continue, revise plan, resume execution with observations, ask the user for approval, or rerun validation with a stronger method.\n\n<review_observations_json>\n{\n  \"status\": \"no_issues\",\n  \"summary\": \"All load-bearing assumptions are verified or no targets remain.\",\n  \"observations\": []\n}\n</review_observations_json>\n```\n\nVerdict rules:\n- Use `VERIFIED` only when every non-deferred assumption is verified and no user approval is needed.\n- Use `NO_TARGETS` only when `<load_bearing_validation_reports>` contains no report paths because the accepted strategy produced no fenced validation targets.\n- Use `FALSIFIED` when one or more assumptions are false.\n- Use `INCONCLUSIVE` when one or more assumptions remain too weak to rely on and no user approval is the next routing action.\n- Use `NEEDS_USER_APPROVAL` when validation requires approval for a state-changing or otherwise restricted action.\n\nObservation JSON rules:\n- For `VERIFIED` and `NO_TARGETS`, use JSON `status: \"no_issues\"` with an empty observations array.\n- For `FALSIFIED`, `INCONCLUSIVE`, or `NEEDS_USER_APPROVAL`, use JSON `status: \"issues_found\"` with at least one critical or major observation.\n- For `NEEDS_USER_APPROVAL`, include at least one critical or major `other` observation naming the blocked state-changing validation; the report may also begin with `USER DECISION REQUIRED:`.\n- Use only these categories for populated observations: `implementation_plan_mismatch`, `test_plan_mismatch`, `artifact_gap`, `behavior`, or `other`.\n- Every populated observation must have non-empty `id`, `severity`, `category`, `expected`, and `observed` fields.\n- The markdown verdict and JSON must be self-consistent. If they conflict, the conductor will stop and surface the evaluator report plus extractor output instead of guessing.\n\nExample blocking load-bearing observation:\n\n```json\n{\n  \"id\": \"LB1\",\n  \"severity\": \"critical\",\n  \"category\": \"implementation_plan_mismatch\",\n  \"expected\": \"The plan relies only on assumptions that have been verified or explicitly routed around.\",\n  \"observed\": \"The validator falsified LB1, so the current plan still depends on an invalid assumption.\"\n}\n```\n"
         }
       ]
     },
@@ -1857,16 +1892,125 @@
       "badges": [
         "stop"
       ]
+    },
+    {
+      "id": "before-finish",
+      "label": "Finish",
+      "type": "phase",
+      "position": {
+        "x": 2280,
+        "y": 260
+      },
+      "summary": "A clean code-review pass finishes the cycle.",
+      "description": "This is the non-loop exit. If acceptance and code review pass, Trycycle finishes instead of entering the fix loop.",
+      "colorGroup": "review"
+    },
+    {
+      "id": "after-finish",
+      "label": "Finish",
+      "type": "phase",
+      "position": {
+        "x": 3180,
+        "y": 1140
+      },
+      "summary": "A clean code-review pass finishes the cycle.",
+      "description": "This is the non-loop exit. If the load-bearing check, acceptance review, and code review pass, Trycycle finishes instead of entering the fix loop.",
+      "colorGroup": "review"
+    },
+    {
+      "id": "before-acceptance-fix",
+      "label": "Fix",
+      "type": "fix",
+      "position": {
+        "x": 1560,
+        "y": 480
+      },
+      "summary": "Acceptance blockers return to Build.",
+      "description": "If acceptance review fails, Trycycle sends the observations back into the build/fix loop, then reruns verification.",
+      "colorGroup": "risk",
+      "badges": [
+        "loop"
+      ]
+    },
+    {
+      "id": "before-code-review-fix",
+      "label": "Fix",
+      "type": "fix",
+      "position": {
+        "x": 1920,
+        "y": 480
+      },
+      "summary": "Code review blockers return to Build.",
+      "description": "If code review fails, Trycycle sends the observations back into the build/fix loop, then reruns verification.",
+      "colorGroup": "risk",
+      "badges": [
+        "loop"
+      ]
+    },
+    {
+      "id": "after-plan-gate-revise",
+      "label": "Revise Plan",
+      "type": "fix",
+      "position": {
+        "x": 1020,
+        "y": 1360
+      },
+      "summary": "Failed plan assumptions revise the plan, then return to the Plan Review Loop.",
+      "description": "If the plan-time load-bearing check is falsified or inconclusive, Trycycle revises the plan and returns to the plan review loop before test planning.",
+      "colorGroup": "risk",
+      "badges": [
+        "new",
+        "loop"
+      ]
+    },
+    {
+      "id": "after-post-gate-fix",
+      "label": "Fix",
+      "type": "fix",
+      "position": {
+        "x": 2100,
+        "y": 1360
+      },
+      "summary": "Failed evidence assumptions return to Build.",
+      "description": "If the post-build load-bearing check is falsified or inconclusive, Trycycle skips acceptance and code review for that round and sends the findings back into the build/fix loop.",
+      "colorGroup": "risk",
+      "badges": [
+        "new",
+        "loop"
+      ]
+    },
+    {
+      "id": "after-acceptance-fix",
+      "label": "Fix",
+      "type": "fix",
+      "position": {
+        "x": 2460,
+        "y": 1360
+      },
+      "summary": "Acceptance blockers return to Build.",
+      "description": "If acceptance review fails, Trycycle sends the observations back into the build/fix loop, then reruns verification.",
+      "colorGroup": "risk",
+      "badges": [
+        "loop"
+      ]
+    },
+    {
+      "id": "after-code-review-fix",
+      "label": "Fix",
+      "type": "fix",
+      "position": {
+        "x": 2820,
+        "y": 1360
+      },
+      "summary": "Code review blockers return to Build.",
+      "description": "If code review fails, Trycycle sends the observations back into the build/fix loop, then reruns verification.",
+      "colorGroup": "risk",
+      "badges": [
+        "loop"
+      ]
     }
   ],
   "edges": [
-    {
-      "id": "before-1",
-      "source": "before-plan-ready",
-      "target": "before-test-plan",
-      "type": "flow",
-      "label": "before"
-    },
     {
       "id": "before-2",
       "source": "before-test-plan",
@@ -1886,38 +2030,16 @@
       "source": "before-acceptance",
       "target": "before-code-review",
       "type": "flow",
-      "label": "before"
-    },
-    {
-      "id": "before-5",
-      "source": "before-code-review",
-      "target": "before-fix-or-finish",
-      "type": "flow",
-      "label": "before"
-    },
-    {
-      "id": "before-fix-loop",
-      "source": "before-fix-or-finish",
-      "target": "before-execute",
-      "type": "error",
-      "label": "blockers loop",
-      "summary": "Blocking acceptance or code-review observations resume execution."
-    },
-    {
-      "id": "after-1",
-      "source": "after-plan-ready",
-      "target": "plan-gate",
-      "type": "flow",
-      "label": "ready plan enters",
-      "summary": "A ready plan now enters the plan-time load-bearing gate before test planning."
+      "label": "passes",
+      "summary": "Accepted artifacts proceed to code review."
     },
     {
       "id": "after-2",
       "source": "plan-gate",
       "target": "after-test-plan",
       "type": "flow",
-      "label": "verified ledger leaves",
-      "summary": "A passing plan gate sends the ledger into test-plan construction."
+      "label": "check passes",
+      "summary": "A verified or no-targets load-bearing result exits the plan-side gate and continues to test planning."
     },
     {
       "id": "after-3",
@@ -1931,15 +2053,15 @@
       "source": "after-execute",
       "target": "post-gate",
       "type": "flow",
-      "label": "finished work enters",
-      "summary": "The latest work report and preserved proof enter the evidence gate."
+      "label": "build evidence enters",
+      "summary": "The latest work report and preserved proof enter the load-bearing check."
     },
     {
       "id": "after-5",
       "source": "post-gate",
       "target": "after-acceptance",
       "type": "flow",
-      "label": "trusted evidence leaves",
+      "label": "check passes",
       "summary": "Only trusted evidence proceeds to acceptance review."
     },
     {
@@ -1947,22 +2069,8 @@
       "source": "after-acceptance",
       "target": "after-code-review",
       "type": "flow",
-      "label": "after"
-    },
-    {
-      "id": "after-7",
-      "source": "after-code-review",
-      "target": "after-fix-or-finish",
-      "type": "flow",
-      "label": "after"
-    },
-    {
-      "id": "after-fix-loop",
-      "source": "after-fix-or-finish",
-      "target": "after-execute",
-      "type": "error",
-      "label": "blockers loop",
-      "summary": "Load-bearing, acceptance, or code-review observations can drive another implementation pass."
+      "label": "passes",
+      "summary": "Accepted artifacts proceed to code review."
     },
     {
       "id": "plan-c1",
@@ -2125,8 +2233,205 @@
       "type": "error",
       "label": "approval needed",
       "summary": "Restricted validation stops for user approval instead of proceeding."
+    },
+    {
+      "id": "before-write-review",
+      "source": "before-write-plan",
+      "target": "before-plan-ready",
+      "type": "flow",
+      "label": "before"
+    },
+    {
+      "id": "before-review-tests",
+      "source": "before-plan-ready",
+      "target": "before-test-plan",
+      "type": "flow",
+      "label": "ready",
+      "summary": "A READY verdict exits the Plan Review Loop."
+    },
+    {
+      "id": "after-write-review",
+      "source": "after-write-plan",
+      "target": "after-plan-ready",
+      "type": "flow",
+      "label": "after"
+    },
+    {
+      "id": "after-review-gate",
+      "source": "after-plan-ready",
+      "target": "plan-gate",
+      "type": "flow",
+      "label": "ready",
+      "summary": "A READY verdict exits the Plan Review Loop and enters the new load-bearing check."
+    },
+    {
+      "id": "before-code-review-finish",
+      "source": "before-code-review",
+      "target": "before-finish",
+      "type": "flow",
+      "label": "passes",
+      "summary": "A clean code review exits the loop and finishes."
+    },
+    {
+      "id": "after-code-review-finish",
+      "source": "after-code-review",
+      "target": "after-finish",
+      "type": "flow",
+      "label": "passes",
+      "summary": "A clean code review exits the loop and finishes."
+    },
+    {
+      "id": "before-acceptance-fix-edge",
+      "source": "before-acceptance",
+      "target": "before-acceptance-fix",
+      "type": "error",
+      "label": "fails",
+      "summary": "Acceptance blockers leave the main path through a local fix node.",
+      "sourceSide": "bottom",
+      "targetSide": "top",
+      "routeStyle": "direct"
+    },
+    {
+      "id": "before-fix-build",
+      "source": "before-acceptance-fix",
+      "target": "before-execute",
+      "type": "error",
+      "label": "loop back",
+      "routeStyle": "curve",
+      "summary": "The fix path returns to Build.",
+      "sourceSide": "left",
+      "targetSide": "bottom",
+      "curveDepth": 150
+    },
+    {
+      "id": "before-code-review-fix-edge",
+      "source": "before-code-review",
+      "target": "before-code-review-fix",
+      "type": "error",
+      "label": "fails",
+      "summary": "Code review blockers leave the main path through a local fix node.",
+      "sourceSide": "bottom",
+      "targetSide": "top",
+      "routeStyle": "direct"
+    },
+    {
+      "id": "before-code-fix-build",
+      "source": "before-code-review-fix",
+      "target": "before-execute",
+      "type": "error",
+      "label": "loop back",
+      "routeStyle": "curve",
+      "summary": "The fix path returns to Build.",
+      "sourceSide": "left",
+      "targetSide": "bottom",
+      "curveDepth": 150
+    },
+    {
+      "id": "after-plan-gate-revise-edge",
+      "source": "plan-gate",
+      "target": "after-plan-gate-revise",
+      "type": "error",
+      "label": "false or weak",
+      "summary": "Plan-time load-bearing blockers revise the plan.",
+      "sourceSide": "bottom",
+      "targetSide": "top",
+      "routeStyle": "direct"
+    },
+    {
+      "id": "after-plan-revise-loop",
+      "source": "after-plan-gate-revise",
+      "target": "after-plan-ready",
+      "type": "error",
+      "label": "loop back",
+      "routeStyle": "curve",
+      "summary": "The revised plan returns to the Plan Review Loop.",
+      "sourceSide": "left",
+      "targetSide": "bottom",
+      "curveDepth": 150
+    },
+    {
+      "id": "after-post-gate-fix-edge",
+      "source": "post-gate",
+      "target": "after-post-gate-fix",
+      "type": "error",
+      "label": "false or weak",
+      "summary": "Post-build load-bearing blockers leave through a local fix node.",
+      "sourceSide": "bottom",
+      "targetSide": "top",
+      "routeStyle": "direct"
+    },
+    {
+      "id": "after-post-fix-build",
+      "source": "after-post-gate-fix",
+      "target": "after-execute",
+      "type": "error",
+      "label": "loop back",
+      "routeStyle": "curve",
+      "summary": "The fix path returns to Build.",
+      "sourceSide": "left",
+      "targetSide": "bottom",
+      "curveDepth": 150
+    },
+    {
+      "id": "after-acceptance-fix-edge",
+      "source": "after-acceptance",
+      "target": "after-acceptance-fix",
+      "type": "error",
+      "label": "fails",
+      "summary": "Acceptance blockers leave the main path through a local fix node.",
+      "sourceSide": "bottom",
+      "targetSide": "top",
+      "routeStyle": "direct"
+    },
+    {
+      "id": "after-accept-fix-build",
+      "source": "after-acceptance-fix",
+      "target": "after-execute",
+      "type": "error",
+      "label": "loop back",
+      "routeStyle": "curve",
+      "summary": "The fix path returns to Build.",
+      "sourceSide": "left",
+      "targetSide": "bottom",
+      "curveDepth": 150
+    },
+    {
+      "id": "after-code-review-fix-edge",
+      "source": "after-code-review",
+      "target": "after-code-review-fix",
+      "type": "error",
+      "label": "fails",
+      "summary": "Code review blockers leave the main path through a local fix node.",
+      "sourceSide": "bottom",
+      "targetSide": "top",
+      "routeStyle": "direct"
+    },
+    {
+      "id": "after-code-fix-build",
+      "source": "after-code-review-fix",
+      "target": "after-execute",
+      "type": "error",
+      "label": "loop back",
+      "routeStyle": "curve",
+      "summary": "The fix path returns to Build.",
+      "sourceSide": "left",
+      "targetSide": "bottom",
+      "curveDepth": 150
     }
-  ]
+  ],
+  "nodeTypes": {
+    "fix": {
+      "label": "Loop Node",
+      "shape": "round-rectangle",
+      "size": {
+        "width": 136,
+        "height": 58,
+        "textWidth": 108,
+        "maxChars": 11
+      }
+    }
+  },
+  "fixedLayout": true
 }</script>
   <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.29.2/dist/cytoscape.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chroma-js@2.4.2/chroma.min.js"></script>
@@ -2647,6 +2952,7 @@
         const base = node.position || fallbackPosition(node, visibleNodes);
         positions.set(node.id, { x: base.x, y: base.y });
       }
+      if (DATA.fixedLayout) return positions;
       compactPositions(visibleNodes, positions);
 
       for (let pass = 0; pass < 80; pass += 1) {
@@ -2763,6 +3069,7 @@
     }
 
     function edgeDirection(edge, positions) {
+      if (edge.direction) return edge.direction;
       const source = positions.get(edge.source);
       const target = positions.get(edge.target);
       if (!source || !target) return "right";
@@ -2950,6 +3257,12 @@
           targetOffset: Number(routing.targetOffset || 0),
           corridorIndex: Number(routing.corridorIndex || 0),
           corridorCount: Number(routing.corridorCount || 1),
+          routeStyle: edge.routeStyle || "",
+          uSide: edge.uSide || "",
+          uDepth: Number(edge.uDepth || 0),
+          sourceSide: edge.sourceSide || "",
+          targetSide: edge.targetSide || "",
+          curveDepth: Number(edge.curveDepth || 0),
           synthetic: edge.synthetic ? "true" : "false",
           boundaryRole: edge.boundaryRole || "",
           edgeFontSize: 12
@@ -2972,6 +3285,7 @@
     }
 
     function edgeRenderableOnCanvas(edge, positions, compactCeiling) {
+      if (edge.routeStyle === "u" || edge.routeStyle === "curve" || edge.routeStyle === "direct") return true;
       const source = positions.get(edge.source);
       const target = positions.get(edge.target);
       if (!source || !target) return true;
@@ -3008,7 +3322,7 @@
         }
         return true;
       }
-      return target.x >= source.x - 8;
+      return target.x >= source.x - 8 || edge.direction === "left" || edge.loopBack === true;
     }
 
     function average(values, fallback = 0) {
@@ -3328,6 +3642,7 @@
       const turn = Math.max(24, Number(edge.data("taxiTurn")) || EDGE_TAXI_TURN_BASE);
       const corridorCount = Math.max(1, Number(edge.data("corridorCount")) || 1);
       const corridorIndex = Math.min(corridorCount - 1, Math.max(0, Number(edge.data("corridorIndex")) || 0));
+      const routeStyle = edge.data("routeStyle") || "";
 
       function cleanSegments(segments) {
         return segments.filter((segment) => (
@@ -3357,8 +3672,49 @@
           }
           return center + centeredIndex * minimumGap;
         }
-        const available = Math.max(24, span - 24);
+        const available = Math.max(0, span / 2);
         return startCoordinate + sign * Math.min(turn, available);
+      }
+
+      if (routeStyle === "u") {
+        const side = edge.data("uSide") || "bottom";
+        const depth = Math.max(48, Number(edge.data("uDepth")) || Math.max(turn, 96));
+        if (side === "left" || side === "right") {
+          const rightward = side === "right";
+          const start = {
+            x: rightward ? sourceBox.x2 : sourceBox.x1,
+            y: sourceCenter.y + sourceOffset
+          };
+          const end = {
+            x: rightward ? targetBox.x2 : targetBox.x1,
+            y: targetCenter.y + targetOffset
+          };
+          const laneX = rightward
+            ? Math.max(sourceBox.x2, targetBox.x2) + depth
+            : Math.min(sourceBox.x1, targetBox.x1) - depth;
+          return cleanSegments([
+            { start, end: { x: laneX, y: start.y } },
+            { start: { x: laneX, y: start.y }, end: { x: laneX, y: end.y } },
+            { start: { x: laneX, y: end.y }, end }
+          ]);
+        }
+        const downward = side !== "top";
+        const start = {
+          x: sourceCenter.x + sourceOffset,
+          y: downward ? sourceBox.y2 : sourceBox.y1
+        };
+        const end = {
+          x: targetCenter.x + targetOffset,
+          y: downward ? targetBox.y2 : targetBox.y1
+        };
+        const laneY = downward
+          ? Math.max(sourceBox.y2, targetBox.y2) + depth
+          : Math.min(sourceBox.y1, targetBox.y1) - depth;
+        return cleanSegments([
+          { start, end: { x: start.x, y: laneY } },
+          { start: { x: start.x, y: laneY }, end: { x: end.x, y: laneY } },
+          { start: { x: end.x, y: laneY }, end }
+        ]);
       }
 
       if (direction === "down" || direction === "up") {
@@ -3426,6 +3782,65 @@
       return parts.join(" ");
     }
 
+    function pointOnBox(box, side, offset = 0) {
+      const center = renderedCenter(box);
+      if (side === "top") return { x: center.x + offset, y: box.y1 };
+      if (side === "bottom") return { x: center.x + offset, y: box.y2 };
+      if (side === "left") return { x: box.x1, y: center.y + offset };
+      if (side === "right") return { x: box.x2, y: center.y + offset };
+      return center;
+    }
+
+    function outwardNormal(side) {
+      if (side === "top") return { x: 0, y: -1 };
+      if (side === "bottom") return { x: 0, y: 1 };
+      if (side === "left") return { x: -1, y: 0 };
+      if (side === "right") return { x: 1, y: 0 };
+      return { x: 0, y: 0 };
+    }
+
+    function pathForEdge(edge, boxesById) {
+      if (edge.data("routeStyle") === "direct") {
+        const sourceBox = boxesById.get(edge.source().id());
+        const targetBox = boxesById.get(edge.target().id());
+        if (!sourceBox || !targetBox) return "";
+        const start = pointOnBox(sourceBox, edge.data("sourceSide") || "bottom", Number(edge.data("sourceOffset")) || 0);
+        const end = pointOnBox(targetBox, edge.data("targetSide") || "top", Number(edge.data("targetOffset")) || 0);
+        return `M ${start.x.toFixed(1)} ${start.y.toFixed(1)} L ${end.x.toFixed(1)} ${end.y.toFixed(1)}`;
+      }
+      if (edge.data("routeStyle") === "curve") {
+        const sourceBox = boxesById.get(edge.source().id());
+        const targetBox = boxesById.get(edge.target().id());
+        if (!sourceBox || !targetBox) return "";
+        const sourceSide = edge.data("sourceSide") || "left";
+        const targetSide = edge.data("targetSide") || "bottom";
+        const depth = Math.max(56, Number(edge.data("curveDepth")) || 140);
+        const start = pointOnBox(sourceBox, sourceSide, Number(edge.data("sourceOffset")) || 0);
+        const end = pointOnBox(targetBox, targetSide, Number(edge.data("targetOffset")) || 0);
+        const horizontalDistance = Math.abs(start.x - end.x);
+        const verticalDistance = Math.abs(start.y - end.y);
+        const sourceNormal = outwardNormal(sourceSide);
+        const targetNormal = outwardNormal(targetSide);
+        const sourceLead = Math.max(24, Math.min(depth, Math.max(horizontalDistance, verticalDistance) * 0.45));
+        const targetLead = Math.max(16, Math.min(depth * 0.32, Math.max(horizontalDistance, verticalDistance) * 0.22));
+        const firstControl = {
+          x: start.x + sourceNormal.x * sourceLead,
+          y: start.y + sourceNormal.y * sourceLead
+        };
+        const secondControl = {
+          x: end.x + targetNormal.x * targetLead,
+          y: end.y + targetNormal.y * targetLead
+        };
+        return [
+          `M ${start.x.toFixed(1)} ${start.y.toFixed(1)}`,
+          `C ${firstControl.x.toFixed(1)} ${firstControl.y.toFixed(1)},`,
+          `${secondControl.x.toFixed(1)} ${secondControl.y.toFixed(1)},`,
+          `${end.x.toFixed(1)} ${end.y.toFixed(1)}`
+        ].join(" ");
+      }
+      return pathForSegments(edgeRouteSegments(edge, boxesById));
+    }
+
     function dashArrayForEdge(edge) {
       const style = edge.data("lineStyle") || "solid";
       if (style === "dashed") return "9 6";
@@ -3450,8 +3865,7 @@
 
       const boxesById = new Map(instance.nodes().toArray().map((node) => [node.id(), renderedNodeBox(node)]));
       instance.edges().forEach((edge, index) => {
-        const segments = edgeRouteSegments(edge, boxesById);
-        const pathData = pathForSegments(segments);
+        const pathData = pathForEdge(edge, boxesById);
         if (!pathData) return;
         const highlighted = edge.hasClass("highlighted");
         const dimmed = edge.hasClass("dimmed");
@@ -3488,6 +3902,43 @@
       overlay.appendChild(svg);
     }
 
+    function renderFailureOptions(instance, overlay, nodeBoxes) {
+      const blockWidth = 96;
+      const blockHeight = 42;
+      const gap = 13;
+      instance.nodes().forEach((element) => {
+        const node = nodesById.get(element.id()) || syntheticNodesById.get(element.id());
+        const options = node?.failureOptions || [];
+        if (!options.length) return;
+        const box = nodeBoxes.get(element.id());
+        if (!box) return;
+        options.forEach((option, index) => {
+          const side = option.side === "top" ? "top" : "bottom";
+          const offset = Number(option.offset || 0) + index * (blockWidth + 8);
+          const centerX = (box.x1 + box.x2) / 2 + offset;
+          const blockLeft = Math.round(centerX - blockWidth / 2);
+          const blockTop = Math.round(side === "top" ? box.y1 - gap - blockHeight : box.y2 + gap);
+          const anchorY = side === "top" ? box.y1 : box.y2;
+          const targetY = side === "top" ? blockTop + blockHeight : blockTop;
+          const line = document.createElement("div");
+          line.className = "failure-option-line";
+          line.style.left = `${Math.round(centerX)}px`;
+          line.style.top = `${Math.round(Math.min(anchorY, targetY))}px`;
+          line.style.height = `${Math.round(Math.abs(targetY - anchorY))}px`;
+          line.style.borderLeftWidth = "3px";
+          line.style.borderLeftStyle = "dashed";
+          overlay.appendChild(line);
+
+          const block = document.createElement("div");
+          block.className = "failure-option";
+          block.style.left = `${blockLeft}px`;
+          block.style.top = `${blockTop}px`;
+          block.textContent = option.label || "Fix";
+          overlay.appendChild(block);
+        });
+      });
+    }
+
     function activateSubgraphNode(id) {
       const node = nodesById.get(id);
       if (!node) return;
@@ -3514,6 +3965,7 @@
           includeUnderlays: false
         })
       ]));
+      renderFailureOptions(instance, overlay, nodeBoxes);
       instance.nodes().forEach((element) => {
         const id = element.id();
         const node = nodesById.get(id) || syntheticNodesById.get(id);
