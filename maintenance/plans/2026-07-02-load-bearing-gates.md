@@ -47,7 +47,7 @@
 - Create: `subagents/prompt-load-bearing-plan-revision.md`
 
 **Interfaces:**
-- Consumes: `{USER_INTENT}`, `{WORKTREE_PATH}`, `{IMPLEMENTATION_PLAN_PATH}`, `{TEST_PLAN_PATH}`, `{TESTING_STRATEGY_PATH}`, `{LATEST_IMPLEMENTATION_REPORT}`, `{LOAD_BEARING_LEDGER}`, `{LOAD_BEARING_LEDGER_PATH}`, `{LOAD_BEARING_STRATEGY}`, `{PREVIOUS_LOAD_BEARING_STRATEGY}`, `{LOAD_BEARING_STRATEGY_REVIEW_REPORT}`, `{LOAD_BEARING_VALIDATION_TARGET}`, `{LOAD_BEARING_VALIDATION_REPORTS}`, `{LOAD_BEARING_EVALUATION_REPORT}`, `{LOAD_BEARING_SCOPE}`.
+- Consumes: `{USER_INTENT}`, `{WORKTREE_PATH}`, `{IMPLEMENTATION_PLAN_PATH}`, `{TEST_PLAN_PATH}`, `{TESTING_STRATEGY_PATH}`, `{LATEST_IMPLEMENTATION_REPORT}`, `{FINDER_REPORT}`, `{LOAD_BEARING_LEDGER}`, `{LOAD_BEARING_LEDGER_PATH}`, `{LOAD_BEARING_STRATEGY}`, `{PREVIOUS_LOAD_BEARING_STRATEGY}`, `{LOAD_BEARING_STRATEGY_REVIEW_REPORT}`, `{LOAD_BEARING_VALIDATION_TARGET}`, `{LOAD_BEARING_VALIDATION_REPORTS}`, `{LOAD_BEARING_EVALUATION_REPORT}`, `{LOAD_BEARING_SCOPE}`.
 - Produces: finder list, curated ledger file, validation strategy with strict validation-target blocks, strategy-review report, validator reports, evaluator report, canonical ledger file, optional `<review_observations_json>`, and plan-revision reports.
 
 - [ ] **Step 1: Create the plan finder prompt**
@@ -202,6 +202,18 @@ The evaluator must name the exact next routing action: continue, revise plan, re
 
 For `FALSIFIED`, `INCONCLUSIVE`, or `NEEDS_USER_APPROVAL`, the JSON must use `status: "issues_found"` with critical or major observations. Use existing categories only: `implementation_plan_mismatch`, `test_plan_mismatch`, `artifact_gap`, `behavior`, or `other`.
 
+Every populated observation must satisfy the existing extractor schema: non-empty `id`, `severity`, `category`, `expected`, and `observed` fields. The prompt should include this example shape for blocking load-bearing observations:
+
+```json
+{
+  "id": "LB1",
+  "severity": "critical",
+  "category": "implementation_plan_mismatch",
+  "expected": "The plan relies only on assumptions that have been verified or explicitly routed around.",
+  "observed": "The validator falsified LB1, so the current plan still depends on an invalid assumption."
+}
+```
+
 The prompt must state that the markdown verdict and JSON must be self-consistent:
 - `VERIFIED` and `NO_TARGETS` require JSON `status: "no_issues"` with an empty observations array.
 - `FALSIFIED` and `INCONCLUSIVE` require JSON `status: "issues_found"` with at least one critical or major observation.
@@ -260,22 +272,26 @@ In `SKILL.md`, near the existing placeholder definitions, add definitions for:
 - `{POST_EXECUTION_LOAD_BEARING_LEDGER_PATH}` — latest post-execution load-bearing ledger.
 - `{LOAD_BEARING_VALIDATION_REPORTS}` — temp file listing validator report paths for the current gate.
 - `{LOAD_BEARING_LEDGER_PATH}` — current gate's canonical ledger output path, passed to curator and evaluator.
+- `{LOAD_BEARING_SCOPE}` — current gate scope, exactly `plan` or `post-execution`, passed to every load-bearing helper phase.
 - `{LOAD_BEARING_EVALUATION_REPORT}` — latest evaluator report used by plan revision or execution fix routing.
 - `{PREVIOUS_LOAD_BEARING_STRATEGY}` — prior rejected strategy report, bound only on strategy-revision rounds.
 - `{LOAD_BEARING_STRATEGY_REVIEW_REPORT}` — latest strategy-review correction report, bound only on strategy-revision rounds.
 
 - [ ] **Step 2: Add a reusable full-gate procedure**
 
-Add a section before numbered workflow steps named `## Load-bearing gate helper`. It must instruct the conductor to:
+Add a section before numbered workflow steps named `## Load-bearing gate helper`. It must instruct the conductor to bind `{LOAD_BEARING_SCOPE}` as `plan` for the plan-time gate and `post-execution` for the post-execution gate, then:
 1. Prepare and dispatch a finder prompt for the current scope.
-2. Prepare and dispatch curator.
-3. Prepare and dispatch strategist.
-4. Prepare and dispatch strategy-review.
-5. If strategy-review says `REVISE`, rerun the strategist phase with both `--set-file PREVIOUS_LOAD_BEARING_STRATEGY=<latest-strategy-report>` and `--set-file LOAD_BEARING_STRATEGY_REVIEW_REPORT=<latest-strategy-review-report>`, plus `--ignore-tag-for-placeholders previous_load_bearing_strategy` and `--ignore-tag-for-placeholders load_bearing_strategy_review_report`; repeat until `READY`, up to 3 strategy-review rounds.
-6. If strategy review is still not `READY` after 3 rounds, run `prompt-nonconvergence-review.md` with context `Load-bearing strategy-review loop reached 3 rounds without a READY verdict`, present that report and the latest strategy-review report to the user, and await instructions.
+   - Plan scope: use `prompt-load-bearing-finder-plan.md` with `--set LOAD_BEARING_SCOPE=plan`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--require-nonempty-tag user_intent`, and `--ignore-tag-for-placeholders user_intent`.
+   - Post-execution scope: use `prompt-load-bearing-finder-execution.md` with `--set LOAD_BEARING_SCOPE=post-execution`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set-file LATEST_IMPLEMENTATION_REPORT=<latest-implementation-report-temp-file>`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--require-nonempty-tag user_intent`, `--require-nonempty-tag latest_implementation_report`, `--ignore-tag-for-placeholders user_intent`, and `--ignore-tag-for-placeholders latest_implementation_report`.
+2. Prepare and dispatch curator with `--set LOAD_BEARING_SCOPE=<current-scope>`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set LOAD_BEARING_LEDGER_PATH=<current-gate-ledger-temp-path>`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--set-file FINDER_REPORT=<finder-report-temp-file>`, `--require-nonempty-tag user_intent`, `--require-nonempty-tag finder_report`, `--ignore-tag-for-placeholders user_intent`, and `--ignore-tag-for-placeholders finder_report`.
+3. Prepare and dispatch strategist with `--set LOAD_BEARING_SCOPE=<current-scope>`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file LOAD_BEARING_LEDGER={LOAD_BEARING_LEDGER_PATH}`, `--require-nonempty-tag load_bearing_ledger`, and `--ignore-tag-for-placeholders load_bearing_ledger`.
+4. Prepare and dispatch strategy-review with `--set LOAD_BEARING_SCOPE=<current-scope>`, `--set-file LOAD_BEARING_LEDGER={LOAD_BEARING_LEDGER_PATH}`, `--set-file LOAD_BEARING_STRATEGY=<latest-strategy-report>`, `--require-nonempty-tag load_bearing_ledger`, `--require-nonempty-tag load_bearing_strategy`, `--ignore-tag-for-placeholders load_bearing_ledger`, and `--ignore-tag-for-placeholders load_bearing_strategy`.
+5. If strategy-review says `REVISE`, rerun the strategist phase with the same required scope, worktree, and ledger bindings plus `--set-file PREVIOUS_LOAD_BEARING_STRATEGY=<latest-strategy-report>` and `--set-file LOAD_BEARING_STRATEGY_REVIEW_REPORT=<latest-strategy-review-report>`, `--require-nonempty-tag previous_load_bearing_strategy`, `--require-nonempty-tag load_bearing_strategy_review_report`, `--ignore-tag-for-placeholders previous_load_bearing_strategy`, and `--ignore-tag-for-placeholders load_bearing_strategy_review_report`; repeat until `READY`, up to 3 strategy-review rounds.
+6. If strategy review is still not `READY` after 3 rounds, run `prompt-nonconvergence-review.md` with context `Load-bearing strategy-review loop reached 3 rounds without a READY verdict` and all unconditional nonconvergence bindings: `--set TRYCYCLE_SKILL_PATH=<skill-directory>/SKILL.md`, `--set NONCONVERGENCE_CONTEXT="Load-bearing strategy-review loop reached 3 rounds without a READY verdict."`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH=<current TEST_PLAN_PATH or "Not built yet; the plan load-bearing gate did not converge before the test-plan phase.">`, `--set-file PHASE_PROMPT_PATHS=<phase-prompt-paths-temp-file>`, `--set-file LOOP_OUTPUT_PATHS=<loop-outputs-temp-file>`, `--set-file USER_INTENT={USER_INTENT_PATH}`, and `--ignore-tag-for-placeholders user_intent`. If execution has started, bind `IMPLEMENTATION_REPORT_PATHS` with `--set-file IMPLEMENTATION_REPORT_PATHS=<implementation-reports-temp-file>`; otherwise bind `--set IMPLEMENTATION_REPORT_PATHS="Not applicable; execution did not start."`. Present that report and the latest strategy-review report to the user, and await instructions.
 7. Copy each fenced `load-bearing-validation-target` block from the accepted strategy to its own temp file and dispatch one fresh validator per target in parallel using `prompt-load-bearing-validator.md`.
-8. Save each validator report to its own temp file and create `{LOAD_BEARING_VALIDATION_REPORTS}` as a newline-delimited list of those absolute report paths, one per line.
-9. Prepare and dispatch evaluator.
+   - Each validator wrapper call must bind `--set LOAD_BEARING_SCOPE=<current-scope>`, `--set-file LOAD_BEARING_VALIDATION_TARGET=<validation-target-temp-file>`, `--require-nonempty-tag validation_target`, and `--ignore-tag-for-placeholders validation_target`.
+8. Save each validator report to its own temp file and create `{LOAD_BEARING_VALIDATION_REPORTS}` as a newline-delimited list of those absolute report paths, one per line. Append each prompt path and validator report path to the existing phase prompt paths and loop outputs temp files with labels such as `load-bearing-plan validator report:` or `load-bearing-post-execution validator report:`.
+9. Prepare and dispatch evaluator with `--set LOAD_BEARING_SCOPE=<current-scope>`, `--set LOAD_BEARING_LEDGER_PATH={LOAD_BEARING_LEDGER_PATH}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--set-file LOAD_BEARING_LEDGER={LOAD_BEARING_LEDGER_PATH}`, `--set-file LOAD_BEARING_STRATEGY=<latest-strategy-report>`, `--set-file LOAD_BEARING_VALIDATION_REPORTS=<validation-reports-list-temp-file>`, `--require-nonempty-tag user_intent`, `--require-nonempty-tag load_bearing_ledger`, `--require-nonempty-tag load_bearing_strategy`, `--require-nonempty-tag load_bearing_validation_reports`, `--ignore-tag-for-placeholders user_intent`, `--ignore-tag-for-placeholders load_bearing_ledger`, `--ignore-tag-for-placeholders load_bearing_strategy`, and `--ignore-tag-for-placeholders load_bearing_validation_reports`.
 10. Extract `<review_observations_json>` with `review_observations.py extract`.
 11. Verify evaluator verdict and normalized JSON are self-consistent. If they conflict, stop and surface both artifacts.
 12. Treat the self-consistent normalized JSON's `blocking_issue_count` as the gate decision.
@@ -284,18 +300,18 @@ Add a section before numbered workflow steps named `## Load-bearing gate helper`
 
 - [ ] **Step 3: Insert plan-time gate after plan-editor `READY`**
 
-After Step 8 produces `READY` and before Step 9 builds the test plan, insert a new numbered step `Build and run plan load-bearing gate`. The step must use `prompt-load-bearing-finder-plan.md`, then the helper phases. If the self-consistent evaluator result is:
+After Step 8 produces `READY` and before the test-plan step, insert a new numbered step `Build and run plan load-bearing gate`. Renumber the current test-plan, execution, review-loop, and finish steps, and update existing prose references such as "used in step 9" and "continue to step 9" so they point to the new test-plan step number. The new plan-time step must use `prompt-load-bearing-finder-plan.md`, then the helper phases. If the self-consistent evaluator result is:
 - `VERIFIED` or `NO_TARGETS`: set `{PLAN_LOAD_BEARING_LEDGER_PATH}` to the canonical ledger file at `{LOAD_BEARING_LEDGER_PATH}`, save the evaluator report to the loop outputs temp file with a clear `load-bearing-plan evaluator report:` label, and continue.
 - `FALSIFIED` or `INCONCLUSIVE`: run a fresh planning subagent with `prompt-load-bearing-plan-revision.md`, passing all required bindings: `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--set-file LOAD_BEARING_EVALUATION_REPORT=<evaluator-report-temp-file>`, `--require-nonempty-tag user_intent`, `--require-nonempty-tag load_bearing_evaluation_report`, `--ignore-tag-for-placeholders user_intent`, and `--ignore-tag-for-placeholders load_bearing_evaluation_report`.
   - If the plan-revision subagent returns a normal `UPDATED` report, update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path`, run the workspace hygiene gate, verify commit and changed files, then return to the plan-editor loop.
   - If it returns a report beginning `USER DECISION REQUIRED:`, present it to the user, run the user-intent freshness check after the user replies, send the answer back to the active plan-revision subagent, and wait again for either an `UPDATED` report or another `USER DECISION REQUIRED:` report.
 - `NEEDS_USER_APPROVAL`: present the blocked approval report to the user and await instructions.
 
-Limit this plan-time load-bearing gate cycle to 3 blocking evaluator results. If the third plan-time load-bearing evaluator result still has blocking observations, stop before test-plan construction and run `prompt-nonconvergence-review.md` with context `Plan load-bearing gate reached 3 blocking rounds before test-plan construction.` Present that nonconvergence report, the latest evaluator report, and the latest planning report to the user and await instructions.
+Limit this plan-time load-bearing gate cycle to 3 blocking evaluator results. If the third plan-time load-bearing evaluator result still has blocking observations, stop before test-plan construction and run `prompt-nonconvergence-review.md` with context `Plan load-bearing gate reached 3 blocking rounds before test-plan construction.` Use the full nonconvergence wrapper bindings, including `--set TRYCYCLE_SKILL_PATH=<skill-directory>/SKILL.md`, `--set NONCONVERGENCE_CONTEXT="Plan load-bearing gate reached 3 blocking rounds before test-plan construction."`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH="Not built yet; the plan load-bearing gate did not pass before test-plan construction."`, `--set-file PHASE_PROMPT_PATHS=<phase-prompt-paths-temp-file>`, `--set-file LOOP_OUTPUT_PATHS=<loop-outputs-temp-file>`, `--set IMPLEMENTATION_REPORT_PATHS="Not applicable; execution did not start."`, `--set-file USER_INTENT={USER_INTENT_PATH}`, and `--ignore-tag-for-placeholders user_intent`. Present that nonconvergence report, the latest evaluator report, and the latest planning report to the user and await instructions.
 
 - [ ] **Step 4: Feed the ledger into test-plan construction**
 
-Modify the Step 9 `test-plan` wrapper call to pass `--set-file PLAN_LOAD_BEARING_LEDGER={PLAN_LOAD_BEARING_LEDGER_PATH}` when that path exists, plus `--ignore-tag-for-placeholders plan_load_bearing_ledger`.
+Modify the renumbered `test-plan` wrapper call to pass `--set-file PLAN_LOAD_BEARING_LEDGER={PLAN_LOAD_BEARING_LEDGER_PATH}` when that path exists, plus `--require-nonempty-tag plan_load_bearing_ledger` and `--ignore-tag-for-placeholders plan_load_bearing_ledger`.
 
 - [ ] **Step 5: Update `prompt-test-plan.md`**
 
@@ -340,7 +356,7 @@ In the acceptance-artifact and post-implementation review loop, after each imple
 - [ ] **Step 2: Define post-execution routing**
 
 If the self-consistent post-execution load-bearing evaluator result is:
-- `VERIFIED` or `NO_TARGETS`: save the evaluator report as `{POST_EXECUTION_LOAD_BEARING_LEDGER_PATH}`, append it to `{REVIEW_LOOP_HISTORY}`, then start acceptance-artifact review.
+- `VERIFIED` or `NO_TARGETS`: set `{POST_EXECUTION_LOAD_BEARING_LEDGER_PATH}` to the canonical ledger file at `{LOAD_BEARING_LEDGER_PATH}`, save the evaluator report separately to a temp file, append the evaluator report and ledger path to `{REVIEW_LOOP_HISTORY}`, then start acceptance-artifact review.
 - `FALSIFIED` or `INCONCLUSIVE`: treat the normalized observations like failed verification, append the evaluator report and normalized observations to `{REVIEW_LOOP_HISTORY}` as a completed verification round of type `load-bearing-post-execution`, then apply the same stop-point and plan-reconsideration checks used after acceptance-artifact or code-review blockers. If the stop point has not been reached and no user decision is required, resume the implementation subagent with `prompt-executing.md`, passing `--set-file LOAD_BEARING_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>` and `--ignore-tag-for-placeholders load_bearing_review_observations_json`.
 - `NEEDS_USER_APPROVAL`: present the blocked approval report to the user and await instructions.
 
@@ -384,11 +400,11 @@ git commit -m "feat: add post-execution load-bearing gate"
 
 - [ ] **Step 1: Render all new prompts through the phase wrapper**
 
-Use temporary files under `/tmp` for representative `{USER_INTENT}`, finder report, canonical ledger, validation strategy with two fenced `load-bearing-validation-target` blocks, one copied validation target, validation reports path list, load-bearing evaluation report, testing strategy, test plan, and latest implementation report. The `{USER_INTENT}` fixture must contain placeholder-like text such as literal `{WORKTREE_PATH}` so every smoke render that binds user intent proves it also uses `--ignore-tag-for-placeholders user_intent`. Render every new prompt with `python3 orchestrator/run_phase.py prepare`.
+Use temporary files under `/tmp` for representative `{USER_INTENT}`, finder report, canonical ledger, validation strategy with two fenced `load-bearing-validation-target` blocks, one copied validation target, validation reports path list, load-bearing evaluation report, testing strategy, test plan, and latest implementation report. Every multiline fixture that is placed inside a prompt tag must contain placeholder-like text such as literal `{WORKTREE_PATH}` or `{USER_INTENT}` so smoke renders prove the corresponding `--ignore-tag-for-placeholders` flag is present. Render every new prompt with `python3 orchestrator/run_phase.py prepare`.
 
 - [ ] **Step 2: Render modified existing prompts through the phase wrapper**
 
-Render `prompt-test-plan.md` with optional ledger and a user-intent fixture containing literal `{WORKTREE_PATH}`. Render `prompt-executing.md` with optional load-bearing observations and a user-intent fixture containing literal `{WORKTREE_PATH}`.
+Render `prompt-test-plan.md` with optional ledger and a user-intent fixture containing literal `{WORKTREE_PATH}`. The optional ledger and optional load-bearing observations fixtures must also contain literal placeholder-like text. Render `prompt-executing.md` with optional load-bearing observations and a user-intent fixture containing literal `{WORKTREE_PATH}`.
 
 - [ ] **Step 3: Run existing test suite**
 
@@ -396,7 +412,7 @@ Render `prompt-test-plan.md` with optional ledger and a user-intent fixture cont
 python3 -m unittest discover -s tests
 ```
 
-Expected: exits 0. Existing baseline result was `Ran 126 tests in 14.981s` and `OK (skipped=4)`.
+Expected: exits 0. The baseline suite exited 0 with the existing skipped tests unchanged.
 
 - [ ] **Step 4: Inspect flow references**
 
