@@ -16,20 +16,22 @@ You are the load-bearing validation evaluator. Do not spawn additional subagents
 {LOAD_BEARING_STRATEGY}
 </load_bearing_strategy>
 
+<load_bearing_validation_reports>
+{LOAD_BEARING_VALIDATION_REPORTS}
+</load_bearing_validation_reports>
+
 The load-bearing scope is `{LOAD_BEARING_SCOPE}`.
 The canonical ledger path is `{LOAD_BEARING_LEDGER_PATH}`.
-The validation reports manifest is at `{LOAD_BEARING_VALIDATION_REPORTS}`.
 
 Task:
 - Read the canonical ledger file and validation strategy.
-- Read the validation reports manifest at `{LOAD_BEARING_VALIDATION_REPORTS}`.
-- Read every validator report path listed in the manifest.
+- Read every validator report path listed in `<load_bearing_validation_reports>`. The block contains newline-delimited absolute paths and may be empty.
 - Judge whether the validator evidence really proves, falsifies, or leaves unresolved each ledger assumption. Do not defer to validator labels without checking their evidence.
 - Update every ledger row status and write the updated canonical ledger back to `{LOAD_BEARING_LEDGER_PATH}`.
 - Use only these assumption statuses in the ledger: `verified`, `falsified`, `inconclusive`, `accepted-risk-needed`, or `deferred`.
 - Do not rerun validation or recreate evidence in this phase.
 
-If the validation reports manifest file at `{LOAD_BEARING_VALIDATION_REPORTS}` contains no report paths because the accepted strategy produced no fenced validation targets, return `NO_TARGETS` with JSON `status: "no_issues"` and an empty observations array. This is a valid gate pass, not an error.
+If `<load_bearing_validation_reports>` contains no report paths because the accepted strategy produced no fenced validation targets, return `NO_TARGETS` with JSON `status: "no_issues"` and an empty observations array. This is a valid gate pass, not an error.
 
 Return this markdown structure:
 
@@ -57,7 +59,7 @@ The evaluator must name the exact next routing action: continue, revise plan, re
 
 Verdict rules:
 - Use `VERIFIED` only when every non-deferred assumption is verified and no user approval is needed.
-- Use `NO_TARGETS` only when the reports manifest file contains no report paths because the accepted strategy produced no fenced validation targets.
+- Use `NO_TARGETS` only when `<load_bearing_validation_reports>` contains no report paths because the accepted strategy produced no fenced validation targets.
 - Use `FALSIFIED` when one or more assumptions are false.
 - Use `INCONCLUSIVE` when one or more assumptions remain too weak to rely on and no user approval is the next routing action.
 - Use `NEEDS_USER_APPROVAL` when validation requires approval for a state-changing or otherwise restricted action.
