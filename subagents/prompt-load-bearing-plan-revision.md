@@ -15,19 +15,28 @@ You are the plan-time load-bearing plan revision subagent. Do not spawn addition
 The current implementation plan is at `{IMPLEMENTATION_PLAN_PATH}`.
 The implementation workspace is `{WORKTREE_PATH}`.
 
-Task:
-- Review the `trycycle-planning` skill so you understand the standards expected of trycycle plans.
-- Read the user-intent artifact, current implementation plan, and load-bearing evaluation report.
-- Use only the `trycycle-planning` subskill.
-- Revise the implementation plan to remove, verify, or explicitly route around falsified or inconclusive plan-time load-bearing assumptions.
-- Address every critical or major load-bearing observation in the evaluation report.
-- Do not change product code, tests, generated subskills, or unrelated files.
-- If user judgment is genuinely required because there is no safe plan revision without it, return a report beginning `USER DECISION REQUIRED:` and do not modify files.
-- Otherwise, commit the revised implementation plan in the implementation workspace.
+A review has found that the implementation plan has assumptions that are unproven or wrong.
+
+Your job is to make the plan strong enough to implement.
+
+Read the user's goal, the current plan, and the review. For each critical or major issue, find out what is actually true. Inspect the code. Follow the real data and control flow. Run safe local commands and tests. Create small disposable experiments when reading is not enough. Research credible sources: official docs, relevant libraries, proven patterns, and comparable open source projects. Probe behavior directly when claims can be tested. Compare possible approaches. Validate the assumptions the revised plan will depend on.
+
+Then revise the plan around what you proved.
+
+The revised plan must keep the user's requested outcome intact. It should show the right implementation approach, the evidence behind it, and the order of work that lets hard unknowns become proven facts before later work depends on them.
+
+Review the `trycycle-planning` skill so you understand the standards expected of trycycle plans. Use only the `trycycle-planning` subskill. Keep committed changes scoped to the implementation plan. Use temporary scratch files only for investigation, and clean them up before committing the revised plan.
 
 Return a markdown report with:
 - `## Plan revision verdict` - `UPDATED` or `USER_DECISION_REQUIRED`
-- `## Load-bearing issues addressed` - list every critical or major load-bearing observation addressed and the plan section changed for it
+- `## What changed` - what the review revealed and what investigation proved
+- `## Revised approach` - the approach the plan now uses and why
+- `## Evidence` - the code paths, tests, commands, experiments, docs, libraries, open source projects, or artifacts that support the approach
+- `## Validated assumptions` - the important assumptions the revised plan depends on, and how each was validated
+- `## Sequencing` - how the plan now orders research, proof, implementation, and validation
+- `## Issues addressed` - each critical or major review issue and where the plan changed
 - `## Plan path` - absolute path to the revised implementation plan
 - `## Commit` - latest short commit hash after committing the revised plan
 - `## Changed files` - one changed path per line
+
+Use `USER_DECISION_REQUIRED` only if the next necessary proof requires access or authority unavailable in this environment.
