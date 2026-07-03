@@ -81,6 +81,7 @@ Based on the sources of truth and harnesses, describe what testing looks like fo
 - **Performance**: Assess how likely this change is to affect performance and how hard it is to measure. For most changes, a simple timing assertion ("operation completes in under Xms") catches catastrophic regressions cheaply — X should be generous enough that any violation is a severe bug, not noise. For performance-critical work where improvement is the goal, real measurement in a realistic environment is unavoidable — state what that environment is, how to deploy to it, and how to measure safely. Scale the approach to what the risk warrants.
 - **Acceptance-artifact review**: What artifacts should the implementation subagent preserve so a fresh subagent can compare the original user request to the evidence without rerunning or recreating checks? Include screenshots, videos, browser snapshots, CLI transcripts, logs, generated files, service transcripts, or rendered outputs when they would make the requested outcome inspectable.
 - **Visual/perceptual correctness**: If the change affects what the user sees, you will almost certainly need a screenshot or browser snapshot for the acceptance-artifact reviewer to inspect. You might need video or even more expensive artifacts, and it might be possible to know how it looks without rendering an image, e.g. a CLI output. Recommend the appropriate reproducible observation method that provides meaningful confidence. Do not recommend human validation.
+- **Validation approval forecast**: Forecast the reasonably foreseeable state-changing, restricted, external, costly, or environment-mutating actions that validation may need later. Be generous rather than minimal, because missing foreseeable categories causes avoidable user interruptions. Include local file writes for tests and artifacts, dependency installation or build steps, local service/browser launches, database or migration work in local/test environments, external API or network calls, paid resources, credential use, screenshots/videos/generated outputs, and cleanup or rollback actions when relevant. State the expected environment and cost/risk bounds. This forecast guides the concrete test plan; the concrete test plan's final `## Validation approval scope` section is the durable approval checkpoint.
 
 ### Test plan emphasis
 
@@ -100,4 +101,7 @@ Return the strategy as a single markdown document ready to present to the user. 
 
 Make the strategy concrete enough that the follow-on test plan can be written without inventing its own priorities: it should be obvious from your recommendation that the goal is high confidence in user-visible behavior, with the strongest weight on real integration coverage.
 
-End with a short `## Approval` section that explicitly says the user must accept this strategy or provide edits before implementation or workspace setup begins.
+End with these two sections, in this order:
+
+1. `## Validation approval forecast` - the generous forecast described above. This is not the durable approval scope yet; it is the input the concrete test plan must reconcile and carry forward.
+2. `## Approval` - a short section that explicitly says the user must accept this strategy or provide edits before implementation or workspace setup begins.
