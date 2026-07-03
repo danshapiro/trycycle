@@ -30,7 +30,7 @@ Work in the implementation workspace at `{WORKTREE_PATH}`.
 2. Read the agreed testing strategy.
 3. Read the implementation plan thoroughly. Understand the architecture, interfaces, components, and task breakdown.
 4. Use `<user_intent>` as the scope and acceptance source when reconciling the approved testing strategy against the implementation plan. Use `<testing_strategy>` for the agreed testing priorities and harness choices; do not broaden scope beyond user intent.
-5. If `<plan_load_bearing_ledger>` is present, use verified and falsified load-bearing findings as sources of truth for test priorities, source-of-truth notes, and acceptance artifacts. Do not broaden scope beyond user intent; use the ledger to make the existing plan and strategy more reliable.
+5. If `<plan_load_bearing_ledger>` is present, use load-bearing findings and the plan changes they caused as sources of truth for test priorities, source-of-truth notes, and acceptance artifacts. Do not broaden scope beyond user intent; use the ledger to make the existing plan and strategy more reliable.
 6. **Reconcile the strategy against the plan.** Check whether the implementation plan invalidates any assumptions in the testing strategy:
    - Do the planned interfaces and architecture match what the strategy assumed about harnesses?
    - Is the interaction surface larger or different than expected?

@@ -21,6 +21,8 @@ Task:
 - Inspect only repository context needed to clarify whether a candidate assumption is decision-controlling, currently unproven, and falsifiable.
 - Prune anything that is not decision-controlling, currently unproven, and falsifiable.
 - Keep only medium, high, or critical late-falsification cost assumptions unless a low-cost detail naturally belongs with a higher-cost assumption.
+- Distinguish unfinished planned work from claims the plan is relying on. Routine unbuilt work is not load-bearing by itself; keep it only when the plan depends on a risky claim whose failure would change approach, sequencing, verification, or feasibility.
+- For plan-time scope, keep approach-validation claims that must be resolved before execution starts. Do not keep claims merely so execution can discover whether the approach works.
 - Merge assumptions when one safe validation can answer them together; split assumptions when they require different evidence or would cause different routing if false.
 - Assign stable IDs in ledger order: `LB1`, `LB2`, `LB3`, and so on.
 - Do not validate assumptions and do not mark anything verified or falsified in this phase.

@@ -42,6 +42,8 @@ A skipped test is a failed test — there are no "legitimate" skips in a final r
 
 Implement using TDD: for each feature or component, first establish the red state with the highest-priority automated check or checks from the test plan. Reuse or extend high-value existing tests when they already cover the behavior; when coverage is missing, write the new failing test or tests first. If the test plan specifies harnesses to build, build those first.
 
+If implementation exposes an unplanned uncertainty that directly blocks the next implementation choice, validate it with safe local checks before proceeding. Report a blocker only when it cannot be responsibly resolved in this environment.
+
 Use `<user_intent>` to detect conflicts between the plan and the recorded user intent. If the plan or test plan appears to contradict user intent in a way that changes the required outcome, stop with a blocker instead of guessing.
 
 After automated tests/checks pass, produce the acceptance artifacts required by the test plan. Prefer `{WORKTREE_PATH}/.trycycle-artifacts/` for transient artifacts. Preserve existing artifacts; do not rely on the implementation report alone as evidence. If a requested outcome has no durable artifact, capture a command transcript, log, generated output, screenshot, browser snapshot, service transcript, or other artifact that lets a blank-slate subagent compare the user request to the evidence without rerunning anything.

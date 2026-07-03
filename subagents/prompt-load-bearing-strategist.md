@@ -26,8 +26,9 @@ The implementation workspace is `{WORKTREE_PATH}`.
 Task:
 - Read the canonical ledger and account for every retained assumption.
 - Assign each assumption one of: `validate now`, `grouped with`, or `defer`.
-- Choose the cheapest reliable validation method and fallback chain for each validation target.
-- Prefer validation methods in this order: run code when safe and decisive, inspect local code or artifacts, consult official docs, then use broader internet only when no stronger source is available.
+- Choose the validation method and fallback chain that best answers the planning or evidence decision the plan depends on. Cheap is good only when it is decisive.
+- Prefer validation methods in this order when they answer the decision: run code when safe and decisive, inspect local code or artifacts, consult official docs, then use broader internet only when no stronger source is available.
+- For plan-time scope, validation must give planning enough evidence to decide before execution begins. Do not choose a future execution step as the validation method for approach viability.
 - Mark any state-changing validation as `needs user approval` and do not assign it as a normal runnable method.
 - Group assumptions only when the same safe validation can answer every assumption in the group.
 - Defer assumptions only when validating them now would not change the current plan, execution, or artifact-routing decision. High or critical assumptions should almost never be deferred.

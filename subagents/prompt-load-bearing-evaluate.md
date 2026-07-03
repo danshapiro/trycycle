@@ -46,7 +46,7 @@ VERIFIED | NO_TARGETS | FALSIFIED | INCONCLUSIVE | NEEDS_USER_APPROVAL
 The evaluator must include the updated canonical ledger table, with every assumption status set to verified, falsified, inconclusive, accepted-risk-needed, or deferred.
 
 ## Required follow-up
-The evaluator must name the exact next routing action: continue, revise plan, resume execution with observations, ask the user for approval, or rerun validation with a stronger method.
+Explain what the evidence means for readiness to proceed and what should happen next. A blocked result may require more validation, design revision, test-plan or acceptance-evidence revision, different sequencing, post-execution fix-loop observations, user approval, or a combination. Choose the response that retires the real risk; do not route all blocked findings to the same recovery.
 
 <review_observations_json>
 {
@@ -63,6 +63,7 @@ Verdict rules:
 - Use `FALSIFIED` when one or more assumptions are false.
 - Use `INCONCLUSIVE` when one or more assumptions remain too weak to rely on and no user approval is the next routing action.
 - Use `NEEDS_USER_APPROVAL` when validation requires approval for a state-changing or otherwise restricted action.
+- For `{LOAD_BEARING_SCOPE}=plan`, a risky approach claim that remains unproven is still blocking. Do not treat future execution tests as a substitute for resolving approach viability during planning.
 
 Observation JSON rules:
 - For `VERIFIED` and `NO_TARGETS`, use JSON `status: "no_issues"` with an empty observations array.

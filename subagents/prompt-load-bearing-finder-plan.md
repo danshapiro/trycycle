@@ -16,6 +16,9 @@ Task:
 - Inspect only repository context needed to understand the plan's decisions.
 - Find every falsifiable, currently unproven, decision-controlling assumption the plan depends on.
 - Include only assumptions with medium, high, or critical late-falsification cost; record low-cost details only when they are naturally grouped with a higher-cost assumption.
+- A plan can contain unfinished work without depending on a load-bearing assumption. Treat unfinished work as load-bearing only when the plan relies on a risky claim about feasibility, platform behavior, sequencing, data shape, integration behavior, or evidence.
+- If failure would just mean ordinary implementation or debugging work, prune it. If failure would change the approach, invalidate planned verification, or leave no clear path to the user's requested outcome, keep it.
+- For plan-time scope, approach validation belongs in planning. Keep claims whose answer must be known before execution can responsibly start.
 - Do not validate assumptions in this phase.
 - Do not include opinions, already-proven facts, or small implementation details that would not change the plan.
 

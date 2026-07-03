@@ -19,11 +19,13 @@ Task:
 - Read the curated ledger and validation strategy.
 - Check that every ledger assumption is accounted for as `validate now`, `grouped with`, or `defer`.
 - Reject validation methods that will not isolate the answer to the assumption being tested.
+- Reject validation methods that are cheap but not decisive for the planning or evidence decision the assumption controls.
 - Reject unsafe run commands, state-changing commands assigned without `needs user approval`, and any method that could mutate the repository, services, credentials, or external systems.
 - Reject unnecessary fan-out where one safe validation can answer grouped assumptions.
 - Reject missing fallback chains or fallback chains that do not get stronger or more direct.
 - Reject missing or malformed fenced `load-bearing-validation-target` blocks.
 - Reject accidental deferral of high or critical assumptions unless the strategy gives a concrete reason validation cannot affect the current routing decision.
+- For `{LOAD_BEARING_SCOPE}=plan`, reject any strategy that defers approach validation to future execution instead of resolving it before execution begins.
 - Do not validate assumptions in this phase.
 
 For `{LOAD_BEARING_SCOPE}=post-execution`, reject any validation strategy whose first method is to rerun tests, launch apps or services, call external APIs, regenerate screenshots, recreate browser sessions, or otherwise recreate acceptance evidence. Post-execution validators may inspect only existing files, metadata, logs, transcripts, screenshots, source code, and other already-produced evidence.
