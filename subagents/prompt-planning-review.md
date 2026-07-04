@@ -21,6 +21,7 @@ Task:
 - Read the user's intent and the whole plan. Treat `<user_intent>` as the current scope, context, and constraint record. Later entries in `<user_intent>` supersede earlier entries, and recorded user intent supersedes unsupported assistant interpretation.
 - Work read-only in the implementation workspace at `{WORKTREE_PATH}`. Explore whatever code, configuration, dependencies, and history you need. Do not modify any files.
 - Your job is to find every critical issue in your territory and on its adjacency surfaces. You must be able to vouch for your territory: its plan sections, the requirements it owns, the code and infra in its scope, and each adjacency surface named for it.
+- For every `ORPHAN:` bullet the assignment report assigns to your territory, investigate it directly and record its disposition under `## Orphan dispositions`: the critical-issue number that reports it, or one line of concrete evidence that the plan actually covers it. An assigned orphan with no disposition is a review failure.
 - There are two kinds of critical issues:
   1. Executing the plan would not produce the result the user requested.
   2. There is a materially better approach.
@@ -36,5 +37,6 @@ Return a markdown report with these sections in this order:
 - `## Territory` — your territory number and name from the assignment report.
 - `## Territory verdict` — `CLEAN` if you found no critical issues, or `ISSUES FOUND`.
 - `## Critical issues` — `None` for `CLEAN`. Otherwise a numbered list; for each issue give the exact plan section or task, whether it is a `Requested result failure` or a `Materially better approach`, what is wrong, the concrete evidence (file paths, line numbers, commands you ran, plan or intent quotes), and the direction of the fix.
+- `## Orphan dispositions` — one line per `ORPHAN:` bullet assigned to your territory: the critical-issue number that reports it, or the evidence that clears it. Write `None assigned` if the assignment report assigns none to your territory.
 
 Keep the report tight: findings only, no exploration narrative, no plan summary.

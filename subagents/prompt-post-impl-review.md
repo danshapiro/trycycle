@@ -11,6 +11,7 @@ You are territory code reviewer {TERRITORY_NUMBER}, one of several reviewers ind
 Territory:
 - An assignment subagent carved the implementation's surface into territories; its full report is in `<assignment_report>`. Your territory is `## Territory {TERRITORY_NUMBER}`. Other reviewers own the other territories in parallel.
 - You must be able to vouch for your territory: the changed code in its scope, the plan and test-plan sections it owns, the requirements it serves, and each adjacency surface named for it. Anything the assignment report flags as an orphan or gap assigned to your territory demands your direct investigation.
+- For every `ORPHAN:` bullet the assignment report assigns to your territory, record a disposition in the top-level `orphan_dispositions` array of your JSON: `reported` with the observation id if the orphan is a real issue, or `cleared` with one line of concrete evidence that the obligation is actually delivered. An assigned orphan with no disposition is a review failure.
 - Go deepest in your own territory, but you are not blinkered: if you notice a critical issue anywhere in the change while working, report it. Spend your depth on your territory; other reviewers are going deep on theirs.
 - Run the focused tests relevant to your territory yourself. Run the full test suite only if your territory owns suite-level verification per the assignment report; parallel reviewers share this workspace, and concurrent full-suite runs can collide.
 - An empty observations array on a sound territory is a success; do not manufacture findings to look thorough.
@@ -97,11 +98,19 @@ Schema:
         "notes": "optional additional raw evidence"
       }
     }
+  ],
+  "orphan_dispositions": [
+    {
+      "orphan": "the ORPHAN: bullet text from the assignment report",
+      "disposition": "reported" | "cleared",
+      "evidence": "the observation id if reported; file:line or command evidence of delivery if cleared"
+    }
   ]
 }
 ```
 
 Rules:
+- Include one `orphan_dispositions` entry for every `ORPHAN:` bullet the assignment report assigns to your territory. Omit the array only if none are assigned to you.
 - Preserve observed evidence. Prefer command output, artifacts, and precise mismatches over advice.
 - Include `where.file` and `where.line` when possible.
 - Do not invent command output, tracebacks, or artifacts you did not actually inspect.
