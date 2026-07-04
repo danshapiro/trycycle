@@ -26,6 +26,8 @@ Other inputs:
 - Test plan: `{TEST_PLAN_PATH}`
 - Implementation workspace: `{WORKTREE_PATH}`
 
+The current test plan has already been approved by the user, including its final `## Validation approval scope` section. Preserve that approved scope unless the review-loop evidence proves a change is necessary. If the next required validation action is materially outside the approved categories, risk level, environment, or cost profile, return `USER DECISION REQUIRED:` and do not modify files. Do not silently broaden the approved scope in a planning update. Clarifying tests, artifact requirements, or provenance inside the already-approved scope is allowed.
+
 ## Nonconvergence Analysis
 
 The implementation plan and test plan were reviewed before execution, so begin with a strong presumption that they are directionally correct, but only a moderate presumption that they are comprehensive. Implementation sometimes reveals information that was unavailable during planning. Determine whether this is one of those times, or whether the plan is correct and the agents need more iterations to complete.
@@ -96,6 +98,8 @@ If the plans are sufficient and all material units are on track, leave plans unc
 If any material unit is not on track because of a plan or test-plan cause, and that cause can be fixed without violating user instructions, update the implementation plan, the test plan, or both. The goal is to correctly implement the user's instructions. If implementation has revealed that the current plan does not give a careful executor enough guidance to do that, the planning documents should be clarified. The change may be an acceptance criterion, source-of-truth decision, ownership boundary, validation rule, error-handling rule, test fidelity requirement, architecture correction, or explicit user-decision request.
 
 A good intervention is broad enough to change the loop trajectory and narrow enough to be justified by the artifacts. Prefer clarifying the existing plan when implementation has revealed an underspecified boundary. Change settled plan direction only when implementation has unearthed strong evidence that the reviewed plan itself cannot satisfy the user's instructions.
+
+If you update the test plan, keep its final `## Validation approval scope` section intact unless the update only narrows impossible or irrelevant actions. If the evidence requires broadening that section, return `USER DECISION REQUIRED:` instead of editing; the user must approve broader validation authority.
 
 Form an intervention hypothesis. Then repeatedly challenge yourself: Are you really capturing the root cause? Will the change address the full set of confusion that caused the loop evidence, without needlessly changing settled plan direction, or violating the user's intentions? Revise the hypothesis until both answers are yes.
 

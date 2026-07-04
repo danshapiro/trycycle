@@ -36,7 +36,7 @@ Work in the implementation workspace at `{WORKTREE_PATH}`.
    - Is the interaction surface larger or different than expected?
    - Does the plan reveal external dependencies (paid APIs, infrastructure, services) that the strategy didn't account for?
    - Are there components or behaviors the strategy didn't anticipate?
-   If the strategy still holds, note that briefly and proceed. If adjustments are needed that don't change the cost or scope the user agreed to, make them and document what changed and why. If adjustments would increase cost, require access to paid/external resources, or materially change scope, put them in a `## Strategy changes requiring user approval` section as the first section of the file — that section will be presented to the user before proceeding.
+   If the strategy still holds, note that briefly and proceed. If adjustments are needed that don't change the cost or scope the user agreed to, make them and document what changed and why. If adjustments would increase cost, require access to paid/external resources, materially change scope, or add validation actions outside the strategy's validation approval forecast, put them in a `## Strategy changes requiring user approval` section as the first section of the file — that section will be presented to the user before proceeding.
 7. Read the codebase: examine every file, directory, and artifact relevant to the task. If there are reference implementations, specs, API docs, or other sources of truth identified in the strategy, read those thoroughly.
 8. Identify the relevant existing automated checks and the full action space: every user-facing action, command, endpoint, interaction, or behavior that the task touches or could affect. Enumerate to the leaf: every clickable element, submittable form, callable endpoint, and executable command is a distinct action — not the page, screen, or feature that contains it.
 9. Build the plan around the highest-value existing relevant automated checks when they exist, and add new tests wherever user-visible behavior is weakly covered or uncovered. Prefer running the real system through the real user-facing surface with real collaborating components over mocks, stubs, or direct calls into internals.
@@ -121,6 +121,24 @@ Every test plan must include this section, even for small code-only changes. It 
 
 Do not write acceptance criteria for the later reviewer to mechanically apply, and do not ask the reviewer to rerun or recreate checks. The later reviewer is deliberately blank-slate: it compares the user request to the produced artifacts and decides whether there are gaps. A gap is treated like a failed test.
 
+## Validation Approval Scope
+
+Every test plan must end with a final `## Validation approval scope` section. This section is the durable user-approval checkpoint for the rest of the Trycycle run.
+
+The section must list all reasonably foreseeable validation actions that are state-changing, restricted, external, costly, or environment-mutating. Be generous rather than minimal: include actions that may be needed by test execution, implementation verification, load-bearing validation, acceptance-artifact production, acceptance-artifact review support, code-review follow-up, and fix rounds. Later phases should be able to rely on this approval without interrupting the user again.
+
+For each category, state:
+
+- The action category and concrete examples likely for this task.
+- The environment where it may run, such as local workspace, local browser, local service, test database, staging, or named external API.
+- The permitted state changes, files, generated artifacts, credentials, network calls, service launches, migrations, cleanup, or rollback actions.
+- The cost and risk bounds, including "no paid spend", a named spend limit, or a named external resource limit.
+- Explicit exclusions, especially production deploys, live-host mutations, destructive data changes, credential changes, or paid spend beyond the stated bounds.
+
+Do not narrow the strategy's validation approval forecast unless the implementation plan proves a category is impossible or irrelevant. If the plan reveals a new category outside the forecast, include it in `## Strategy changes requiring user approval` and also include it in the final approval-scope section so the user can approve the complete current scope in one place.
+
+Later load-bearing validation will use this final section to decide whether a validation action is already approved. If an action fits the listed category, risk level, environment, and cost profile, it is approved for the duration of the run and should not trigger another user approval request.
+
 ## Output
 
 Save the test plan to: `docs/plans/YYYY-MM-DD-<feature-name>-test-plan.md`
@@ -131,10 +149,12 @@ The document should contain:
 2. **Test plan** — numbered list of tests in priority order, each with the full structure above
 3. **Acceptance artifact review** — mandatory artifact-production requirements for the fresh acceptance reviewer
 4. **Coverage summary** — which areas of the action space are covered, which are explicitly excluded per the agreed strategy, and what risks the exclusions carry
+5. **Validation approval scope** — the final section, using the exact heading `## Validation approval scope`
 
 Commit the test plan to the implementation workspace, then return a markdown report:
 
 - If the file begins with `## Strategy changes requiring user approval`, include that section verbatim as the first section of your response.
+- Include the test plan's final `## Validation approval scope` section verbatim.
 - Then include `## Test plan path` with the absolute path to the file.
 - Then include `## Commit` with the latest short commit hash.
 - Then include `## Changed files` with one changed path per line.

@@ -8,6 +8,16 @@ You are the load-bearing validation strategist. Do not spawn additional subagent
 {LOAD_BEARING_LEDGER}
 </load_bearing_ledger>
 
+<testing_strategy>
+{TESTING_STRATEGY}
+</testing_strategy>
+
+{{#if TEST_PLAN}}
+<test_plan>
+{TEST_PLAN}
+</test_plan>
+{{/if}}
+
 {{#if PREVIOUS_LOAD_BEARING_STRATEGY}}
 <previous_load_bearing_strategy>
 {PREVIOUS_LOAD_BEARING_STRATEGY}
@@ -25,11 +35,15 @@ The implementation workspace is `{WORKTREE_PATH}`.
 
 Task:
 - Read the canonical ledger and account for every retained assumption.
+- Read the testing strategy. If `<test_plan>` is present, read its final `## Validation approval scope` section as the active approved validation scope for the run. The testing strategy may contain a forecast, but the concrete test plan's final approval-scope section is the durable approval source.
+- If `<test_plan>` is absent, no durable validation approval scope is active yet. Use the testing strategy forecast only to anticipate what the concrete test plan should include later; do not treat it as authorization for state-changing, restricted, external, costly, or environment-mutating validation.
 - Assign each assumption one of: `validate now`, `grouped with`, or `defer`.
 - Choose the validation method and fallback chain that best answers the planning or evidence decision the plan depends on. Cheap is good only when it is decisive.
 - Prefer validation methods in this order when they answer the decision: run code when safe and decisive, inspect local code or artifacts, consult official docs, then use broader internet only when no stronger source is available.
 - For plan-time scope, validation must give planning enough evidence to decide before execution begins. Do not choose a future execution step as the validation method for approach viability.
-- Mark any state-changing validation as `needs user approval` and do not assign it as a normal runnable method.
+- For every state-changing, restricted, external, costly, or environment-mutating validation action, decide whether it is covered by the approved validation scope's category, risk level, environment, and cost profile.
+- If an action is covered by the active approved validation scope, assign it as a normal runnable method and name the matching approval category in the target block.
+- Mark an action as `needs user approval` only when it is materially outside the approved categories, risk level, environment, or cost profile. Do not ask again for actions already covered by the approved scope.
 - Group assumptions only when the same safe validation can answer every assumption in the group.
 - Defer assumptions only when validating them now would not change the current plan, execution, or artifact-routing decision. High or critical assumptions should almost never be deferred.
 - Do not validate assumptions in this phase.
@@ -47,7 +61,8 @@ Late-falsification cost: high
 What would have to change if false: State the concrete plan, test-plan, execution, or artifact-routing change required if validation falsifies the assumptions.
 Assigned method + fallback chain: inspect the named local files first, then run the named read-only command if inspection is inconclusive.
 Context needed: List the repository path, relevant file paths, commands, and any artifact paths required to validate this target.
-Safety constraints: read-only/non-destructive; report blocked state-changing actions
+Approved validation scope: Name the matching approved validation-scope category, or `read-only/non-destructive`, or `needs user approval: <reason outside approved scope>`.
+Safety constraints: State the concrete limits that keep the method inside the approved scope; report newly discovered out-of-scope actions instead of performing them.
 ```
 
 Output format:
@@ -55,4 +70,4 @@ Output format:
 - `## Strategy summary` - concise rationale for the chosen grouping and validation order
 - `## Validation targets` - one fenced `load-bearing-validation-target` block per target, using IDs `LBT1`, `LBT2`, `LBT3`, and so on
 - `## Deferred assumptions` - each deferred assumption ID with a one-sentence reason, or `None`
-- `## Strategy notes` - safety constraints, state-changing actions that need user approval, or `None`
+- `## Strategy notes` - approved-scope usage, safety constraints, state-changing actions that still need user approval, or `None`
