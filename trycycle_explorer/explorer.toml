@@ -19,7 +19,8 @@ id = "planning-loop"
 label = "Planning loop"
 gates = [
   "plan-with-trycycle-planning",
-  "plan-editor-loop",
+  "build-and-run-plan-load-bearing-gate",
+  "plan-hardening-loop",
   "build-test-plan",
 ]
 
@@ -139,7 +140,7 @@ path = "trycycle_explorer/samples/simple-feature.json"
 
 [[sample_inputs]]
 id = "plan-review-loop"
-label = "Plan review loop"
+label = "Plan-hardening loop"
 path = "trycycle_explorer/samples/plan-review-loop.json"
 
 [[sample_inputs]]
@@ -167,7 +168,7 @@ to = "prepare-user-intent"
 [[outcomes]]
 from = "testing-strategy"
 id = "approved"
-label = "Strategy approved"
+label = "Strategy approved or autonomy skip"
 to = "prepare-implementation-workspace"
 
 [[outcomes]]
@@ -198,7 +199,7 @@ to = "plan-with-trycycle-planning"
 from = "plan-with-trycycle-planning"
 id = "plan-created"
 label = "Plan created"
-to = "plan-editor-loop"
+to = "build-and-run-plan-load-bearing-gate"
 
 [[outcomes]]
 from = "plan-with-trycycle-planning"
@@ -207,19 +208,49 @@ label = "User decision required"
 to = "plan-with-trycycle-planning"
 
 [[outcomes]]
-from = "plan-editor-loop"
-id = "already-excellent"
-label = "Already excellent"
+from = "build-and-run-plan-load-bearing-gate"
+id = "gate-passed"
+label = "Assumptions verified or no targets"
+to = "plan-hardening-loop"
+
+[[outcomes]]
+from = "build-and-run-plan-load-bearing-gate"
+id = "plan-revision-rerun"
+label = "Blocking result - plan revised, gate reruns"
+to = "build-and-run-plan-load-bearing-gate"
+
+[[outcomes]]
+from = "build-and-run-plan-load-bearing-gate"
+id = "plan-revision-no-rerun"
+label = "Plan revised, risk retired without rerun"
+to = "plan-hardening-loop"
+
+[[outcomes]]
+from = "build-and-run-plan-load-bearing-gate"
+id = "needs-user-approval"
+label = "Needs user approval"
+to = "build-and-run-plan-load-bearing-gate"
+
+[[outcomes]]
+from = "build-and-run-plan-load-bearing-gate"
+id = "not-converging"
+label = "Third blocking result"
+to = "finish"
+
+[[outcomes]]
+from = "plan-hardening-loop"
+id = "ready"
+label = "READY - plan excellent"
 to = "build-test-plan"
 
 [[outcomes]]
-from = "plan-editor-loop"
-id = "made-excellent"
-label = "Made excellent and loop"
-to = "plan-editor-loop"
+from = "plan-hardening-loop"
+id = "revised"
+label = "REVISED - fresh territory round"
+to = "plan-hardening-loop"
 
 [[outcomes]]
-from = "plan-editor-loop"
+from = "plan-hardening-loop"
 id = "not-converging"
 label = "Not converging"
 to = "finish"
@@ -227,7 +258,7 @@ to = "finish"
 [[outcomes]]
 from = "build-test-plan"
 id = "test-plan-approved"
-label = "Test plan approved"
+label = "Test plan and validation approval scope approved"
 to = "execute-with-trycycle-executing"
 
 [[outcomes]]

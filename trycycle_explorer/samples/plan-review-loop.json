@@ -1,9 +1,9 @@
 {
   "id": "plan-review-loop",
-  "label": "Plan review loop",
-  "description": "A scenario focused on the plan-editor loop and path selection through repeated plan improvement.",
-  "selected_gate_id": "plan-editor-loop",
-  "selected_outcome_id": "made-excellent",
+  "label": "Plan-hardening loop",
+  "description": "A scenario focused on the plan-hardening loop: territory carve, parallel territory reviews, and the planning editor revising the plan.",
+  "selected_gate_id": "plan-hardening-loop",
+  "selected_outcome_id": "revised",
   "bindings": {
     "FULL_CONVERSATION_VERBATIM": [
       {
