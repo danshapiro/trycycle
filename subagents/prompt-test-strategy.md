@@ -67,6 +67,8 @@ Identify what test infrastructure exists and what might need to be built or stre
 
 For each harness, state whether it exists already, what it would cost to build or strengthen, and what class of tests it enables. Recommend which to invest in based on what coverage they unlock relative to their cost, with the highest weight on real interaction plus user-visible output capture. Avoid mock-heavy strategies unless a real dependency truly cannot be exercised.
 
+Do not propose mocks, stubs, placeholders, deferred behavior, or fixture-only proof for requested behavior unless the user-intent artifact already explicitly allows that exact boundary. If the user allowed one part to be mocked, keep that permission limited to that part and preserve real behavior and real-path verification for the rest of the request.
+
 ### Verification approach
 
 Based on the sources of truth and harnesses, describe what testing looks like for this task. Frame this as: what tests will drive the quality needed to accomplish the user's goals. There should be at least one test that validates that what the user asked for, actually occurs. If the user asks for something to appear on screen; it should include a screen capture. If the user asked for something to happen with AI, that AI should be called. If this would be expensive or impractical, escalate to the user.

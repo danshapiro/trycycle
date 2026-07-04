@@ -42,6 +42,7 @@ Review for:
 - Missing or incorrect tests
 - Any mismatch between implementation and intended behavior
 - Doing things the right way, without taking shortcuts
+- Requested behavior left stubbed, pending, deferred, placeholder-only, unimplemented, or proven only through a mock or fixture not explicitly allowed by the user-intent artifact
 - Skipped tests — run the test suite yourself and check the results. ANY skipped test is a critical blocking issue, regardless of why it was skipped (environment gating, missing tools, missing env vars — none of these are acceptable reasons). Tests that were weakened, deleted, or had assertions loosened to pass are also critical blocking issues
 
 Severity standard:
@@ -50,6 +51,7 @@ Severity standard:
   1. The implementation would not produce the result the user requested.
   2. There is a materially better approach.
 - Category 1 includes cases such as missed user intent, errors that will cause the wrong outcome, solving the wrong problem, violating a user constraint, depending on a false assumption, leaving an important edge case unhandled, missing error behavior, or lacking verification of the requested outcome. These are examples, not a comprehensive list.
+- Category 1 always includes requested behavior that is stubbed, pending, deferred, placeholder-only, unimplemented, or proven only through an unauthorized mock or fixture.
 - Category 2 applies when there is a real engineering improvement that is clearly superior, not merely a different set of tradeoffs. Examples include better adherence to DRY, YAGNI, SOLID, SoC, or POLA; robustness under realistic conditions; a simpler source of truth; stronger adherence to existing architecture; less duplicated logic; clearer ownership boundaries; better error behavior; better testability; or a cleaner abstraction that removes real complexity. These are examples, not a comprehensive list.
 - If you find one critical issue, there are probably more, so redouble your efforts. Continue investigating until you are confident you have found all critical issues.
 - Use `minor` or `nit` for valid observations that do not meet the critical-issue bar. Be rigorous and objective in your categorization.

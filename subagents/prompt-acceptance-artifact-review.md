@@ -47,6 +47,7 @@ A gap is any case where the produced artifacts do not conclusively demonstrate t
 - The evidence is too indirect: it shows tests passed but not that the user-visible request was satisfied.
 - The evidence depends on trusting the implementation report instead of inspecting the artifact itself.
 - The artifacts leave a meaningful part of the user request unaddressed.
+- The artifacts show requested behavior as stubbed, pending, deferred, placeholder-only, unimplemented, or proven only through a mock or fixture not explicitly allowed by the user-intent artifact.
 
 If the artifacts are incomplete but the code may still be correct, that is still a gap. The next implementation round must produce better evidence or fix the implementation.
 
@@ -97,3 +98,4 @@ Rules:
 - Include artifact paths in `evidence.artifacts` whenever possible.
 - Use `minor` or `nit` only for non-blocking evidence-quality observations that do not affect whether the user request is demonstrated.
 - If no artifact is available for a material part of the user request, emit a blocking `artifact_gap`.
+- If any material part of the user request is stubbed, pending, deferred, placeholder-only, unimplemented, or proven only through an unauthorized mock or fixture, emit a blocking `acceptance_gap` or `artifact_gap`.

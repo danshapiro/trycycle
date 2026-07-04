@@ -21,6 +21,7 @@ Task:
 - Read the user-intent artifact, finalized plan, finalized test plan, latest implementation report, and named acceptance artifacts.
 - Find assumptions that must be true for the implementation report and artifacts to be trustworthy evidence that the requested outcome is done.
 - Focus on artifact provenance, whether checks exercised the real user-facing path, mock or fixture substitution risks, external API or service contracts, config or feature-flag paths, migration or rollback safety, state/concurrency boundaries, and evidence gaps that would invalidate acceptance.
+- Treat requested behavior that appears stubbed, pending, deferred, placeholder-only, unimplemented, or proven only through a mock or fixture not explicitly allowed by the user-intent artifact as a blocking load-bearing gap.
 - Treat a missing, incomplete, stale, or unclear acceptance-artifact manifest as a blocking load-bearing assumption/gap. The report does not have to be mechanically schema-enforced; this phase must fail closed when provenance is not inspectable.
 - Do not perform acceptance-artifact review or code review. Do not rerun tests or recreate artifacts in this phase.
 - Do not validate assumptions in this phase.

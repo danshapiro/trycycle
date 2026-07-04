@@ -42,6 +42,8 @@ A skipped test is a failed test — there are no "legitimate" skips in a final r
 
 Implement using TDD: for each feature or component, first establish the red state with the highest-priority automated check or checks from the test plan. Reuse or extend high-value existing tests when they already cover the behavior; when coverage is missing, write the new failing test or tests first. If the test plan specifies harnesses to build, build those first.
 
+Never report success while requested behavior is stubbed, pending, deferred, placeholder-only, unimplemented, or proven only through a mock or fixture that the user-intent artifact did not explicitly allow for that exact boundary.
+
 If implementation exposes an unplanned uncertainty that directly blocks the next implementation choice, validate it with safe local checks before proceeding. Report a blocker only when it cannot be responsibly resolved in this environment.
 
 Use `<user_intent>` to detect conflicts between the plan and the recorded user intent. If the plan or test plan appears to contradict user intent in a way that changes the required outcome, stop with a blocker instead of guessing.
