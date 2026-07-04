@@ -25,6 +25,8 @@ Resolve approach-validation claims during this planning recovery. Inspect the co
 
 Then revise the plan around what is now known. If the evidence proves the current approach is viable, keep it and record why. If the evidence shows it is wrong, revise it. If the issue is verification or acceptance evidence rather than implementation approach, make the requirement clear for the later test plan without substituting future tests for plan-time proof. If necessary evidence remains unavailable and the claim is still necessary, return `USER_DECISION_REQUIRED`.
 
+After revising, decide whether another plan-time load-bearing gate is needed before plan hardening continues. Make that judgment from the repaired plan and the evidence you gathered. Mark a rerun `REQUIRED` when the repaired plan still depends on an unproven plan-time claim, changes the approach or boundary enough that prior validation no longer answers the decision, or introduces a new decision-controlling assumption with meaningful late-falsification cost. Mark it `NOT_NEEDED` when the repair removes or routes around the risky claim, or when your planning recovery proved the decisive facts and no separate load-bearing question remains. The goal is to retire the real risk, not to rerun validation by habit or skip validation for momentum.
+
 The revised plan must keep the user's requested outcome intact. It should show the right implementation approach, the evidence behind it, and the remaining implementation order after plan-time load-bearing claims have been resolved.
 
 Review the `trycycle-planning` skill so you understand the standards expected of trycycle plans. Use only the `trycycle-planning` subskill. Keep committed changes scoped to the implementation plan. Use temporary scratch files only for investigation, and clean them up before committing the revised plan.
@@ -35,6 +37,8 @@ Return a markdown report with:
 - `## Revised approach` - the approach the plan now uses and why
 - `## Evidence` - the code paths, tests, commands, experiments, docs, libraries, open source projects, or artifacts that support the approach
 - `## Validated assumptions` - the important assumptions the revised plan depends on, and how each was validated
+- `## Load-bearing rerun` - `REQUIRED` or `NOT_NEEDED`
+- `## Rerun rationale` - why the repaired plan does or does not need another plan-time load-bearing gate before hardening continues
 - `## Sequencing` - how the plan now orders implementation and validation after this recovery
 - `## Issues addressed` - each critical or major review issue and where the plan changed
 - `## Plan path` - absolute path to the revised implementation plan
