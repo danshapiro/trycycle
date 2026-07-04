@@ -80,7 +80,7 @@ When a step below references `{LATEST_IMPLEMENTATION_REPORT}`, use the most rece
 
 When a step below references `{REVIEW_LOOP_HISTORY}`, use the accumulated post-execution load-bearing, acceptance-artifact, and post-implementation review-loop history artifact from the current trycycle session.
 
-When a step below references `{PLAN_LOAD_BEARING_LEDGER_PATH}`, use the latest accepted plan-time load-bearing ledger path from the current trycycle session.
+When a step below references `{PLAN_LOAD_BEARING_LEDGER_PATH}`, use the latest accepted plan-time load-bearing ledger path from the current trycycle session. A plan load-bearing ledger is valid only for the plan version it evaluated; once the plan changes after the gate passes, treat `{PLAN_LOAD_BEARING_LEDGER_PATH}` as unset unless a new gate pass produces a fresh ledger.
 
 When a step below references `{POST_EXECUTION_LOAD_BEARING_LEDGER_PATH}`, use the latest accepted post-execution load-bearing ledger path from the current trycycle session.
 
@@ -329,7 +329,7 @@ After each round:
 4. Run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the planning editor's report.
 5. Start a loop outputs temp file if needed, save the returned planning report to a temp file, append that path, then close that planning subagent for the completed round and clear any saved handle or `session_id` for it.
 6. If `## Plan verdict` is `READY`, continue to step 10 with the current `{IMPLEMENTATION_PLAN_PATH}`. **If the verdict is NOT `READY`, do NOT proceed to step 10 - run another plan-hardening round.**
-7. If `## Plan verdict` is `REVISED`, repeat with a fresh assignment subagent, fresh territory reviewers, and a fresh planning editor.
+7. If `## Plan verdict` is `REVISED`, clear `{PLAN_LOAD_BEARING_LEDGER_PATH}` — that ledger evaluated an earlier plan version and is no longer valid evidence — then repeat with a fresh assignment subagent, fresh territory reviewers, and a fresh planning editor.
 8. Repeat up to 5 rounds.
 
 If the plan still is not judged ready after the 5th round: **STOP. Do NOT proceed to step 10.**
