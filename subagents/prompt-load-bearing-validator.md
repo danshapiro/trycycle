@@ -43,5 +43,5 @@ Return a markdown report with:
 - `## Evidence` - concrete evidence inspected, including relevant paths, command outputs, artifact metadata, or source references
 - `## Confidence` - `high`, `medium`, or `low`, with one sentence explaining why
 - `## New assumptions` - newly discovered load-bearing assumptions, or `None`
-- `## Blocked approval needs` - `None`, `BLOCKED ON APPROVAL: ...`, or `BLOCKED BY SCOPE: ...`
-- `## Commands run` - exact read-only commands run, or `None`
+- `## Blocked approval needs` - `None` or `BLOCKED ON APPROVAL: ...`
+- `## Commands run` - exact commands run, or `None`

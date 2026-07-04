@@ -73,7 +73,7 @@ Verdict rules:
 - Use `NO_TARGETS` only when `<load_bearing_validation_reports>` contains no report paths because the accepted strategy produced no fenced validation targets.
 - Use `FALSIFIED` when one or more assumptions are false.
 - Use `INCONCLUSIVE` when one or more assumptions remain too weak to rely on and no user approval is the next routing action.
-- Use `NEEDS_USER_APPROVAL` only when validation requires approval for an action materially outside the approved validation scope's categories, risk level, environment, or cost profile. Do not ask again for actions already covered by the approved scope.
+- Use `NEEDS_USER_APPROVAL` only when validation requires approval for an action materially outside the approved validation scope's categories, risk level, environment, or cost profile, or when no approved validation scope is active yet and the action requires approval. Do not ask again for actions already covered by the approved scope.
 - For `{LOAD_BEARING_SCOPE}=plan`, a risky approach claim that remains unproven is still blocking. Do not treat future execution tests as a substitute for resolving approach viability during planning.
 
 Observation JSON rules:

@@ -51,7 +51,7 @@ source_category = "user-input"
 
 [bindings.TESTING_STRATEGY]
 label = "Testing strategy"
-help = "Exact testing strategy returned by the test-strategy subagent and approved by the user."
+help = "Exact testing strategy returned by the test-strategy subagent, approved by the user or carried forward under a broad autonomy instruction."
 widget = "textarea"
 source_category = "user-input"
 

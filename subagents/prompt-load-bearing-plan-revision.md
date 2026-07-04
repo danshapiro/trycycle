@@ -45,4 +45,4 @@ Return a markdown report with:
 - `## Commit` - latest short commit hash after committing the revised plan
 - `## Changed files` - one changed path per line
 
-Use `USER_DECISION_REQUIRED` only if the next necessary proof requires access or authority unavailable in this environment.
+Use `USER_DECISION_REQUIRED` only if the next necessary proof requires access or authority unavailable in this environment. For that verdict, begin the entire report with `USER DECISION REQUIRED:` so the conductor routes it to the user instead of treating it as an update.
