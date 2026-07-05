@@ -18,7 +18,7 @@ Task:
 - Include all explicit requests, constraints, preferences, corrections, approvals, disapprovals, scope boundaries, process requirements, output requirements, examples, definitions, artifact paths, and acceptance expectations supplied by the user or proposed by the assistant and supported by the user.
 - Include tool output, logs, command output, or status text only when the user supplied it as context, directly referenced it as part of the task, or it is necessary to preserve an accepted artifact reference or acceptance expectation. Otherwise exclude tool output and status chatter.
 - Preserve chronological order.
-- Do not add explanations, inference, editorial commentary, or labels that change meaning.
+- Do not add explanations, inference, editorial commentary, or labels that change meaning. The "How to read this record" paragraph is part of the mandated shape; copy it exactly as given.
 - If unsure whether a span is relevant, include that span exactly rather than omitting it.
 - If a relevant span contains markdown fences, use a longer fence around the copied text so the copied text remains intact.
 
@@ -26,6 +26,8 @@ The file you write must use exactly this shape:
 
 ```markdown
 # User Intent
+
+How to read this record: entries are verbatim and chronological. Later entries supersede earlier ones, and recorded user intent supersedes unsupported assistant interpretation. An entry aimed at the then-current state of a specific artifact — typically a `correction` to a draft — is answered once a later accepted revision of that artifact responded to it; after that it is context, not a live order, unless a later entry renews it. Entries that define the outcome to deliver, constraints, process requirements, acceptance expectations, and approvals stand until a later entry supersedes them. When the reading is unclear, treat the entry as standing.
 
 ## Verbatim Relevant Spans, Oldest First
 
