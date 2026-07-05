@@ -21,7 +21,7 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 ## Scope Check
 
-If the spec covers multiple independent subsystems, it should have been broken into sub-project specs during brainstorming. If it wasn't, suggest breaking this into separate plans — one per subsystem. Each plan should produce working, testable software on its own.
+The plan's definition of done is everything the recorded user intent asks for — never less. If the work spans multiple subsystems, keep it in this one plan and order it as slices: each slice produces working, testable software, proven foundations come first, and every slice stays inside this plan's completion path. Slices are sequencing, not scope reduction; moving required behavior into a separate future plan is a scope cut and needs the user's explicit approval.
 
 ## File Structure
 

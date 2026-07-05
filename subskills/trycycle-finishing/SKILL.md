@@ -12,40 +12,19 @@ description: "Internal trycycle subskill — do not invoke directly."
 
 Guide completion of development work by presenting clear options and handling chosen workflow.
 
-**Core principle:** Verify tests → Present options → Execute choice → Clean up.
+**Core principle:** Confirm verification → Present options → Execute choice → Clean up.
 
 ## The Process
 
-### Step 1: Verify Tests
+### Step 1: Confirm Verification
 
-**Before presenting options, verify tests pass:**
+Trycycle invokes this skill only after the acceptance-artifact and post-implementation review loop has passed for the current `HEAD`, and the orchestrator has already run the final workspace hygiene checks. That passing result is the evidence — do not rerun the test suite here. Rerun tests only on states the verification loop never saw, such as the merged result in Option 1.
 
-```bash
-# Run project's test suite
-npm test / cargo test / pytest / go test ./...
-```
-
-**If tests fail:**
-```
-Tests failing (<N> failures). Must fix before completing:
-
-[Show failures]
-
-Cannot proceed with merge/PR until tests pass.
-```
-
-Stop. Don't proceed to Step 2.
-
-**If tests pass:** Continue to Step 2.
+If the verification loop has not passed for the current `HEAD`, stop: this skill was invoked too early.
 
 ### Step 2: Determine Base Branch
 
-```bash
-# Try common base branches
-git merge-base HEAD main 2>/dev/null || git merge-base HEAD master 2>/dev/null
-```
-
-Or ask: "This branch split from main - is that correct?"
+Use `{BASE_BRANCH}` recorded during workspace preparation. If it is unset, detect it: prefer `CONDUCTOR_DEFAULT_BRANCH` when set and non-empty, otherwise the repo's configured remote default branch, then `main`, then `master`. Do not ask the user.
 
 ### Step 3: Present Options
 
@@ -170,9 +149,9 @@ Do not attempt to remove the current workspace. Only perform the branch actions 
 
 ## Common Mistakes
 
-**Skipping test verification**
-- **Problem:** Merge broken code, create failing PR
-- **Fix:** Always verify tests before offering options
+**Rerunning the full test suite here**
+- **Problem:** Duplicates the verification loop's finished work and can drift from the reviewed `HEAD`
+- **Fix:** Trust the passed verification loop; run tests only on states it never saw, like the merged result in Option 1
 
 **No confirmation for discard**
 - **Problem:** Accidentally delete work
@@ -188,7 +167,7 @@ Do not attempt to remove the current workspace. Only perform the branch actions 
 - Remove the current workspace in `--no-worktree` mode
 
 **Always:**
-- Verify tests before offering options
+- Confirm the verification loop passed for the current `HEAD` before offering options
 - Present exactly 4 options
 - Get typed confirmation for Option 4
 - Clean up worktree for Options 1 & 4 only (default mode)
