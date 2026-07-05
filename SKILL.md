@@ -241,10 +241,12 @@ The agreed testing strategy is used through `{TESTING_STRATEGY_PATH}` in step 10
 
 ## 5) Prepare implementation workspace
 
+First detect the base branch and record it as `{BASE_BRANCH}` for the rest of the run. Prefer `CONDUCTOR_DEFAULT_BRANCH` when it is set and non-empty. Otherwise use the repo's configured remote default branch if available; if not, fall back to `main`, then `master`. Also note the remote `{BASE_BRANCH}` tracks (`origin` when in doubt); if the repository has no remote, skip every fetch below and use the local `{BASE_BRANCH}` wherever a remote ref is named.
+
 Default behavior: before creating the worktree, fetch and fast-forward the base branch so the worktree starts from the latest code. Other agents may have merged changes while the user was reviewing earlier steps.
 
 ```bash
-git fetch origin main && git merge --ff-only origin/main
+git fetch <remote> {BASE_BRANCH} && git merge --ff-only <remote>/{BASE_BRANCH}
 ```
 
 Read and follow `<skill-directory>/subskills/trycycle-worktrees/SKILL.md` to create an isolated worktree for the implementation with an appropriately named branch, for example `add-connection-status-icon`.
@@ -252,8 +254,7 @@ Read and follow `<skill-directory>/subskills/trycycle-worktrees/SKILL.md` to cre
 If the user's request includes the literal flag `--no-worktree`, skip the worktree-creation subskill and prepare the current workspace instead:
 - Set `{WORKTREE_PATH}` to the current repository root.
 - Run `git -C {WORKTREE_PATH} status --short` and stop unless it is clean.
-- Detect the default branch. Prefer `CONDUCTOR_DEFAULT_BRANCH` when it is set and non-empty. Otherwise use the repo's configured remote default branch if available; if not, fall back to `main`, then `master`.
-- Run `git -C {WORKTREE_PATH} branch --show-current` and stop unless it returns a non-empty branch name that is different from the detected default branch.
+- Run `git -C {WORKTREE_PATH} branch --show-current` and stop unless it returns a non-empty branch name that is different from `{BASE_BRANCH}`.
 - Require `CONDUCTOR_WORKSPACE_PATH` to be set and to resolve to the current workspace. If it is unset or points elsewhere, stop and tell the user that `--no-worktree` is only supported in already-isolated workspaces such as Conductor workspaces.
 - Do not create a branch, switch branches, or create any nested worktree in this mode.
 
@@ -271,7 +272,7 @@ Before and after each major phase (`plan load-bearing`, `plan-hardening`, `execu
 
 After every subagent completion, also run:
 - `git -C {WORKTREE_PATH} rev-parse --short HEAD`
-- `git -C {WORKTREE_PATH} diff --name-only main...HEAD`
+- `git -C {WORKTREE_PATH} diff --name-only {BASE_BRANCH}...HEAD`
 
 **GATE — Do not advance phases** until all of the following are true:
 - branch matches expected branch for `{WORKTREE_PATH}`
@@ -362,9 +363,11 @@ Code implementation must be done by a new, dedicated subagent.
 Before dispatching the implementation subagent, rebase onto the latest base branch to incorporate any changes merged by other agents during planning:
 
 ```bash
-git -C {WORKTREE_PATH} fetch origin main
-git -C {WORKTREE_PATH} rebase origin/main
+git -C {WORKTREE_PATH} fetch <remote> {BASE_BRANCH}
+git -C {WORKTREE_PATH} rebase <remote>/{BASE_BRANCH}
 ```
+
+If the repository has no remote, rebase onto the local `{BASE_BRANCH}` instead.
 
 If the rebase has conflicts, stop and present them to the user.
 
@@ -484,7 +487,7 @@ Once the post-execution load-bearing, acceptance-artifact, and post-implementati
 Clean up temporary artifacts created during the loop (for example plan scratch files and temp notes), then run:
 - `git -C {WORKTREE_PATH} status --short`
 - `git -C {WORKTREE_PATH} rev-parse --short HEAD`
-- `git -C {WORKTREE_PATH} diff --name-only main...HEAD`
+- `git -C {WORKTREE_PATH} diff --name-only {BASE_BRANCH}...HEAD`
 
 If the implementation subagent is still open, close it and clear its saved handle or `session_id` before handing off to finishing.
 
