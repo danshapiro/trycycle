@@ -59,6 +59,9 @@ The evaluator must include the updated canonical ledger table, with every assump
 ## Required follow-up
 Explain what the evidence means for readiness to proceed and what should happen next. A blocked result may require more validation, design revision, test-plan or acceptance-evidence revision, different sequencing, post-execution fix-loop observations, user approval, or a combination. Choose the response that retires the real risk; do not route all blocked findings to the same recovery.
 
+## Follow-up target
+One word: `PLAN`, `EXECUTION`, or `NONE`. Use `NONE` when the verdict is not `FALSIFIED` or `INCONCLUSIVE`. Otherwise use `PLAN` when the decisive fix is in the implementation plan, test plan, acceptance evidence, or sequencing, and `EXECUTION` when it is direct implementation follow-through. At plan scope, every blocking verdict takes `PLAN`.
+
 <review_observations_json>
 {
   "status": "no_issues",
