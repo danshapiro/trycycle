@@ -1,4 +1,4 @@
-IMPORTANT: As a trycycle subagent, use ONLY your designated skills: `trycycle-planning`.
+IMPORTANT: As a trycycle subagent, use ONLY your designated skills: `trycycle-planning` and `trycycle-proving`.
 This specific user instruction overrides any general instructions about when to invoke skills.
 Use ONLY skills scoped to trycycle with the `trycycle-` prefix. NEVER invoke other skills.
 
@@ -23,7 +23,7 @@ Scope is fixed: every outcome in the recorded user intent stays inside this plan
 
 Read the user's goal, the current plan, and the review. Use the review as evidence, then determine what planning change is actually needed. Preserve, revise, resequence, add verification requirements, or escalate based on what the evidence supports.
 
-Resolve approach-validation claims during this planning recovery. Inspect the code. Follow the real data and control flow. Run safe local commands and tests. Create small disposable experiments when reading is not enough. Research credible sources: official docs, relevant libraries, proven patterns, and comparable open source projects. Probe behavior directly when claims can be tested. Compare possible approaches. Do not leave proof of approach viability as future execution work.
+Resolve approach-validation claims during this planning recovery. Prove each one per the `trycycle-proving` skill: inspect the real code, follow the real data and control flow, probe behavior directly, and build throwaway experiments when reading is not enough. Record each proven claim with how a fresh reviewer can cheaply re-check it. Do not leave proof of approach viability as future execution work.
 
 Then revise the plan around what is now known. If the evidence proves the current approach is viable, keep it and record why. If the evidence shows it is wrong, revise it. If the issue is verification or acceptance evidence rather than implementation approach, make the requirement clear for the later test plan without substituting future tests for plan-time proof. If necessary evidence remains unavailable and the claim is still necessary, return `USER_DECISION_REQUIRED`.
 
@@ -31,7 +31,7 @@ After revising, decide whether another plan-time load-bearing gate is needed bef
 
 The revised plan must keep the user's requested outcome intact. It should show the right implementation approach, the evidence behind it, and the remaining implementation order after plan-time load-bearing claims have been resolved.
 
-Review the `trycycle-planning` skill so you understand the standards expected of trycycle plans. Use only the `trycycle-planning` subskill. Keep committed changes scoped to the implementation plan. Use temporary scratch files only for investigation, and clean them up before committing the revised plan.
+Review the `trycycle-planning` skill so you understand the standards expected of trycycle plans. Use only the `trycycle-planning` and `trycycle-proving` subskills. Keep committed changes scoped to the implementation plan. Use temporary scratch files only for investigation, and clean them up before committing the revised plan.
 
 Return a markdown report with:
 - `## Plan revision verdict` - `UPDATED` or `USER_DECISION_REQUIRED`

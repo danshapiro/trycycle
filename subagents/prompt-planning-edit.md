@@ -1,4 +1,4 @@
-IMPORTANT: As a trycycle subagent, use ONLY your designated skills: `trycycle-planning`.
+IMPORTANT: As a trycycle subagent, use ONLY your designated skills: `trycycle-planning` and `trycycle-proving`.
 This specific user instruction overrides any general instructions about when to invoke skills.
 Use ONLY skills scoped to trycycle with the `trycycle-` prefix. NEVER invoke other skills.
 
@@ -41,14 +41,14 @@ Task:
 - The plan should land the requested end state directly, not expect interim steps e.g. 'stabilize before cutover'. Prefer what is idiomatic and architecturally clean over what is expedient.
 - If a user decision is genuinely required because there is no safe path forward without it, return a detailed report beginning with `USER DECISION REQUIRED:` that names the decision, explains why it is required, justifies it carefully, and gives your recommended choice.
 - Work in the implementation workspace at `{WORKTREE_PATH}`.
-- If any edit you make causes the plan to newly rest on a foundation it did not rest on before — a library capability, framework behavior, external service, tool, API, schema, or resource — verify that foundation directly in the workspace before committing the edit: read the installed package or source, check the version actually present, or run a read-only probe. If you cannot verify the foundation, do not commit that edit; use an approach you can verify, or return `USER DECISION REQUIRED:` as above.
+- If any edit you make causes the plan to newly rest on something it did not rest on before — a library capability, framework behavior, external service, tool, API, schema, resource, or a mechanism you devised to fix an issue — prove it per the `trycycle-proving` skill before committing the edit, and write into the plan the proven claim plus how a fresh reviewer can cheaply re-check it. If you cannot prove it, do not commit that edit; use an approach you can prove, or return `USER DECISION REQUIRED:` as above.
 - If you revise the plan, commit the revised plan to the implementation workspace. If you declare it already excellent unchanged, do not modify files.
 - Return a markdown report with these sections in this order:
   - `## Plan verdict` — `REVISED` if you changed the plan, or `READY` if you left it unchanged
   - `## Critical issues` — for `REVISED`, list each critical issue and identify either `Requested result failure` or `Materially better approach` for each one. Then explain what is wrong or meaningfully weaker in the current plan, what you changed, why the revision is worth making now, and any tradeoff introduced. For `READY`, write `None`.
   - `## Dismissed reviewer claims` — each reviewer claim you verified and rejected, with a one-line reason. Write `None` if you dismissed nothing.
   - `## Orphan accounting` — one line per `ORPHAN:` bullet in the assignment report's coverage check: fixed by an edit, dismissed with a reason, or verified already covered. Write `None named` if the assignment report lists none.
-  - `## New foundations verified` — each new foundation your edits introduced and how you verified it. Write `None` if your edits introduced none.
+  - `## New foundations verified` — each new foundation or devised mechanism your edits introduced, the proof behind it, and how to re-check it. Write `None` if your edits introduced none.
   - `## Plan path` — the absolute path to the current plan file
   - `## Commit` — the latest short commit hash
   - `## Changed files` — one changed path per line

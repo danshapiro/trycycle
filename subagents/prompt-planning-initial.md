@@ -1,4 +1,4 @@
-IMPORTANT: As a trycycle subagent, use ONLY your designated skills: `trycycle-planning`.
+IMPORTANT: As a trycycle subagent, use ONLY your designated skills: `trycycle-planning` and `trycycle-proving`.
 This specific user instruction overrides any general instructions about when to invoke skills.
 Use ONLY skills scoped to trycycle with the `trycycle-` prefix. NEVER invoke other skills.
 
@@ -14,6 +14,7 @@ Task:
 - Treat `<user_intent>` as the current scope, context, and constraint record. Later entries in `<user_intent>` supersede earlier entries, and recorded user intent supersedes unsupported assistant interpretation.
 - Own the first plan. Do the architectural and semantic thinking now; do not rely on a later review round to find the real gaps.
 - Before you break the work into tasks, make sure the plan covers the parts most likely to be wrong or missing: the user-visible behavior, important contracts and invariants, tricky boundaries, and any cutover or regression risk.
+- When the plan depends on a claim that is unproven — a library capability, framework behavior, an external service, a schema, or a mechanism you devised — prove it per the `trycycle-proving` skill before writing it into the plan, and record the proven claim with how a fresh reviewer can cheaply re-check it.
 - The `trycycle-planning` skill may reference a brainstorming phase as a precondition. Disregard that; the user-intent artifact above replaces brainstorming output.
 - Do not use other skills unless they are referenced internally by `trycycle-planning`.
 - The plan should land the requested end state directly, not expect interim steps e.g. 'stabilize before cutover'.
