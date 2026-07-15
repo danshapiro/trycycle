@@ -35,8 +35,8 @@ The implementation workspace is `{WORKTREE_PATH}`.
 
 Task:
 - Read the canonical ledger and account for every retained assumption.
-- Read the testing strategy. If `<test_plan>` is present, read its final `## Validation approval scope` section as the active approved validation scope for the run. The testing strategy may contain a forecast, but the concrete test plan's final approval-scope section is the durable approval source.
-- If `<test_plan>` is absent, no durable validation approval scope is active yet. Use the testing strategy forecast only to anticipate what the concrete test plan should include later; do not treat it as authorization for state-changing, restricted, external, costly, or environment-mutating validation.
+- Read the testing strategy. If `<test_plan>` is present, read its final `## Validation approval scope` section as the active approved validation scope for the run — it reconciles and carries forward the strategy's forecast.
+- If `<test_plan>` is absent, the approved strategy's `## Validation approval forecast` is already the active pre-authorization: the user approved it when they approved the strategy. Treat any state-changing, restricted, external, costly, or environment-mutating action whose category, environment, and cost/risk profile fits that forecast as covered; only actions outside the forecast still need `needs user approval`.
 - Assign each assumption one of: `validate now`, `grouped with`, or `defer`.
 - Choose the validation method and fallback chain that best answers the planning or evidence decision the plan depends on. Cheap is good only when it is decisive.
 - Prefer validation methods in this order when they answer the decision: run code when safe and decisive, inspect local code or artifacts, consult official docs, then use broader internet only when no stronger source is available.
