@@ -35,7 +35,7 @@ The canonical ledger path is `{LOAD_BEARING_LEDGER_PATH}`.
 
 Task:
 - Read the canonical ledger file and validation strategy.
-- Read the testing strategy. If `<test_plan>` is present, treat its final `## Validation approval scope` section as the active approved validation scope for the run. If `<test_plan>` is absent, treat the approved strategy's `## Validation approval forecast` as the active pre-authorization instead — the user already approved it with the strategy; only actions outside its categories, environment, and cost/risk bounds still need approval.
+- Read the testing strategy. If `<test_plan>` is present, treat its final `## Validation approval scope` section as the active approved validation scope for the run. If `<test_plan>` is absent, check the strategy's `Approval record` line: when it says `explicitly user-approved`, treat the strategy's `## Validation approval forecast` as the active pre-authorization — only actions outside its categories, environment, and cost/risk bounds still need approval. When the record says approval was deferred by an autonomy instruction, or there is no approval record, no user-approved authorization is active yet; the forecast is context, not authorization.
 - Read every validator report path listed in `<load_bearing_validation_reports>`. The block contains newline-delimited absolute paths and may be empty.
 - Judge whether the validator evidence really proves, falsifies, or leaves unresolved each ledger assumption. Do not defer to validator labels without checking their evidence.
 - Update every ledger row status and write the updated canonical ledger back to `{LOAD_BEARING_LEDGER_PATH}`.

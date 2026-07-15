@@ -20,7 +20,7 @@ The test plan is at `{TEST_PLAN_PATH}`.
 
 Work in the implementation workspace at `{WORKTREE_PATH}`.
 
-The test plan's final `## Validation approval scope` section is user-approved for this Trycycle run. Use it as authorization for covered state-changing, restricted, external, costly, or environment-mutating validation and artifact-production actions. Do not stop to ask again for actions inside the approved categories, risk level, environment, and cost profile. Stop with a real blocker only when a newly required action is materially outside that approved scope or would cause harm if guessed wrong.
+The test plan's final `## Validation approval scope` section is user-authorized for this Trycycle run — approved directly at the test-plan gate or carried forward from the explicitly approved strategy forecast. Use it as authorization for covered state-changing, restricted, external, costly, or environment-mutating validation and artifact-production actions. Do not stop to ask again for actions inside the approved categories, risk level, environment, and cost profile. Stop with a real blocker only when a newly required action is materially outside that approved scope or would cause harm if guessed wrong.
 
 {{#if POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}}
 <post_implementation_review_observations_json>
