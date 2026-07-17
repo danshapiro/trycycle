@@ -63,6 +63,7 @@ Written 2026-07-16 after the first three tuning campaigns (plan review, plan edi
 | Thoroughness / class-enumeration discipline (a found defect implies its class; enumerate siblings before returning; report everything; "clean" requires visible enumeration) | planning-review | Replay of an 8-round grind's round 1: future-round findings surfaced at r1 2/24→5/24 (~2.5×), own-round recall up (panel 7,6,7→8,9,9 of 14), substantive false alarms equal (7 vs 7). Clean-round safety: 2/25 = baseline exactly, verdicts unmoved, enumeration visible in 25/25 reports. |
 | Same Category-2 bar + preference-never-forces-REVISED + design-decisions maintenance | planning-edit | 30-trial A/B: no regression (verdicts 15/15 both arms, real fixes 19/20 vs 20/20). Shipped for standard-consistency with its reviewers, not as a win. |
 | Conditional dynamic defect quota ({{#if QUOTA_TOTAL}} block; remaining-count formula, orchestrator-computed; omit when remaining ≤ territories) | planning-review + SKILL.md step 9 | L1 quota (9/6) on a defect-dense round 1: future-round findings surfaced at r1 21%→50% (5/24→12/24 pooled), own-round recall 11/14→12/14, inflation ~flat (3 vs 2 per 15). Round-2 formula A/B: remaining-count D1 (30/6/4) beat static (15/22 vs 14/22 catalog findings at half the inflation, 7 vs 12) and decay (11/22). No-quota render is byte-identical to the clean-round-PASSED template (asserted with the real engine), so near-clean rounds inherit the banked 2/25 false-alarm baseline. Editor consumption of `## Lesser findings` is an UNTESTED surface. |
+| Post-impl review: Category-2 bar + thoroughness + conditional dynamic quota (276fd24; same remaining-count formula, 13 per 1,000 changed lines, computed at the code-review gate) | post-impl-review + SKILL.md code-review gate | Generalization on a second corpus (fork-oom SDD task gates, different domain and an older template — mechanism test, scope-limited): thoroughness+quota lifted real-finding recall 9/17→12/17 and surfaced 2 of 3 re-review-only findings at first review, including the missed invalid-fork-candidate critical; zero critical-tier severity inflation. Clean gate on the converged yente round (current template, quota omitted per drop rule): would-block 0/25 = baselines exactly; extras all minor/nit; enumeration visible 19/25. Quota-ACTIVE rendering on the current template is an UNTESTED surface — watch the first defect-dense live verification round. |
 
 ### No measurable effect (lesson: fix the right layer)
 
@@ -73,6 +74,14 @@ Written 2026-07-16 after the first three tuning campaigns (plan review, plan edi
   in BOTH arms; merge 5/5 both). The corpus lacked the failure the change targets. **Held, not
   deployed.** Needs a real run where code review blocks on preference; replay that round when
   one appears.
+- **Fix-the-class + blast-radius passage at the plan editor**: INERT. 0/6 named late siblings
+  closed in all 10 trials, both arms — identical to the real editor. The editor is structurally
+  bounded to the findings list ("fix every critical issue" + per-edit proof burden); two
+  exhortative bullets don't overcome that. Not harmful (fix completeness unchanged, no overreach),
+  not shipped. Byproduct finding: editor-INTRODUCED defects are systemic — ~3–4 grader-flagged
+  introductions per edit pass in both arms AND in blind looks at the real diff (the known real
+  introduction was flagged 10/10 blind). Round-N+1 reviewers are the working control for these;
+  the dynamic quota front-loads them.
 
 ### Invalid approaches — do not repeat
 
@@ -110,16 +119,17 @@ Written 2026-07-16 after the first three tuning campaigns (plan review, plan edi
 
 ## Open targets (in expected-value order)
 
-1. **Editor shallow-fix discipline** (~13% of the 8-round grind was editor-introduced defects —
-   incomplete fixes, count drift). Same class-enumeration principle applied to the edit prompt;
-   the grind corpus supports replaying its edit rounds directly.
-2. **Late findings invisible even to thorough round-1 review** (19/24 in the grind corpus).
-   Needs a forensic pass: genuinely emergent (visible only after plan edits) vs per-territory
-   time starvation. The answer decides between "accept multi-round" and a different lever
-   (e.g., more reviewers per territory — untested; the ~58% reproduction floor suggests
-   coverage is a lottery, so panel size may buy breadth).
-3. **Code-review-stage discriminating corpus** — accumulates for free from live runs; act on
-   the first preference-blocked round.
+1. **Blast-radius post-edit self-check** as its own single-variable experiment (a separate
+   verification pass after edits, not exhortation bundled into the edit prompt — the
+   fix-the-class bundling is disproven). Editor-introduced defects (~3–4/pass) are the target.
+2. **Live checkpoints pending**: (a) combined approvals — the next real run must ask exactly
+   once; a second ask for already-forecast ground is a defect, archive that run as the fix's
+   corpus; (b) quota-active post-impl round — first defect-dense live verification round
+   exercises the untested `{{#if QUOTA_TOTAL}}` rendering on the current template.
+3. **Initial-estimate calibration**: 13 defects per 1,000 plan/changed lines comes from ONE
+   corpus (memo-relay). Recalibrate as run records accumulate; the formula tolerates error at
+   round 1 (saturation only bites when demanded count exceeds true remaining), but a
+   materially wrong estimate delays the omit switchover.
 
 ## Operational facts
 
