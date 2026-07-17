@@ -42,6 +42,10 @@ Trycycle turns a user request into verified, delivered software through gated ph
 ### Subskills
 The skills in `subskills/` are maintained directly in this repo — edit them like any other skill file, holding them to the same principles. They were originally adapted from Jesse Vincent's superpowers project (credited in README.md), but the import pipeline has been retired and there is no upstream sync to preserve.
 
+### Prompt tuning
+
+Prompt changes are earned with evidence, not argument. Before tuning any subagent prompt, read `maintenance/PROMPT_TUNING_PLAYBOOK.md` — it carries the replay-eval method (frozen-snapshot replay of real runs, noise floor first, single-variable A/B, both-sides testing), the hard anti-tuning rules, and a results ledger of what worked, what had no effect, and which approaches are known-invalid. Append your results to the ledger when a tuning run finishes.
+
 ### Local test deployment
 
 To test changes on real installs before releasing, copy the changed files from your working branch directly into each installed clone at the matching relative path (the skill locations listed under Versioning below), then verify each copy is byte-identical to the branch (`cmp`). Deploy to every install on the machine — all agents, both the Unix/WSL and Windows sides — so behavior is consistent regardless of which host agent runs trycycle. The next trycycle run on any of those agents exercises the change.
