@@ -35,7 +35,7 @@ The canonical ledger path is `{LOAD_BEARING_LEDGER_PATH}`.
 
 Task:
 - Read the canonical ledger file and validation strategy.
-- Read the testing strategy. If `<test_plan>` is present, treat its final `## Validation approval scope` section as the active approved validation scope for the run. If `<test_plan>` is absent, no durable validation approval scope is active yet; the testing strategy forecast is context, not authorization.
+- Read the testing strategy. If `<test_plan>` is present, treat its final `## Validation approval scope` section as the active approved validation scope for the run. If `<test_plan>` is absent, check the strategy's `Approval record` line: when it says `explicitly user-approved`, treat the strategy's `## Validation approval forecast` as the active pre-authorization — only actions outside its categories, environment, and cost/risk bounds still need approval. When the record says approval was deferred by an autonomy instruction, or there is no approval record, no user-approved authorization is active yet; the forecast is context, not authorization.
 - Read every validator report path listed in `<load_bearing_validation_reports>`. The block contains newline-delimited absolute paths and may be empty.
 - Judge whether the validator evidence really proves, falsifies, or leaves unresolved each ledger assumption. Do not defer to validator labels without checking their evidence.
 - Update every ledger row status and write the updated canonical ledger back to `{LOAD_BEARING_LEDGER_PATH}`.
@@ -76,7 +76,7 @@ Verdict rules:
 - Use `NO_TARGETS` only when `<load_bearing_validation_reports>` contains no report paths because the accepted strategy produced no fenced validation targets.
 - Use `FALSIFIED` when one or more assumptions are false.
 - Use `INCONCLUSIVE` when one or more assumptions remain too weak to rely on and no user approval is the next routing action.
-- Use `NEEDS_USER_APPROVAL` only when validation requires approval for an action materially outside the approved validation scope's categories, risk level, environment, or cost profile, or when no approved validation scope is active yet and the action requires approval. Do not ask again for actions already covered by the approved scope.
+- Use `NEEDS_USER_APPROVAL` only when validation requires approval for an action materially outside the categories, risk level, environment, or cost profile of the active pre-authorization — the concrete test plan's approval scope when `<test_plan>` is present, otherwise the approved strategy's validation approval forecast. Do not ask again for actions already covered by that active pre-authorization.
 - For `{LOAD_BEARING_SCOPE}=plan`, a risky approach claim that remains unproven is still blocking. Do not treat future execution tests as a substitute for resolving approach viability during planning.
 
 Observation JSON rules:

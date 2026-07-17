@@ -27,7 +27,7 @@ The implementation workspace is `{WORKTREE_PATH}`.
 
 Task:
 - Read the curated ledger and validation strategy.
-- Read the testing strategy. If `<test_plan>` is present, treat its final `## Validation approval scope` section as the active approved validation scope for the run. If `<test_plan>` is absent, no durable validation approval scope is active yet; the testing strategy forecast is context, not authorization.
+- Read the testing strategy. If `<test_plan>` is present, treat its final `## Validation approval scope` section as the active approved validation scope for the run. If `<test_plan>` is absent, check the strategy's `Approval record` line: when it says `explicitly user-approved`, treat the strategy's `## Validation approval forecast` as the active pre-authorization — only actions outside its categories, environment, and cost/risk bounds still need approval. When the record says approval was deferred by an autonomy instruction, or there is no approval record, no user-approved authorization is active yet; the forecast is context, not authorization.
 - Check that every ledger assumption is accounted for as `validate now`, `grouped with`, or `defer`.
 - Reject validation methods that will not isolate the answer to the assumption being tested.
 - Reject validation methods that are cheap but not decisive for the planning or evidence decision the assumption controls.

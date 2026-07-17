@@ -123,7 +123,7 @@ Do not write acceptance criteria for the later reviewer to mechanically apply, a
 
 ## Validation Approval Scope
 
-Every test plan must end with a final `## Validation approval scope` section. This section is the durable user-approval checkpoint for the rest of the Trycycle run.
+Every test plan must end with a final `## Validation approval scope` section. Check the testing strategy's `Approval record` line: when the user explicitly approved the strategy, they pre-authorized its validation approval forecast, and this section carries that authorization forward into concrete terms rather than requesting a fresh approval. When the strategy's approval was deferred by an autonomy instruction, this section is what the user will approve at the test-plan gate — the run's one approval — so write it to stand on its own.
 
 The section must list all reasonably foreseeable validation actions that are state-changing, restricted, external, costly, or environment-mutating. Be generous rather than minimal: include actions that may be needed by test execution, implementation verification, load-bearing validation, acceptance-artifact production, acceptance-artifact review support, code-review follow-up, and fix rounds. Later phases should be able to rely on this approval without interrupting the user again.
 
@@ -139,6 +139,18 @@ Do not narrow the strategy's validation approval forecast unless the implementat
 
 Later load-bearing validation will use this final section to decide whether a validation action is already approved. If an action fits the listed category, risk level, environment, and cost profile, it is approved for the duration of the run and should not trigger another user approval request.
 
+### Validation scope comparison (required)
+
+Immediately before the final `## Validation approval scope` section, add a `## Validation scope comparison` section. The first non-empty line of the section must be the bare verdict on its own line — exactly `WITHIN_FORECAST` or `MATERIAL_DEVIATION`, with nothing else on that line — followed by the comparison of this final scope against the approved strategy's `<testing_strategy>` `## Validation approval forecast`:
+
+- `WITHIN_FORECAST` — every action category, environment, and permitted effect in the final scope is already covered by the forecast, and nothing the forecast committed to has been dropped: no new action category, no new state-changing or external effect, and no narrowing. State this plainly and note that no re-approval is needed; the user's strategy approval already covers this test plan.
+- `MATERIAL_DEVIATION` — either trigger applies, each with its own delta report:
+  - **Addition**: the final scope requires a category, environment, effect, cost, or risk bound the forecast did not cover. Name the new action(s) and why they fall outside the forecast.
+  - **Narrowing**: the final scope drops or reduces validation the forecast committed to — a removed action category, a dropped check, or a reduced environment or coverage the requested outcome depends on. Name exactly what was dropped and why.
+  Name only the specific delta (additions and/or narrowings), and include it in the `## Strategy changes requiring user approval` section at the top of the file so the coordinator asks the user about the delta only, not the whole plan again.
+
+This comparison is mechanical and load-bearing for the coordinator's routing decision in step 10: do not skip it, do not hedge between the two verdicts, and never certify `WITHIN_FORECAST` while anything the forecast committed to is missing from the final scope.
+
 ## Output
 
 Save the test plan to: `docs/plans/YYYY-MM-DD-<feature-name>-test-plan.md`
@@ -149,11 +161,13 @@ The document should contain:
 2. **Test plan** — numbered list of tests in priority order, each with the full structure above
 3. **Acceptance artifact review** — mandatory artifact-production requirements for the fresh acceptance reviewer
 4. **Coverage summary** — which areas of the action space are covered, which are explicitly excluded per the agreed strategy, and what risks the exclusions carry
-5. **Validation approval scope** — the final section, using the exact heading `## Validation approval scope`
+5. **Validation scope comparison** — the required `WITHIN_FORECAST` or `MATERIAL_DEVIATION` verdict described above, using the exact heading `## Validation scope comparison`
+6. **Validation approval scope** — the final section, using the exact heading `## Validation approval scope`
 
 Commit the test plan to the implementation workspace, then return a markdown report:
 
 - If the file begins with `## Strategy changes requiring user approval`, include that section verbatim as the first section of your response.
+- Include the test plan's `## Validation scope comparison` section verbatim, so the coordinator can route without re-deriving the comparison.
 - Include the test plan's final `## Validation approval scope` section verbatim.
 - Then include `## Test plan path` with the absolute path to the file.
 - Then include `## Commit` with the latest short commit hash.
