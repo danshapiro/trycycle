@@ -62,27 +62,39 @@ Written 2026-07-16 after the first three tuning campaigns (plan review, plan edi
 | Category-2 blocking bar re-anchored to outcome (block only for correctness/regression/durability; preference = minor/nit) + design-decisions refute clause | planning-review | 150-trial A/B on a real converged run: preference-driven blockers 4→0, false alarms 12.7%→9.1%, verdict agreement 84%→86.7%. Known trade-off: occasionally downgrades repo-convention gaps (recall 50%→42.5%, localized to that class). |
 | Thoroughness / class-enumeration discipline (a found defect implies its class; enumerate siblings before returning; report everything; "clean" requires visible enumeration) | planning-review | Replay of an 8-round grind's round 1: future-round findings surfaced at r1 2/24→5/24 (~2.5×), own-round recall up (panel 7,6,7→8,9,9 of 14), substantive false alarms equal (7 vs 7). Clean-round safety: 2/25 = baseline exactly, verdicts unmoved, enumeration visible in 25/25 reports. |
 | Same Category-2 bar + preference-never-forces-REVISED + design-decisions maintenance | planning-edit | 30-trial A/B: no regression (verdicts 15/15 both arms, real fixes 19/20 vs 20/20). Shipped for standard-consistency with its reviewers, not as a win. |
-| Conditional dynamic defect quota ({{#if QUOTA_TOTAL}} block; remaining-count formula, orchestrator-computed; omit when remaining ≤ territories) | planning-review + SKILL.md step 9 | L1 quota (9/6) on a defect-dense round 1: future-round findings surfaced at r1 21%→50% (5/24→12/24 pooled), own-round recall 11/14→12/14, inflation ~flat (3 vs 2 per 15). Round-2 formula A/B: remaining-count D1 (30/6/4) beat static (15/22 vs 14/22 catalog findings at half the inflation, 7 vs 12) and decay (11/22). No-quota render is byte-identical to the clean-round-PASSED template (asserted with the real engine), so near-clean rounds inherit the banked 2/25 false-alarm baseline. Retrodiction refinement (a9592f3): from round 3, a monotone-gated downward-only ratchet refits N from the depletion line's x-intercept (never raises N); code-review gate now runs round 1 quota-free and sets N = ceil(1.2 x first-round critical+major count). Editor consumption of `## Lesser findings` is an UNTESTED surface. |
-| Post-impl review: Category-2 bar + thoroughness + conditional dynamic quota (276fd24; remaining-count formula at the code-review gate — since a9592f3: round 1 quota-free, then N = ceil(1.2 x first-round critical+major count)) | post-impl-review + SKILL.md code-review gate | Generalization on a second corpus (fork-oom SDD task gates, different domain and an older template — mechanism test, scope-limited): thoroughness+quota lifted real-finding recall 9/17→12/17 and surfaced 2 of 3 re-review-only findings at first review, including the missed invalid-fork-candidate critical; zero critical-tier severity inflation. Clean gate on the converged yente round (current template, quota omitted per drop rule): would-block 0/25 = baselines exactly; extras all minor/nit; enumeration visible 19/25. Quota-ACTIVE rendering on the current template is an UNTESTED surface — watch the first defect-dense live verification round. |
+| Conditional dynamic defect quota ({{#if QUOTA_TOTAL}} block; remaining-count formula, orchestrator-computed; omit when remaining ≤ territories) | planning-review + SKILL.md step 9 | L1 quota (9/6) on a defect-dense round 1: future-round findings surfaced at r1 21%→50% (5/24→12/24 pooled), own-round recall 11/14→12/14, inflation ~flat (3 vs 2 per 15). Round-2 formula A/B: remaining-count D1 (30/6/4) beat static (15/22 vs 14/22 catalog findings at half the inflation, 7 vs 12) and decay (11/22). No-quota render is byte-identical to the clean-round-PASSED template (asserted with the real engine), so near-clean rounds inherit the banked 2/25 false-alarm baseline. Calibration refinement (97859cb, superseding a9592f3): findings-driven upward-only estimate; quota passes iff last round's findings exceeded territory count; plan seed 13/kline (recorded), code review round 1 quota-free then N = 2 x F1. Editor consumption of `## Lesser findings` is an UNTESTED surface. |
+| Post-impl review: Category-2 bar + thoroughness + conditional dynamic quota (276fd24; remaining-count formula at the code-review gate — since 97859cb: round 1 quota-free, then N = 2 x first-round critical+major count, upward-only) | post-impl-review + SKILL.md code-review gate | Generalization on a second corpus (fork-oom SDD task gates, different domain and an older template — mechanism test, scope-limited): thoroughness+quota lifted real-finding recall 9/17→12/17 and surfaced 2 of 3 re-review-only findings at first review, including the missed invalid-fork-candidate critical; zero critical-tier severity inflation. Clean gate on the converged yente round (current template, quota omitted per drop rule): would-block 0/25 = baselines exactly; extras all minor/nit; enumeration visible 19/25. Quota-ACTIVE rendering on the current template is an UNTESTED surface — watch the first defect-dense live verification round. |
 
 ### Calibration analysis (quota initial estimate)
 
-- Dataset: 31 review rounds across the 6 trycycle runs since inception. Capture-recapture is
-  infeasible on this data (territories are disjoint by design — zero overlap between reviewers,
-  so no recapture signal exists).
-- Retrodiction MAEs against realized totals: shipped prior (13/kline + remaining-count) 1.67 —
-  best; flat density refit 6.9; depletion-curve alone 9.0 (unstable — one non-monotone round
-  produced a 504-defect blowup); R1-anchor 8.4.
-- Winner: keep the prior, add a MONOTONE-GATED, DOWNWARD-ONLY ratchet from the depletion line's
-  x-intercept (plan hardening), and for code review drop the density prior entirely — review is
-  front-loaded (total ≈ 1.2 x first pass), so round 1 runs quota-free and N = ceil(1.2 x R1
-  critical+major) thereafter. Shipped as a9592f3.
-- Confidence: MODERATE — the dataset leans on memo-relay's 8-round grind. Improvement path: log
-  per-round found/fixed counts from live runs and refit as records accumulate.
+- Dataset (expanded): ~35 runs across ~15 codebases from a full sweep of all agent stores
+  (codex + claude code + opencode, both OS sides) — countable per-round trajectories from
+  natively (300 findings over 21 rounds), planchette (plan 127; code review 72 over 9 rounds),
+  glowforge, plus the prior 3 anchors. Capture-recapture remains infeasible (disjoint
+  territories, zero overlap).
+- The expanded data broke the a9592f3 formula three ways: (1) OMIT-RULE UNDER-ESTIMATE —
+  natively's cumulative blew past any plausible size-based estimate by round 3, so
+  "remaining <= territories" would have silenced the quota while rounds still found 10–20
+  each; (2) MULTIPLIER SPREAD — total-vs-first-round ratios span 1.18x–20x (planchette code
+  review 2.88x), refuting any fixed multiplier including the shipped 1.2x; (3) RATCHET
+  PRECONDITION RARELY HOLDS — per-round counts are non-monotone in most real runs (natively
+  x2, planchette reopen, directordeck), and the observed failure mode is UNDER-estimation,
+  so downward pressure was backwards.
+- Shipped replacement (97859cb): findings-driven, upward-only. N := max(N, cumulative found);
+  remaining = max(0, N − cumulative); quota bindings pass iff the LAST round's findings
+  exceeded the territory count — evidence of ongoing discovery decides, not a depleting size
+  guess. Plan reviews seed N = ceil(13 x plan_lines/1000) when the line count is known, else
+  0; code review runs round 1 quota-free then seeds N = 2 x F1 (a seed the upward rule
+  immediately overrides when reality outruns it). Least-squares ratchet deleted; the
+  nonconvergence review remains the backstop for false convergence.
+- 13/kline is now a SEED only — uncheckable against the expanded dataset (historical plan
+  line counts weren't recorded); live runs now log the plan line count in the run record, so
+  the seed becomes checkable as records accumulate.
 - Literature caveat (LLM anchoring): numeric anchors in prompts inflate REPORTED counts more
   reliably than they increase genuine discovery. This reinforces two shipped choices: anchor
-  conservatively at the floor (quotas are minimums derived from evidence, never stretch goals)
-  and OMIT the quota entirely rather than floor it when the estimate says near-clean.
+  conservatively at the floor (quotas are minimums derived from evidence, never stretch
+  goals) and OMIT the quota entirely rather than floor it when last-round findings fall to
+  territory count or below.
 
 ### No measurable effect (lesson: fix the right layer)
 
