@@ -62,6 +62,7 @@ Written 2026-07-16 after the first three tuning campaigns (plan review, plan edi
 | Category-2 blocking bar re-anchored to outcome (block only for correctness/regression/durability; preference = minor/nit) + design-decisions refute clause | planning-review | 150-trial A/B on a real converged run: preference-driven blockers 4→0, false alarms 12.7%→9.1%, verdict agreement 84%→86.7%. Known trade-off: occasionally downgrades repo-convention gaps (recall 50%→42.5%, localized to that class). |
 | Thoroughness / class-enumeration discipline (a found defect implies its class; enumerate siblings before returning; report everything; "clean" requires visible enumeration) | planning-review | Replay of an 8-round grind's round 1: future-round findings surfaced at r1 2/24→5/24 (~2.5×), own-round recall up (panel 7,6,7→8,9,9 of 14), substantive false alarms equal (7 vs 7). Clean-round safety: 2/25 = baseline exactly, verdicts unmoved, enumeration visible in 25/25 reports. |
 | Same Category-2 bar + preference-never-forces-REVISED + design-decisions maintenance | planning-edit | 30-trial A/B: no regression (verdicts 15/15 both arms, real fixes 19/20 vs 20/20). Shipped for standard-consistency with its reviewers, not as a win. |
+| Conditional dynamic defect quota ({{#if QUOTA_TOTAL}} block; remaining-count formula, orchestrator-computed; omit when remaining ≤ territories) | planning-review + SKILL.md step 9 | L1 quota (9/6) on a defect-dense round 1: future-round findings surfaced at r1 21%→50% (5/24→12/24 pooled), own-round recall 11/14→12/14, inflation ~flat (3 vs 2 per 15). Round-2 formula A/B: remaining-count D1 (30/6/4) beat static (15/22 vs 14/22 catalog findings at half the inflation, 7 vs 12) and decay (11/22). No-quota render is byte-identical to the clean-round-PASSED template (asserted with the real engine), so near-clean rounds inherit the banked 2/25 false-alarm baseline. Editor consumption of `## Lesser findings` is an UNTESTED surface. |
 
 ### No measurable effect (lesson: fix the right layer)
 
@@ -89,6 +90,14 @@ Written 2026-07-16 after the first three tuning campaigns (plan review, plan edi
    different review design entirely); caught by the verbatim check before any spend.
 6. **Greedy-regex extraction of verdicts.** Anchor parsing to the production wrapper/extractor;
    a regex bug silently misread 6 replies before being caught.
+7. **Static defect quotas beyond round 1.** A fixed 9-critical/6-critical demand saturates once real
+   defects thin out: criticals anchor BELOW the floor while severity inflation triples (3→10.7/15 at
+   L2 on r1; inflation 12, unmatched-outcome 28 for static-on-r2). The model relabels and fabricates
+   instead of discovering. Recalibrate every round from remaining = estimate − fixed-so-far.
+8. **Quota floors on near-clean rounds.** Even "at least 1 defect / 1 critical" degraded a genuinely
+   clean round (FA cells 2/25→3/25, CLEAN verdicts 23/25→21/25 — failed its pre-registered gate);
+   static 45/9/6 on the same clean bed produced 13 critical-tier fabrications (4× baseline) and 19/25
+   CLEAN. When remaining ≤ territory count, OMIT the quota entirely; never floor it.
 
 ### Shipped on review only — live checkpoint pending
 
