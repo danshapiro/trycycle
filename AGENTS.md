@@ -42,6 +42,12 @@ Trycycle turns a user request into verified, delivered software through gated ph
 ### Subskills
 The skills in `subskills/` are maintained directly in this repo — edit them like any other skill file, holding them to the same principles. They were originally adapted from Jesse Vincent's superpowers project (credited in README.md), but the import pipeline has been retired and there is no upstream sync to preserve.
 
+### Local test deployment
+
+To test changes on real installs before releasing, copy the changed files from your working branch directly into each installed clone at the matching relative path (the skill locations listed under Versioning below), then verify each copy is byte-identical to the branch (`cmp`). Deploy to every install on the machine — all agents, both the Unix/WSL and Windows sides — so behavior is consistent regardless of which host agent runs trycycle. The next trycycle run on any of those agents exercises the change.
+
+Test-deployed files sit as uncommitted local modifications in the install clones. Before pulling a real release into an install, revert them with `git checkout -- <files>` in that clone.
+
 ### Versioning
 
 Trycycle uses git tags for version tracking. `check-update.py` runs at the start of every Trycycle session (SKILL.md step 0) and compares the user's local tag against `origin/main` to prompt for updates.
