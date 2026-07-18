@@ -84,16 +84,21 @@ Written 2026-07-16 after the first three tuning campaigns (plan review, plan edi
   remaining = max(0, N − cumulative); quota bindings pass iff the LAST round's findings
   exceeded the territory count — evidence of ongoing discovery decides, not a depleting size
   guess. Plan reviews seed N = ceil(25 x plan_lines/1000) when the line count is known, else
-  0; code review runs round 1 quota-free then seeds N = 2 x F1 (a seed the upward rule
-  immediately overrides when reality outruns it). Least-squares ratchet deleted; the
-  nonconvergence review remains the backstop for false convergence.
+  0; code review now seeds N = ceil(4 x changed_lines/1000) at round 1 (0870542), replacing the
+  earlier round-1-quota-free-then-N=2xF1 approach — the upward rule still overrides this seed
+  when reality outruns it. Least-squares ratchet deleted; the nonconvergence review remains the
+  backstop for false convergence.
 - Density is LOW-N and broad: the 3 strict-era runs with recoverable plans measure 8.1/kline
   (yente), ~13.9/kline (memo-relay), and 54.3/kline (planchette). iago's 151.7/kline is
   excluded (permissive-severity era); natively's plan is unrecoverable (its workspace was not
   a git repository). The seed is the rounded mean, 25/kline, deliberately high of the median:
   undershoot wastes whole rounds, while overshoot is bounded by editor verification, the
-  lesser-findings sink, and the last-round omit rule. Live `plan_lines` logging remains the
-  path to a real fit as records accumulate.
+  lesser-findings sink, and the last-round omit rule. Code-review density is a separate axis
+  from plan-doc density — changed lines of the diff under review, not plan-document lines: two
+  measured points give 1.9/kline (fork-oom: 10,427 changed, 20 found) and 4.1/kline (planchette:
+  17,581 changed, 72 found); the round-1 seed is set at 4/kline, again leaning high for the same
+  asymmetric-cost reason. Live `plan_lines` and `changed_lines` logging remain the path to a real
+  fit as records accumulate.
 - Literature caveat (LLM anchoring): numeric anchors in prompts inflate REPORTED counts more
   reliably than they increase genuine discovery. This reinforces two shipped choices: anchor
   conservatively at the floor (quotas are minimums derived from evidence, never stretch
