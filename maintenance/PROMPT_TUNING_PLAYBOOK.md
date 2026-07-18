@@ -62,7 +62,78 @@ Written 2026-07-16 after the first three tuning campaigns (plan review, plan edi
 | Category-2 blocking bar re-anchored to outcome (block only for correctness/regression/durability; preference = minor/nit) + design-decisions refute clause | planning-review | 150-trial A/B on a real converged run: preference-driven blockers 4→0, false alarms 12.7%→9.1%, verdict agreement 84%→86.7%. Known trade-off: occasionally downgrades repo-convention gaps (recall 50%→42.5%, localized to that class). |
 | Thoroughness / class-enumeration discipline (a found defect implies its class; enumerate siblings before returning; report everything; "clean" requires visible enumeration) | planning-review | Replay of an 8-round grind's round 1: future-round findings surfaced at r1 2/24→5/24 (~2.5×), own-round recall up (panel 7,6,7→8,9,9 of 14), substantive false alarms equal (7 vs 7). Clean-round safety: 2/25 = baseline exactly, verdicts unmoved, enumeration visible in 25/25 reports. |
 | Same Category-2 bar + preference-never-forces-REVISED + design-decisions maintenance | planning-edit | 30-trial A/B: no regression (verdicts 15/15 both arms, real fixes 19/20 vs 20/20). Shipped for standard-consistency with its reviewers, not as a win. |
-| Conditional dynamic defect quota ({{#if QUOTA_TOTAL}} block; remaining-count formula, orchestrator-computed; omit when remaining ≤ territories) | planning-review + SKILL.md step 9 | L1 quota (9/6) on a defect-dense round 1: future-round findings surfaced at r1 21%→50% (5/24→12/24 pooled), own-round recall 11/14→12/14, inflation ~flat (3 vs 2 per 15). Round-2 formula A/B: remaining-count D1 (30/6/4) beat static (15/22 vs 14/22 catalog findings at half the inflation, 7 vs 12) and decay (11/22). No-quota render is byte-identical to the clean-round-PASSED template (asserted with the real engine), so near-clean rounds inherit the banked 2/25 false-alarm baseline. Editor consumption of `## Lesser findings` is an UNTESTED surface. |
+| Conditional dynamic defect quota ({{#if QUOTA_TOTAL}} block; orchestrator-computed; after round 1, pass iff last-round findings exceed territories) | planning-review + SKILL.md step 9 | L1 quota (9/6) on a defect-dense round 1: future-round findings surfaced at r1 21%→50% (5/24→12/24 pooled), own-round recall 11/14→12/14, inflation ~flat (3 vs 2 per 15). Round-2 formula A/B: remaining-count D1 (30/6/4) beat static (15/22 vs 14/22 catalog findings at half the inflation, 7 vs 12) and decay (11/22). No-quota render is byte-identical to the clean-round-PASSED template (asserted with the real engine), so near-clean rounds inherit the banked 2/25 false-alarm baseline. Calibration refinement (97859cb, seed retuned in e9bb24f): findings-driven upward-only estimate; quota passes iff last round's findings exceeded territory count; plan seed 25/kline (recorded), code review round 1 quota-free then N = 2 x F1. Editor consumption of `## Lesser findings` is an UNTESTED surface. |
+| Post-impl review: Category-2 bar + thoroughness + conditional dynamic quota (276fd24; remaining-count formula at the code-review gate — since 97859cb: round 1 quota-free, then N = 2 x first-round critical+major count, upward-only) | post-impl-review + SKILL.md code-review gate | Generalization on a second corpus (fork-oom SDD task gates, different domain and an older template — mechanism test, scope-limited): thoroughness+quota lifted real-finding recall 9/17→12/17 and surfaced 2 of 3 re-review-only findings at first review, including the missed invalid-fork-candidate critical; zero critical-tier severity inflation. Clean gate on the converged yente round (current template, quota omitted per drop rule): would-block 0/25 = baselines exactly; extras all minor/nit; enumeration visible 19/25. Quota-ACTIVE rendering on the current template is an UNTESTED surface — watch the first defect-dense live verification round. |
+
+### Calibration analysis (quota initial estimate)
+
+- Dataset (expanded): ~35 runs across ~15 codebases from a full sweep of all agent stores
+  (codex + claude code + opencode, both OS sides) — countable per-round trajectories from
+  natively (300 findings over 21 rounds), planchette (plan 127; code review 72 over 9 rounds),
+  glowforge, plus the prior 3 anchors. Capture-recapture remains infeasible (disjoint
+  territories, zero overlap).
+- The expanded data broke the a9592f3 formula three ways: (1) OMIT-RULE UNDER-ESTIMATE —
+  natively's cumulative blew past any plausible size-based estimate by round 3, so
+  "remaining <= territories" would have silenced the quota while rounds still found 10–20
+  each; (2) MULTIPLIER SPREAD — total-vs-first-round ratios span 1.18x–20x (planchette code
+  review 2.88x), refuting any fixed multiplier including the shipped 1.2x; (3) RATCHET
+  PRECONDITION RARELY HOLDS — per-round counts are non-monotone in most real runs (natively
+  x2, planchette reopen, directordeck), and the observed failure mode is UNDER-estimation,
+  so downward pressure was backwards.
+- Shipped replacement (97859cb; seed retuned in e9bb24f): findings-driven, upward-only. N := max(N, cumulative found);
+  remaining = max(0, N − cumulative); quota bindings pass iff the LAST round's findings
+  exceeded the territory count — evidence of ongoing discovery decides, not a depleting size
+  guess. Plan reviews seed N = ceil(25 x plan_lines/1000) when the line count is known, else
+  0; code review now seeds N = ceil(4 x changed_lines/1000) at round 1 (0870542), replacing the
+  earlier round-1-quota-free-then-N=2xF1 approach — the upward rule still overrides this seed
+  when reality outruns it. Least-squares ratchet deleted; the nonconvergence review remains the
+  backstop for false convergence.
+- Density is LOW-N and broad: the 3 strict-era runs with recoverable plans measure 8.1/kline
+  (yente), ~13.9/kline (memo-relay), and 54.3/kline (planchette). iago's 151.7/kline is
+  excluded (permissive-severity era); natively's plan is unrecoverable (its workspace was not
+  a git repository). The seed is the rounded mean, 25/kline, deliberately high of the median:
+  undershoot wastes whole rounds, while overshoot is bounded by editor verification, the
+  lesser-findings sink, and the last-round omit rule. Code-review density is a separate axis
+  from plan-doc density — changed lines of the diff under review, not plan-document lines. Six
+  pairings across large and small diffs, counting standard noted per row:
+
+  | Run | Findings | Changed lines | Density | Counting tier |
+  |---|---|---|---|---|
+  | msgvault | 28 candidates / 10 confirmed | 8,151 | 3.4/kline (candidates) | candidate + confirmed, tiered |
+  | fork-oom | 20 | 10,427 | 1.9/kline | verified |
+  | planchette | 72 | 17,581 | 4.1/kline | verified |
+  | freshell PR#477 | ~25 | 675 | ~37/kline | all-tier, pre-2026-07-16 permissive era |
+  | glowforge | ~40 | ~1,000 | ~40/kline | all-tier, low-confidence pairing |
+  | ringdown | ≥3 | 3,700 | floor-only, no reliable density | blocking-tier only |
+
+  Two regimes, not one line: the three large diffs (8k–18k changed lines) hold a roughly
+  linear 2–4/kline slope under independent tiered/verified counting (msgvault 3.4, fork-oom
+  1.9, planchette 4.1). The two small diffs break that model — freshell#477 and glowforge both
+  land far above the line on raw counts (~37–40/kline) — meaning a pure per-kline seed predicts
+  only 3–4 findings at that size and badly under-anchors exactly where reviewers otherwise stop
+  early. Seed arithmetic changed accordingly: N = max(ceil(4 × changed_lines / 1000), 10) — the
+  4/kline slope kept for the large-diff regime, an absolute floor of 10 added for the small-diff
+  regime. The floor of 10 is drawn from the two small-diff runs' blocking-tier counts (roughly
+  6–10), not their raw totals (25–40, which reflect permissive-era counting) — n=2 and
+  directional, not a precise fit; ringdown contributes only a floor-consistent lower bound
+  (≥3 blocking findings on 3,700 changed lines), not a density point.
+
+  Honest caveats on this whole picture: (1) freshell#477 and glowforge predate the 2026-07-16
+  severity-tightening and were counted under the permissive era, so their raw totals are not
+  directly comparable to msgvault/fork-oom/planchette's tiered or verified counts — only the
+  blocking-tier subset feeds the floor. (2) Counting standards vary run to run — candidates vs
+  confirmed vs all-tier are different measurements, not the same metric at different precision,
+  and this table necessarily mixes them because that is what each run recorded at the time. (3)
+  Greenfield recovery mostly failed: natively's code was rebranded into iago partway through, so
+  its findings are no longer attributable to a stable diff size and it contributes nothing here;
+  skill-humanize is a research repo with no code-review stream at all. Live `plan_lines` and
+  `changed_lines` logging (already being recorded per run) supersedes all of this as data
+  accumulates — treat this table as a placeholder for a real fit, not a final answer.
+- Literature caveat (LLM anchoring): numeric anchors in prompts inflate REPORTED counts more
+  reliably than they increase genuine discovery. This reinforces two shipped choices: anchor
+  conservatively at the floor (quotas are minimums derived from evidence, never stretch
+  goals) and OMIT the quota entirely rather than floor it when last-round findings fall to
+  territory count or below.
 
 ### No measurable effect (lesson: fix the right layer)
 
@@ -73,6 +144,14 @@ Written 2026-07-16 after the first three tuning campaigns (plan review, plan edi
   in BOTH arms; merge 5/5 both). The corpus lacked the failure the change targets. **Held, not
   deployed.** Needs a real run where code review blocks on preference; replay that round when
   one appears.
+- **Fix-the-class + blast-radius passage at the plan editor**: INERT. 0/6 named late siblings
+  closed in all 10 trials, both arms — identical to the real editor. The editor is structurally
+  bounded to the findings list ("fix every critical issue" + per-edit proof burden); two
+  exhortative bullets don't overcome that. Not harmful (fix completeness unchanged, no overreach),
+  not shipped. Byproduct finding: editor-INTRODUCED defects are systemic — ~3–4 grader-flagged
+  introductions per edit pass in both arms AND in blind looks at the real diff (the known real
+  introduction was flagged 10/10 blind). Round-N+1 reviewers are the working control for these;
+  the dynamic quota front-loads them.
 
 ### Invalid approaches — do not repeat
 
@@ -97,7 +176,15 @@ Written 2026-07-16 after the first three tuning campaigns (plan review, plan edi
 8. **Quota floors on near-clean rounds.** Even "at least 1 defect / 1 critical" degraded a genuinely
    clean round (FA cells 2/25→3/25, CLEAN verdicts 23/25→21/25 — failed its pre-registered gate);
    static 45/9/6 on the same clean bed produced 13 critical-tier fabrications (4× baseline) and 19/25
-   CLEAN. When remaining ≤ territory count, OMIT the quota entirely; never floor it.
+   CLEAN. When last-round findings ≤ territory count, OMIT the quota entirely; never floor it.
+9. **Overlap-based total estimation.** Pairing two reviewers on the same slice and estimating the
+   total from finding-list overlap under-estimated known totals by 27–68% on banked replay pairs:
+   reviewers share systematic blind spots, violating the independence the estimator requires. It
+   was accurate only in the arm whose quota already matched truth (circular). Live use cannot match
+   novel findings across reviewers without an oracle; treating them as distinct drove +250–550%
+   blowups in sensitivity tests. It would also trade away 20% of territory coverage. The residual
+   `m=0` signal ("disjoint findings = deep well") is already captured by the `F_k > T` omit rule.
+   Do not revisit without a fundamentally different independence mechanism.
 
 ### Shipped on review only — live checkpoint pending
 
@@ -110,16 +197,16 @@ Written 2026-07-16 after the first three tuning campaigns (plan review, plan edi
 
 ## Open targets (in expected-value order)
 
-1. **Editor shallow-fix discipline** (~13% of the 8-round grind was editor-introduced defects —
-   incomplete fixes, count drift). Same class-enumeration principle applied to the edit prompt;
-   the grind corpus supports replaying its edit rounds directly.
-2. **Late findings invisible even to thorough round-1 review** (19/24 in the grind corpus).
-   Needs a forensic pass: genuinely emergent (visible only after plan edits) vs per-territory
-   time starvation. The answer decides between "accept multi-round" and a different lever
-   (e.g., more reviewers per territory — untested; the ~58% reproduction floor suggests
-   coverage is a lottery, so panel size may buy breadth).
-3. **Code-review-stage discriminating corpus** — accumulates for free from live runs; act on
-   the first preference-blocked round.
+1. **Blast-radius post-edit self-check** as its own single-variable experiment (a separate
+   verification pass after edits, not exhortation bundled into the edit prompt — the
+   fix-the-class bundling is disproven). Editor-introduced defects (~3–4/pass) are the target.
+2. **Live checkpoints pending**: (a) combined approvals — the next real run must ask exactly
+   once; a second ask for already-forecast ground is a defect, archive that run as the fix's
+   corpus; (b) quota-active post-impl round — first defect-dense live verification round
+   exercises the untested `{{#if QUOTA_TOTAL}}` rendering on the current template.
+3. **Initial-estimate calibration**: 25/kline is the rounded mean of only 3 recoverable
+   strict-era plans across an 8.1–54.3/kline spread. Keep logging `plan_lines` in live run
+   records and refit once the sample is large enough.
 
 ## Operational facts
 
