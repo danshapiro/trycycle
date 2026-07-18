@@ -94,11 +94,41 @@ Written 2026-07-16 after the first three tuning campaigns (plan review, plan edi
   a git repository). The seed is the rounded mean, 25/kline, deliberately high of the median:
   undershoot wastes whole rounds, while overshoot is bounded by editor verification, the
   lesser-findings sink, and the last-round omit rule. Code-review density is a separate axis
-  from plan-doc density — changed lines of the diff under review, not plan-document lines: two
-  measured points give 1.9/kline (fork-oom: 10,427 changed, 20 found) and 4.1/kline (planchette:
-  17,581 changed, 72 found); the round-1 seed is set at 4/kline, again leaning high for the same
-  asymmetric-cost reason. Live `plan_lines` and `changed_lines` logging remain the path to a real
-  fit as records accumulate.
+  from plan-doc density — changed lines of the diff under review, not plan-document lines. Six
+  pairings across large and small diffs, counting standard noted per row:
+
+  | Run | Findings | Changed lines | Density | Counting tier |
+  |---|---|---|---|---|
+  | msgvault | 28 candidates / 10 confirmed | 8,151 | 3.4/kline (candidates) | candidate + confirmed, tiered |
+  | fork-oom | 20 | 10,427 | 1.9/kline | verified |
+  | planchette | 72 | 17,581 | 4.1/kline | verified |
+  | freshell PR#477 | ~25 | 675 | ~37/kline | all-tier, pre-2026-07-16 permissive era |
+  | glowforge | ~40 | ~1,000 | ~40/kline | all-tier, low-confidence pairing |
+  | ringdown | ≥3 | 3,700 | floor-only, no reliable density | blocking-tier only |
+
+  Two regimes, not one line: the three large diffs (8k–18k changed lines) hold a roughly
+  linear 2–4/kline slope under independent tiered/verified counting (msgvault 3.4, fork-oom
+  1.9, planchette 4.1). The two small diffs break that model — freshell#477 and glowforge both
+  land far above the line on raw counts (~37–40/kline) — meaning a pure per-kline seed predicts
+  only 3–4 findings at that size and badly under-anchors exactly where reviewers otherwise stop
+  early. Seed arithmetic changed accordingly: N = max(ceil(4 × changed_lines / 1000), 10) — the
+  4/kline slope kept for the large-diff regime, an absolute floor of 10 added for the small-diff
+  regime. The floor of 10 is drawn from the two small-diff runs' blocking-tier counts (roughly
+  6–10), not their raw totals (25–40, which reflect permissive-era counting) — n=2 and
+  directional, not a precise fit; ringdown contributes only a floor-consistent lower bound
+  (≥3 blocking findings on 3,700 changed lines), not a density point.
+
+  Honest caveats on this whole picture: (1) freshell#477 and glowforge predate the 2026-07-16
+  severity-tightening and were counted under the permissive era, so their raw totals are not
+  directly comparable to msgvault/fork-oom/planchette's tiered or verified counts — only the
+  blocking-tier subset feeds the floor. (2) Counting standards vary run to run — candidates vs
+  confirmed vs all-tier are different measurements, not the same metric at different precision,
+  and this table necessarily mixes them because that is what each run recorded at the time. (3)
+  Greenfield recovery mostly failed: natively's code was rebranded into iago partway through, so
+  its findings are no longer attributable to a stable diff size and it contributes nothing here;
+  skill-humanize is a research repo with no code-review stream at all. Live `plan_lines` and
+  `changed_lines` logging (already being recorded per run) supersedes all of this as data
+  accumulates — treat this table as a placeholder for a real fit, not a final answer.
 - Literature caveat (LLM anchoring): numeric anchors in prompts inflate REPORTED counts more
   reliably than they increase genuine discovery. This reinforces two shipped choices: anchor
   conservatively at the floor (quotas are minimums derived from evidence, never stretch
