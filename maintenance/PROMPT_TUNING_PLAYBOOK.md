@@ -62,7 +62,7 @@ Written 2026-07-16 after the first three tuning campaigns (plan review, plan edi
 | Category-2 blocking bar re-anchored to outcome (block only for correctness/regression/durability; preference = minor/nit) + design-decisions refute clause | planning-review | 150-trial A/B on a real converged run: preference-driven blockers 4→0, false alarms 12.7%→9.1%, verdict agreement 84%→86.7%. Known trade-off: occasionally downgrades repo-convention gaps (recall 50%→42.5%, localized to that class). |
 | Thoroughness / class-enumeration discipline (a found defect implies its class; enumerate siblings before returning; report everything; "clean" requires visible enumeration) | planning-review | Replay of an 8-round grind's round 1: future-round findings surfaced at r1 2/24→5/24 (~2.5×), own-round recall up (panel 7,6,7→8,9,9 of 14), substantive false alarms equal (7 vs 7). Clean-round safety: 2/25 = baseline exactly, verdicts unmoved, enumeration visible in 25/25 reports. |
 | Same Category-2 bar + preference-never-forces-REVISED + design-decisions maintenance | planning-edit | 30-trial A/B: no regression (verdicts 15/15 both arms, real fixes 19/20 vs 20/20). Shipped for standard-consistency with its reviewers, not as a win. |
-| Conditional dynamic defect quota ({{#if QUOTA_TOTAL}} block; remaining-count formula, orchestrator-computed; omit when remaining ≤ territories) | planning-review + SKILL.md step 9 | L1 quota (9/6) on a defect-dense round 1: future-round findings surfaced at r1 21%→50% (5/24→12/24 pooled), own-round recall 11/14→12/14, inflation ~flat (3 vs 2 per 15). Round-2 formula A/B: remaining-count D1 (30/6/4) beat static (15/22 vs 14/22 catalog findings at half the inflation, 7 vs 12) and decay (11/22). No-quota render is byte-identical to the clean-round-PASSED template (asserted with the real engine), so near-clean rounds inherit the banked 2/25 false-alarm baseline. Calibration refinement (97859cb, superseding a9592f3): findings-driven upward-only estimate; quota passes iff last round's findings exceeded territory count; plan seed 13/kline (recorded), code review round 1 quota-free then N = 2 x F1. Editor consumption of `## Lesser findings` is an UNTESTED surface. |
+| Conditional dynamic defect quota ({{#if QUOTA_TOTAL}} block; orchestrator-computed; after round 1, pass iff last-round findings exceed territories) | planning-review + SKILL.md step 9 | L1 quota (9/6) on a defect-dense round 1: future-round findings surfaced at r1 21%→50% (5/24→12/24 pooled), own-round recall 11/14→12/14, inflation ~flat (3 vs 2 per 15). Round-2 formula A/B: remaining-count D1 (30/6/4) beat static (15/22 vs 14/22 catalog findings at half the inflation, 7 vs 12) and decay (11/22). No-quota render is byte-identical to the clean-round-PASSED template (asserted with the real engine), so near-clean rounds inherit the banked 2/25 false-alarm baseline. Calibration refinement (97859cb, seed retuned in e9bb24f): findings-driven upward-only estimate; quota passes iff last round's findings exceeded territory count; plan seed 25/kline (recorded), code review round 1 quota-free then N = 2 x F1. Editor consumption of `## Lesser findings` is an UNTESTED surface. |
 | Post-impl review: Category-2 bar + thoroughness + conditional dynamic quota (276fd24; remaining-count formula at the code-review gate — since 97859cb: round 1 quota-free, then N = 2 x first-round critical+major count, upward-only) | post-impl-review + SKILL.md code-review gate | Generalization on a second corpus (fork-oom SDD task gates, different domain and an older template — mechanism test, scope-limited): thoroughness+quota lifted real-finding recall 9/17→12/17 and surfaced 2 of 3 re-review-only findings at first review, including the missed invalid-fork-candidate critical; zero critical-tier severity inflation. Clean gate on the converged yente round (current template, quota omitted per drop rule): would-block 0/25 = baselines exactly; extras all minor/nit; enumeration visible 19/25. Quota-ACTIVE rendering on the current template is an UNTESTED surface — watch the first defect-dense live verification round. |
 
 ### Calibration analysis (quota initial estimate)
@@ -80,16 +80,20 @@ Written 2026-07-16 after the first three tuning campaigns (plan review, plan edi
   PRECONDITION RARELY HOLDS — per-round counts are non-monotone in most real runs (natively
   x2, planchette reopen, directordeck), and the observed failure mode is UNDER-estimation,
   so downward pressure was backwards.
-- Shipped replacement (97859cb): findings-driven, upward-only. N := max(N, cumulative found);
+- Shipped replacement (97859cb; seed retuned in e9bb24f): findings-driven, upward-only. N := max(N, cumulative found);
   remaining = max(0, N − cumulative); quota bindings pass iff the LAST round's findings
   exceeded the territory count — evidence of ongoing discovery decides, not a depleting size
-  guess. Plan reviews seed N = ceil(13 x plan_lines/1000) when the line count is known, else
+  guess. Plan reviews seed N = ceil(25 x plan_lines/1000) when the line count is known, else
   0; code review runs round 1 quota-free then seeds N = 2 x F1 (a seed the upward rule
   immediately overrides when reality outruns it). Least-squares ratchet deleted; the
   nonconvergence review remains the backstop for false convergence.
-- 13/kline is now a SEED only — uncheckable against the expanded dataset (historical plan
-  line counts weren't recorded); live runs now log the plan line count in the run record, so
-  the seed becomes checkable as records accumulate.
+- Density is LOW-N and broad: the 3 strict-era runs with recoverable plans measure 8.1/kline
+  (yente), ~13.9/kline (memo-relay), and 54.3/kline (planchette). iago's 151.7/kline is
+  excluded (permissive-severity era); natively's plan is unrecoverable (its workspace was not
+  a git repository). The seed is the rounded mean, 25/kline, deliberately high of the median:
+  undershoot wastes whole rounds, while overshoot is bounded by editor verification, the
+  lesser-findings sink, and the last-round omit rule. Live `plan_lines` logging remains the
+  path to a real fit as records accumulate.
 - Literature caveat (LLM anchoring): numeric anchors in prompts inflate REPORTED counts more
   reliably than they increase genuine discovery. This reinforces two shipped choices: anchor
   conservatively at the floor (quotas are minimums derived from evidence, never stretch
@@ -137,7 +141,15 @@ Written 2026-07-16 after the first three tuning campaigns (plan review, plan edi
 8. **Quota floors on near-clean rounds.** Even "at least 1 defect / 1 critical" degraded a genuinely
    clean round (FA cells 2/25→3/25, CLEAN verdicts 23/25→21/25 — failed its pre-registered gate);
    static 45/9/6 on the same clean bed produced 13 critical-tier fabrications (4× baseline) and 19/25
-   CLEAN. When remaining ≤ territory count, OMIT the quota entirely; never floor it.
+   CLEAN. When last-round findings ≤ territory count, OMIT the quota entirely; never floor it.
+9. **Overlap-based total estimation.** Pairing two reviewers on the same slice and estimating the
+   total from finding-list overlap under-estimated known totals by 27–68% on banked replay pairs:
+   reviewers share systematic blind spots, violating the independence the estimator requires. It
+   was accurate only in the arm whose quota already matched truth (circular). Live use cannot match
+   novel findings across reviewers without an oracle; treating them as distinct drove +250–550%
+   blowups in sensitivity tests. It would also trade away 20% of territory coverage. The residual
+   `m=0` signal ("disjoint findings = deep well") is already captured by the `F_k > T` omit rule.
+   Do not revisit without a fundamentally different independence mechanism.
 
 ### Shipped on review only — live checkpoint pending
 
@@ -157,10 +169,9 @@ Written 2026-07-16 after the first three tuning campaigns (plan review, plan edi
    once; a second ask for already-forecast ground is a defect, archive that run as the fix's
    corpus; (b) quota-active post-impl round — first defect-dense live verification round
    exercises the untested `{{#if QUOTA_TOTAL}}` rendering on the current template.
-3. **Initial-estimate calibration**: 13 defects per 1,000 plan/changed lines comes from ONE
-   corpus (memo-relay). Recalibrate as run records accumulate; the formula tolerates error at
-   round 1 (saturation only bites when demanded count exceeds true remaining), but a
-   materially wrong estimate delays the omit switchover.
+3. **Initial-estimate calibration**: 25/kline is the rounded mean of only 3 recoverable
+   strict-era plans across an 8.1–54.3/kline spread. Keep logging `plan_lines` in live run
+   records and refit once the sample is large enough.
 
 ## Operational facts
 
