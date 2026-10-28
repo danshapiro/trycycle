@@ -403,6 +403,30 @@ Clean up temporary artifacts created during the loop (for example plan scratch f
 
 If the implementation subagent is still open, close it and clear its saved handle or `session_id` before handing off to finishing.
 
-Finally, in one paragraph, briefly describe what was built/accomplished/changed/fixed. Then Report the process to the user using concrete facts and returned artifacts: how many plan-editor rounds, how many acceptance-artifact review rounds, how many code-review rounds, the current `HEAD`, the changed-file list, the implementation subagent's latest summary, verification results, acceptance artifacts, and any reviewer-reported residual issues.
+Finally, in one paragraph, briefly describe what was built/accomplished/changed/fixed. Then report the process to the user in this format, using concrete facts and returned artifacts:
+
+```
+## Trycycle Session Report
+
+| Phase                      | Rounds | Result                                      |
+|----------------------------|--------|---------------------------------------------|
+| Planning                   | {N}/5  | {READY on round N / ESCALATED to user}      |
+| Test plan                  | 1      | {approved / revised N times}                |
+| Implementation             | 1      | {complete}                                  |
+| Acceptance-artifact review | {N}/8  | {conclusive on round N / ESCALATED to user} |
+| Code review                | {N}/8  | {clean on round N / ESCALATED to user}      |
+
+**Convergence:** plan locked in {N} round(s), review passed in {N} round(s)
+**HEAD:** `{short hash}`
+**Changed files:**
+{file list from git diff --name-only}
+
+**Implementation summary:** {from the implementation subagent's latest report}
+**Verification results:** {from the implementation subagent's latest report}
+**Acceptance artifacts:** {the artifacts the acceptance reviewer judged}
+**Residual issues:** {any non-blocking issues from the final review, or "none"}
+```
+
+Fill each placeholder from the artifacts returned by planning, implementation, and review subagents during the session. Omit sections that do not apply (for example, omit **Residual issues** when there are none).
 
 Then read and follow `<skill-directory>/subskills/trycycle-finishing/SKILL.md` to present the user with options for integrating the implementation workspace (merge, PR, etc.).
