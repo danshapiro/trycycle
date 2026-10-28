@@ -45,6 +45,68 @@ def _parse_binding(raw: str) -> tuple[str, str]:
     return _parse_placeholder_name(name), value
 
 
+def _resolve_existing_file(raw_path: str, *, option: str, name: str) -> Path:
+    path = Path(raw_path)
+    if not path.is_absolute():
+        path = (Path.cwd() / path).resolve()
+    else:
+        path = path.resolve()
+    if not path.exists():
+        raise PhaseError(f"{option} file for {name} does not exist: {path}")
+    if not path.is_file():
+        raise PhaseError(f"{option} path for {name} is not a file: {path}")
+    return path
+
+
+def _transcript_file_bindings(args: argparse.Namespace) -> dict[str, Path]:
+    bindings: dict[str, Path] = {}
+    for raw in args.transcript_file:
+        name, raw_path = _parse_binding(raw)
+        bindings[name] = _resolve_existing_file(
+            raw_path,
+            option="--transcript-file",
+            name=name,
+        )
+    return bindings
+
+
+def _validate_unique_placeholder_bindings(args: argparse.Namespace) -> None:
+    sources: dict[str, list[str]] = {}
+
+    def add(name: str, source: str) -> None:
+        sources.setdefault(name, []).append(source)
+
+    for raw in args.set:
+        name, _value = _parse_binding(raw)
+        add(name, "--set")
+    for raw in args.set_file:
+        name, _path = _parse_binding(raw)
+        add(name, "--set-file")
+    for raw in args.transcript_placeholder:
+        name = _parse_placeholder_name(raw)
+        add(name, "--transcript-placeholder")
+    for raw in args.transcript_file:
+        name, _path = _parse_binding(raw)
+        add(name, "--transcript-file")
+
+    conflicts = {
+        name: binding_sources
+        for name, binding_sources in sources.items()
+        if len(binding_sources) > 1
+    }
+    if not conflicts:
+        return
+
+    details = "; ".join(
+        f"{name} via {', '.join(binding_sources)}"
+        for name, binding_sources in sorted(conflicts.items())
+    )
+    raise PhaseError(
+        "Duplicate placeholder binding detected before transcript lookup: "
+        f"{details}. Bind each placeholder only once."
+    )
+
+
 def _detect_transcript_cli(selected: str) -> str:
     if selected != "auto":
         return selected
@@ -81,8 +143,12 @@ def _prepare_transcripts(
     workdir: Path,
 ) -> tuple[str | None, dict[str, str]]:
     placeholders = [_parse_placeholder_name(raw) for raw in args.transcript_placeholder]
+    manual_transcript_paths = {
+        name: str(path)
+        for name, path in _transcript_file_bindings(args).items()
+    }
     if not placeholders:
-        return None, {}
+        return None, manual_transcript_paths
 
     cli_name = _detect_transcript_cli(args.transcript_cli)
     if cli_name == "claude-code" and not args.canary:
@@ -92,7 +158,7 @@ def _prepare_transcripts(
 
     inputs_dir = artifacts_dir / "inputs"
     inputs_dir.mkdir(parents=True, exist_ok=True)
-    rendered_paths: dict[str, str] = {}
+    rendered_paths: dict[str, str] = dict(manual_transcript_paths)
 
     first_placeholder = placeholders[0]
     first_output_path = inputs_dir / f"{first_placeholder}.txt"
@@ -154,6 +220,7 @@ def _build_prompt(
 
 
 def _prepare_phase(args: argparse.Namespace) -> dict[str, Any]:
+    _validate_unique_placeholder_bindings(args)
     workdir = Path(args.workdir).resolve()
     artifacts_dir = (
         Path(args.artifacts_dir).resolve()
@@ -283,6 +350,13 @@ def _add_prepare_arguments(parser: argparse.ArgumentParser) -> None:
         default=[],
         metavar="NAME",
         help="Bind the current session transcript to this placeholder name.",
+    )
+    parser.add_argument(
+        "--transcript-file",
+        action="append",
+        default=[],
+        metavar="NAME=PATH",
+        help="Bind a transcript placeholder from an existing UTF-8 file without live transcript lookup.",
     )
     parser.add_argument(
         "--transcript-cli",

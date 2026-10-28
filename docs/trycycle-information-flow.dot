@@ -39,7 +39,7 @@ digraph trycycle_information_flow {
 
     user_request [label="User request"];
     repo_state [label="Repository state\n(files, git history, worktree status)"];
-    transcript_source [label="Session transcript source\n(Codex CLI or Claude Code)"];
+    transcript_source [label="Session transcript source\n(Codex CLI, Claude Code,\nKimi CLI, or OpenCode)"];
     version_tags [label="Version tags\n(local repo + origin/main)"];
   }
 
@@ -60,6 +60,12 @@ digraph trycycle_information_flow {
     prompt_templates [label="Prompt templates\n(subagents/*.md)"];
     prompt_builder [label="Prompt builder\n(orchestrator/prompt_builder)"];
     worktree_manager [label="Worktree manager\n(subskills/trycycle-worktrees)"];
+    user_intent_extractor [label="User-intent extraction\nsubagent"];
+    user_intent_artifact [
+      label="User intent artifact\n(verbatim relevance extract\n+ append-only updates)",
+      shape=note,
+      fillcolor="#ffffff"
+    ];
   }
 
   subgraph cluster_planning {
@@ -69,6 +75,12 @@ digraph trycycle_information_flow {
     style="rounded,filled";
 
     planner [label="Planning subagent\n(subskills/trycycle-planning)"];
+    test_strategy [label="Testing-strategy subagent"];
+    testing_strategy_artifact [
+      label="Testing strategy artifact\n(exact approved strategy)",
+      shape=note,
+      fillcolor="#ffffff"
+    ];
     implementation_plan [
       label="Implementation plan\n(plan + test plan)",
       shape=note,
@@ -120,14 +132,20 @@ digraph trycycle_information_flow {
   version_tags -> check_update [label="compare"];
   check_update -> orchestrator [label="update status"];
   transcript_source -> transcript_builder [label="raw session data"];
-  transcript_builder -> orchestrator [label="recent conversation"];
 
   orchestrator -> worktree_manager [label="create isolated branch"];
   repo_state -> worktree_manager [label="shared git history"];
   orchestrator -> prompt_builder [label="bind runtime values"];
   prompt_templates -> prompt_builder [label="template text"];
-  transcript_builder -> prompt_builder [label="transcript excerpt"];
+  transcript_builder -> prompt_builder [label="raw transcript\n(user-intent only)"];
   worktree_manager -> prompt_builder [label="worktree path"];
+  prompt_builder -> user_intent_extractor [label="user-intent\nextraction prompt"];
+  user_intent_extractor -> user_intent_artifact [label="writes initial artifact"];
+  orchestrator -> user_intent_artifact [label="append user updates"];
+  user_intent_artifact -> prompt_builder [label="USER_INTENT binding"];
+  prompt_builder -> test_strategy [label="testing-strategy prompt"];
+  test_strategy -> testing_strategy_artifact [label="writes proposed strategy"];
+  testing_strategy_artifact -> prompt_builder [label="TESTING_STRATEGY binding"];
 
   prompt_builder -> planner [label="planning prompt"];
   worktree_manager -> planner [label="isolated repo view"];
@@ -147,6 +165,23 @@ digraph trycycle_information_flow {
   executor -> code_artifacts [label="commits + test results"];
   code_artifacts -> post_review [label="review input"];
   prompt_builder -> post_review [label="review prompt"];
+  plan_reconsider [
+    label="Plan reconsideration\n(rounds 4, 6, 8... + stop)",
+    fillcolor="#ffffff"
+  ];
+  prompt_builder -> plan_reconsider [label="reconsider prompt"];
+  post_review -> plan_reconsider [
+    label="blocking findings persist",
+    style=dashed,
+    color="#d97706",
+    fontcolor="#b45309"
+  ];
+  plan_reconsider -> implementation_plan [
+    label="clarify/revise plans",
+    style=dashed,
+    color="#d97706",
+    fontcolor="#b45309"
+  ];
   post_review -> executor [
     label="critical/major findings\n(fix round, up to 8)",
     style=dashed,

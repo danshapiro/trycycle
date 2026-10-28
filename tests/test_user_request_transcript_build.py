@@ -1080,14 +1080,79 @@ class OpenCodeTranscriptTests(UserRequestTranscriptBuildTests):
     def test_opencode_transcript_fails_gracefully_when_db_missing(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
+            search_root = tmp_path / "project"
+            search_root.mkdir()
             result = self.run_builder(
                 "--cli", "opencode",
                 "--canary", "nonexistent-canary",
-                "--search-root", str(tmp_path),
+                "--search-root", str(search_root),
                 env={"HOME": str(tmp_path)},
             )
             self.assertEqual(result.returncode, 1)
             self.assertIn("not found", result.stderr)
+            self.assertIn("--search-root was set", result.stderr)
+            self.assertIn(str(search_root / "opencode.db"), result.stderr)
+            self.assertIn("OPENCODE_DATA_DIR", result.stderr)
+
+    def test_opencode_search_root_falls_back_to_data_dir(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            project_root = tmp_path / "project"
+            data_dir = tmp_path / "opencode-data"
+            project_root.mkdir()
+            data_dir.mkdir()
+            db_path = data_dir / "opencode.db"
+            canary = "trycycle-canary-data-dir-fallback"
+            _create_opencode_db(db_path, [
+                {
+                    "id": "ses_fallback",
+                    "directory": "/tmp",
+                    "time_created": 1000,
+                    "time_updated": 2000,
+                    "messages": [
+                        {
+                            "id": "msg_001",
+                            "data": {"role": "user"},
+                            "time_created": 1001,
+                            "time_updated": 1001,
+                            "parts": [
+                                {
+                                    "id": "prt_001",
+                                    "data": {"type": "text", "text": f"user {canary}"},
+                                    "time_created": 1001,
+                                    "time_updated": 1001,
+                                },
+                            ],
+                        },
+                        {
+                            "id": "msg_002",
+                            "data": {"role": "assistant"},
+                            "time_created": 1002,
+                            "time_updated": 1002,
+                            "parts": [
+                                {
+                                    "id": "prt_002",
+                                    "data": {"type": "text", "text": "data dir fallback reply"},
+                                    "time_created": 1002,
+                                    "time_updated": 1002,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ])
+            result = self.run_builder(
+                "--cli", "opencode",
+                "--canary", canary,
+                "--search-root", str(project_root),
+                env={
+                    "HOME": str(tmp_path),
+                    "OPENCODE_DATA_DIR": str(data_dir),
+                },
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            turns = json.loads(result.stdout)
+            self.assertEqual(turns[1]["text"], "data dir fallback reply")
 
     def test_opencode_canary_timeout_when_canary_not_in_session(self):
         with tempfile.TemporaryDirectory() as tmpdir:

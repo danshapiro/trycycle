@@ -55,18 +55,27 @@ Finally, read the skills you installed carefully, so you can explain them to you
 Include the word Trycycle in your request and describe what you want built:
 
 ```
-My webcam software is terrible. Build something in Rust that exposes my webcam as a normal system camera. 
+My webcam software is terrible. Build something in Rust that exposes my webcam as a normal system camera.
 ```
 
 Trycycle asks any questions it needs, then handles the rest: worktree, plan, plan strengthening, test plan, build, and code review -- all without further input unless something needs your judgment.
 
-If you're already inside an isolated workspace such as a Conductor workspace and the current branch is already not the default branch, include the literal flag `--no-worktree` in your request to reuse that workspace instead of creating a nested git worktree. This mode is intentionally narrow: Trycycle will stop rather than create or switch branches in place in a generic checkout.
+## Tips
 
-Works for anything from small features to large refactors, best when you have a clear goal and a codebase Trycycle can read and test.
+Trycycle assumes you know what you want and errs on the side of 'make a decision and keep going'.
+
+It works best when:
+- You have a vague project and don't care about the details, like "Make solitaire"
+- You have an easy-to-define task ("Fix issue 123")
+- You have a detailed spec you created outside trycycle (I recommend Superpowers brainstorming, for example, or a good chat with your favorite AI)
+
+It works worst when you care about the details, but they're not specified. It will likely just yolo them for you.
+
+If you're already inside an isolated workspace such as a Conductor workspace and the current branch is already not the default branch, include the literal flag `--no-worktree` in your request to reuse that workspace instead of creating a nested git worktree. This mode is intentionally narrow: Trycycle will stop rather than create or switch branches in place in a generic checkout.
 
 ## How it works
 
-Trycycle is a hill climber. It writes a plan, then sends it to a fresh plan editor with the same task input and repo context. That editor either approves the plan unchanged or rewrites it, repeating up to five rounds. Once the plan is locked, Trycycle builds a test plan, builds the code, sends it to a fresh reviewer, turns the review into a structured observation packet, fixes what that packet shows, and repeats that loop too (up to eight rounds). Each review uses a new reviewer with no memory of previous rounds, and each planning round spawns a fresh agent, so stale context never accumulates.
+Trycycle is a hill climber. It first extracts the relevant user intent verbatim, writes a plan from that artifact, then sends the plan to a fresh plan editor with the same intent artifact and repo context. That editor either approves the plan unchanged or rewrites it, repeating up to five rounds. Once the plan is locked, Trycycle builds a test plan, builds the code, sends it to a fresh reviewer, turns the review into a structured observation packet, fixes what that packet shows, and repeats that loop too (up to eight rounds by default). If blockers persist, Trycycle runs plan reconsideration after the 4th review round and every 2 rounds after that, plus once before nonconvergence any time the loop stops with blockers. Each review uses a new reviewer with no memory of previous rounds, and each planning round spawns a fresh agent, so stale context never accumulates.
 
 ## Credits
 

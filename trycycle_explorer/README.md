@@ -55,8 +55,8 @@ What you should see:
 
 The builder-interface pills come from the real prompt-dispatch lines in `SKILL.md`. They expose caller-visible constraints such as:
 
-- `Requires <task_input_json>` when the builder is told to enforce a non-empty tag.
-- `Ignore placeholders in <task_input_json>` when the builder is told to ignore placeholder-like text inside that tag during rendered-prompt scanning.
+- `Requires <user_intent>` when the builder is told to enforce a non-empty tag.
+- `Ignore placeholders in <user_intent>` when the builder is told to ignore placeholder-like text inside that tag during rendered-prompt scanning.
 
 ## Before / After
 

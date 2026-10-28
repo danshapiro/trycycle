@@ -5,38 +5,6 @@
   "selected_gate_id": "version-check",
   "selected_outcome_id": null,
   "bindings": {
-    "INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION": [
-      {
-        "role": "user",
-        "text": "Create a python app that builds a static web page that's a beautiful, intuitive trycycle explorer."
-      },
-      {
-        "role": "assistant",
-        "text": "Trycycle is paused at its first decision gate. It needs these two choices before it can produce the testing strategy and continue."
-      },
-      {
-        "role": "user",
-        "text": "The explorer should be generated dynamically from the actual trycycle gates and templates. No LLM integration."
-      },
-      {
-        "role": "assistant",
-        "text": "Revised testing strategy: prioritize browser-driven integration coverage of user-visible behavior, with reproducible UI artifacts and no manual QA."
-      },
-      {
-        "role": "user",
-        "text": "approved"
-      }
-    ],
-    "USER_REQUEST_TRANSCRIPT": [
-      {
-        "role": "user",
-        "text": "Create a python app that builds a static web page that's a beautiful, intuitive trycycle explorer."
-      },
-      {
-        "role": "user",
-        "text": "The explorer should be generated dynamically from the actual trycycle gates and templates. No LLM integration."
-      }
-    ],
     "FULL_CONVERSATION_VERBATIM": [
       {
         "role": "user",
@@ -59,6 +27,8 @@
         "text": "approved"
       }
     ],
+    "USER_INTENT": "# User Intent\n\n## Verbatim Relevant Spans, Oldest First\n\n### Span 1\nSource: user\nReason: request\n\n````text\nCreate a python app that builds a static web page that's a beautiful, intuitive trycycle explorer.\n````\n\n### Span 2\nSource: user\nReason: constraint\n\n````text\nThe explorer should be generated dynamically from the actual trycycle gates and templates, with a simple sidecar for non-derivable transitions.\n````\n\n### Span 3\nSource: user\nReason: acceptance-expectation\n\n````text\nPrioritize browser-driven integration tests and captured UI artifacts at each step for legibility, attractiveness, and correctness.\n````\n\n### Span 4\nSource: user\nReason: approval\n\n````text\napproved\n````\n\n## User Intent Updates, Oldest First\n",
+    "TESTING_STRATEGY": "## Testing Strategy\n\nPrioritize browser-driven integration coverage of user-visible behavior, with reproducible UI artifacts and no manual QA.\n\n## Approval\n\nThe user must accept this strategy or provide edits before implementation or workspace setup begins.",
     "POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON": "{\n  \"status\": \"issues_found\",\n  \"summary\": \"One documentation issue remains.\",\n  \"observations\": [\n    {\n      \"id\": \"R1\",\n      \"severity\": \"minor\",\n      \"category\": \"implementation_plan_mismatch\",\n      \"expected\": \"The README documents how to use the explorer after installation.\",\n      \"observed\": \"Explorer usage is not documented in the README.\",\n      \"where\": {\n        \"file\": \"README.md\",\n        \"line\": 31\n      },\n      \"evidence\": {\n        \"commands\": [\"rg -n \\\"Trycycle Explorer\\\" README.md\"],\n        \"notes\": \"Review did not find an explorer usage section in README.md.\"\n      }\n    }\n  ]\n}",
     "WORKTREE_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer",
     "IMPLEMENTATION_PLAN_PATH": "/home/user/code/trycycle/.worktrees/feat-trycycle-explorer/docs/plans/2026-03-10-trycycle-explorer.md",

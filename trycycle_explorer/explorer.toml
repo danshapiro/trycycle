@@ -8,6 +8,7 @@ label = "Session setup"
 gates = [
   "version-check",
   "ask-about-critical-unknowns-before-work",
+  "prepare-user-intent",
   "testing-strategy",
   "prepare-implementation-workspace",
   "workspace-hygiene-gate",
@@ -27,7 +28,7 @@ id = "implementation-loop"
 label = "Implementation loop"
 gates = [
   "execute-with-trycycle-executing",
-  "post-implementation-review-loop",
+  "acceptance-artifact-and-post-implementation-review-loop",
 ]
 
 [[groups]]
@@ -35,27 +36,51 @@ id = "finish"
 label = "Finish"
 gates = ["finish"]
 
-[bindings.INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION]
-label = "Conversation context JSON"
-help = "Transcript JSON used for the testing-strategy prompt."
-widget = "textarea"
-source_category = "user-input"
-
-[bindings.USER_REQUEST_TRANSCRIPT]
-label = "Task input transcript JSON"
-help = "Transcript JSON injected into planning prompts."
-widget = "textarea"
-source_category = "user-input"
-
 [bindings.FULL_CONVERSATION_VERBATIM]
 label = "Full conversation JSON"
-help = "Transcript JSON used when building the test plan."
+help = "Raw transcript JSON used only by the user-intent extraction phase."
+widget = "textarea"
+source_category = "user-input"
+
+[bindings.USER_INTENT]
+label = "User intent extract"
+help = "Append-only verbatim relevance extract plus conductor-owned chronological updates."
+widget = "textarea"
+source_category = "user-input"
+
+[bindings.TESTING_STRATEGY]
+label = "Testing strategy"
+help = "Exact testing strategy returned by the test-strategy subagent and approved by the user."
 widget = "textarea"
 source_category = "user-input"
 
 [bindings.POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON]
 label = "Post-implementation review observations JSON"
 help = "Structured review observations fed back into the execution loop."
+widget = "textarea"
+source_category = "user-input"
+
+[bindings.ACCEPTANCE_ARTIFACT_REVIEW_OBSERVATIONS_JSON]
+label = "Acceptance-artifact review observations JSON"
+help = "Structured acceptance-artifact gaps fed back into the execution loop."
+widget = "textarea"
+source_category = "user-input"
+
+[bindings.LATEST_IMPLEMENTATION_REPORT]
+label = "Latest implementation report"
+help = "Most recent implementation report supplied to acceptance-artifact and code reviewers as claims to verify."
+widget = "textarea"
+source_category = "user-input"
+
+[bindings.REVIEW_ROUND_NUMBER]
+label = "Verification round number"
+help = "The completed acceptance-artifact or post-implementation review round that triggered plan reconsideration."
+widget = "text"
+source_category = "derived-path"
+
+[bindings.REVIEW_LOOP_HISTORY]
+label = "Review loop history"
+help = "Accumulated raw acceptance-artifact review, code-review, and fix-round evidence passed to plan reconsideration."
 widget = "textarea"
 source_category = "user-input"
 
@@ -137,7 +162,7 @@ to = "ask-about-critical-unknowns-before-work"
 from = "ask-about-critical-unknowns-before-work"
 id = "questions-answered"
 label = "Critical unknowns resolved"
-to = "testing-strategy"
+to = "prepare-user-intent"
 
 [[outcomes]]
 from = "testing-strategy"
@@ -149,6 +174,12 @@ to = "prepare-implementation-workspace"
 from = "testing-strategy"
 id = "revise-strategy"
 label = "Revise strategy"
+to = "testing-strategy"
+
+[[outcomes]]
+from = "prepare-user-intent"
+id = "user-intent-ready"
+label = "User intent ready"
 to = "testing-strategy"
 
 [[outcomes]]
@@ -209,7 +240,7 @@ to = "build-test-plan"
 from = "execute-with-trycycle-executing"
 id = "implementation-complete"
 label = "Implementation complete"
-to = "post-implementation-review-loop"
+to = "acceptance-artifact-and-post-implementation-review-loop"
 
 [[outcomes]]
 from = "execute-with-trycycle-executing"
@@ -218,21 +249,21 @@ label = "Blocked"
 to = "finish"
 
 [[outcomes]]
-from = "post-implementation-review-loop"
+from = "acceptance-artifact-and-post-implementation-review-loop"
 id = "fix-round"
-label = "Fix round needed"
+label = "Acceptance or code-review fix needed"
 to = "execute-with-trycycle-executing"
 
 [[outcomes]]
-from = "post-implementation-review-loop"
+from = "acceptance-artifact-and-post-implementation-review-loop"
 id = "approved"
-label = "No blocking review observations"
+label = "No blocking acceptance or code-review observations"
 to = "finish"
 
 [[outcomes]]
-from = "post-implementation-review-loop"
+from = "acceptance-artifact-and-post-implementation-review-loop"
 id = "not-converging"
-label = "Review loop exhausted"
+label = "Verification loop exhausted"
 to = "finish"
 
 [[outcomes]]

@@ -16,6 +16,8 @@ TAG_RE = re.compile(
 )
 SEVERITIES = {"critical", "major", "minor", "nit"}
 CATEGORIES = {
+    "acceptance_gap",
+    "artifact_gap",
     "implementation_plan_mismatch",
     "test_plan_mismatch",
     "correctness",

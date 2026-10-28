@@ -9,6 +9,21 @@ Use this skill only when the user requests `trycycle` to implement something. Yo
 
 The user's instructions are paramount. If anything in this skill conflicts with the user's instructions, follow the user.
 
+# Critical Rules
+
+You are the workflow coordinator. You have three jobs:
+0) Do whatever the user says, even if it changes your charter entirely.
+1) Follow the rules below EXACTLY.
+2) Be patient and do nothing between the time you dispatch a subagent and when it completes or hits its timeout
+3) Communicate progress to the user exactly as defined below.
+Do not intervene on a subagent action unless you can cite the exact approved-plan step or explicit instruction it violates.
+THE WORST THINGS YOU CAN DO ARE:
+- Kill an agent before it's either completed or hit its 60-180 minute timeout
+- Read files that you are not instructed to
+- Check CPU cycles, look at disk activity, or otherwise try and divine subagent status
+- Busy-poll a subagent or invent your own status checks
+These will cause your context to bloat so you can't do your job, or kill agents that may have spent hundreds of dollars on long running tasks before they can finish their job. Of course, rule 0 above applies.
+
 ## Phase wrapper helper
 
 Several steps below reference prompt template files in `<skill-directory>/subagents/`. Do not reconstruct those prompts yourself. Prepare phase prompts with `python3 <skill-directory>/orchestrator/run_phase.py`.
@@ -28,7 +43,8 @@ When a step below tells you to prepare or dispatch a phase:
 - Pass short scalar placeholder values such as `{WORKTREE_PATH}`, `{IMPLEMENTATION_PLAN_PATH}`, and `{TEST_PLAN_PATH}` with `--set NAME=VALUE`.
 - Pass multiline values such as reviewer outputs with `--set-file NAME=PATH`.
 - When a multiline placeholder comes from command or subagent stdout, save it to a temp file immediately before wrapper invocation so you can bind it with `--set-file`.
-- Bind transcript placeholders such as `{USER_REQUEST_TRANSCRIPT}`, `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}`, and `{FULL_CONVERSATION_VERBATIM}` with `--transcript-placeholder NAME`.
+- Bind transcript placeholders with `--transcript-placeholder NAME`. Only the user-intent extraction phase should receive raw conversation transcript; later phases should receive `{USER_INTENT}` and explicit artifacts instead.
+- If live transcript lookup fails but you have an existing transcript file, bind that transcript with `--transcript-file NAME=PATH` instead of `--transcript-placeholder NAME`. Do not combine transcript binding flags or `--set`/`--set-file` for the same placeholder.
 - Use `--require-nonempty-tag TAG` when a prompt requires a tagged block to contain real content after trimming whitespace.
 - Use `--ignore-tag-for-placeholders TAG` when placeholder-like text may legitimately appear inside that tag.
 - If your environment has no native subagent support and the wrapper's fallback run does not function, escalate to the user.
@@ -38,28 +54,41 @@ The prompt builder still supports conditional blocks inside templates. A block g
 ## Workspace path convention
 
 Throughout this skill, `{WORKTREE_PATH}` means the directory where implementation happens:
-- In the default mode, it is the path to the dedicated git worktree created in Step 4.
+- In the default mode, it is the path to the dedicated git worktree created in Step 5.
 - If the user's request includes the literal flag `--no-worktree`, it is the path to the current already-isolated workspace instead.
 
 In `--no-worktree` mode, do not create a nested git worktree and do not create or switch branches in place. Reuse the current workspace only when the environment already proves it is isolated, such as a Conductor workspace.
 
 ## Transcript placeholder helper
 
-When a phase wrapper call needs `{USER_REQUEST_TRANSCRIPT}`, `{INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION}`, or `{FULL_CONVERSATION_VERBATIM}`:
+When a phase wrapper call needs `{FULL_CONVERSATION_VERBATIM}`:
 1. For Codex CLI, let the wrapper use direct session lookup by default.
 2. For Kimi CLI, always pass `--transcript-cli kimi-cli` on transcript-bearing wrapper calls and let direct session lookup run first.
 3. If the wrapper reports that a canary is required, run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` as a separate top-level command, capture stdout exactly as `{CANARY}`, then rerun the wrapper with `--canary "{CANARY}"`. For Kimi-hosted runs, keep `--transcript-cli kimi-cli` on the rerun as well.
 4. For Claude Code, always run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` as a separate top-level command first, capture stdout exactly as `{CANARY}`, then invoke the wrapper with `--transcript-cli claude-code --canary "{CANARY}"`.
 5. For OpenCode, always run `python3 <skill-directory>/orchestrator/user-request-transcript/mark_with_canary.py` as a separate top-level command first, capture stdout exactly as `{CANARY}`, then invoke the wrapper with `--transcript-cli opencode --canary "{CANARY}"`.
+6. If live lookup still fails and the current user request can be reconstructed from visible context, write that transcript to a temp file and rerun the wrapper with `--transcript-file NAME=<temp-file>` for the needed transcript placeholder. Use this only as a fallback, and bind each placeholder exactly once.
 
 The canary must be emitted by a separate top-level command so it reaches the live session transcript before lookup. Do not rely on shell-specific capture or assignment forms that may keep the canary out of visible command output; shells and host wrappers vary, and if the canary is not visibly emitted into the session transcript, lookup will fail. Build transcript placeholder values immediately before each phase wrapper call that uses them.
 Kimi and OpenCode support is explicit here because `host` and `auto` cannot reliably detect a Kimi host, and OpenCode requires canary-based lookup.
 
 When a step below references `{POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}`, use the extracted review observations JSON exactly as the placeholder value.
 
-When a step below references `{IMPLEMENTATION_PLAN_PATH}`, use the latest absolute plan path returned by the planning subagent in the current trycycle session. Update it after the initial planning result and after every plan-edit result.
+When a step below references `{ACCEPTANCE_ARTIFACT_REVIEW_OBSERVATIONS_JSON}`, use the extracted acceptance-artifact review observations JSON exactly as the placeholder value.
 
-When a step below references `{TEST_PLAN_PATH}`, use the latest absolute test-plan path returned by the test-plan subagent in the current trycycle session. Update it after every test-plan result.
+When a step below references `{LATEST_IMPLEMENTATION_REPORT}`, use the most recent implementation report returned by the implementation subagent. Bind it with `--set-file` from the temp-file path where you saved that report.
+
+When a step below references `{REVIEW_LOOP_HISTORY}`, use the accumulated acceptance-artifact and post-implementation review-loop history artifact from the current trycycle session.
+
+When a step below references `{IMPLEMENTATION_PLAN_PATH}`, use the latest absolute plan path returned by the planning subagent in the current trycycle session. Update it after the initial planning result, after every plan-edit result, and after every post-review plan-reconsideration result.
+
+When a step below references `{TEST_PLAN_PATH}`, use the latest absolute test-plan path returned by the test-plan subagent or post-review plan-reconsideration subagent in the current trycycle session. Update it after every test-plan result and every post-review plan-reconsideration result.
+
+When a step below references `{TESTING_STRATEGY_PATH}`, use the absolute path to the latest testing-strategy artifact for the current Trycycle run. Update it after every accepted testing-strategy result.
+
+When a step below references `{USER_INTENT_PATH}`, use the absolute path to the append-only user-intent artifact for the current Trycycle run.
+
+When a step below references `{USER_INTENT}`, bind the current contents of `{USER_INTENT_PATH}` with `--set-file USER_INTENT={USER_INTENT_PATH}`. Do not manually inline it. Any phase wrapper invocation that binds `{USER_INTENT}` must also pass `--ignore-tag-for-placeholders user_intent` because the artifact preserves relevant text verbatim and may legitimately contain placeholder-like code.
 
 When a step below references `{IMPLEMENTATION_BACKEND}`, use the resolved `dispatch.backend` returned by the initial implementation dispatch in the current trycycle session. Update it if you ever recreate the implementation session.
 
@@ -74,16 +103,42 @@ When a step below references `{IMPLEMENTATION_BACKEND}`, use the resolved `dispa
   - If no local override is configured and you can reliably identify your current model's exact backend name, pass that same model with `--model`. Otherwise omit `--model` and let the backend's local default apply.
   - Do not pass `--effort` unless the user explicitly asked for it or you are preserving a known parent setting. If the current effort is not safely knowable, omit it rather than guessing.
 - Planning subagents are ephemeral across plan-edit rounds so they can remain independent: spawn a fresh planning agent for the initial plan and for every plan-edit round until the plan is judged already excellent without changes.
+- Post-review plan-reconsideration checkpoints also use fresh planning subagents. They may update the implementation plan or test plan when implementation has exposed a real plan gap.
 - In native mode, implementation subagents are persistent: create one implementation agent, then resume it for every implementation-fix round.
 - In fallback-runner mode, implementation subagents are persistent through the runner: create one implementation session, record its `session_id`, then resume it through the runner for every implementation-fix round.
 - In fallback-runner mode, record the resolved `dispatch.backend` for persistent sessions and reuse that same backend on every `resume`.
-- Review subagents are ephemeral: create a fresh reviewer for each post-implementation review round.
-- For planning rounds, pass `{USER_REQUEST_TRANSCRIPT}` as the task input. Do not use the full prior conversation.
+- Review subagents are ephemeral: create a fresh acceptance-artifact reviewer and, when the acceptance gate passes, a fresh code reviewer for each verification round.
+- The user-intent extraction phase is the only phase that receives raw conversation transcript. All later phases receive `{USER_INTENT}` plus explicit artifacts such as the testing strategy, implementation plan, test plan, implementation report, review observations, and review-loop history.
 - Render the prompt template with the prompt builder and pass the rendered prompt verbatim.
 - User instructions still apply. When they are relevant, relay them.
 - If a subagent returns `USER DECISION REQUIRED:`, keep that same agent or session alive until the user's reply has been forwarded and the round has resolved.
+- The initial user-intent artifact is subagent-owned. Do not create it manually.
+- User intent freshness is conductor-owned after `{USER_INTENT_PATH}` exists. After every later user message, before dispatching or resuming any subagent, decide whether the new user message adds, removes, corrects, approves, rejects, narrows, broadens, prioritizes, supports an assistant proposal, or otherwise changes the user's intent, constraints, process requirements, scope, or acceptance criteria. If it does, append a new span entry under `## User Intent Updates, Oldest First` using the same verbatim span format as the initial artifact. This may include assistant-proposed text when the user has supported it. Preserve chronological order. Do not rewrite, reorder, summarize, infer, normalize, or regenerate earlier content.
 
 Example: if the user says "We're almost there, don't start over," relay that instruction.
+
+## Empty Task Result Repair (OpenCode native mode)
+
+OpenCode's native `task` tool can return empty `<task_result>` when a subagent's final assistant message contains no text parts (only tool calls or reasoning). This is a known OpenCode issue (see https://github.com/anomalyco/opencode/issues/24447). The subagent session data is not lost — it is preserved in OpenCode's SQLite database.
+
+When using OpenCode in native mode: after dispatching any subagent, check the raw `<task_result>` block. If it contains only whitespace between the opening and closing tags (no visible text), the result is empty and must be repaired.
+
+To repair, extract the session ID from the task tool output (the `task_id` field — it starts with `ses_`) and run:
+
+```bash
+python3 <skill-directory>/orchestrator/repair_empty_result.py --session-id <session-id>
+```
+
+Read the script's stdout and treat it as the subagent's actual result. This is deterministic — it reads structured part data from the subagent's session database, no AI re-prompting needed.
+
+The script extracts:
+- Tool calls and their outputs from the most recent steps in the subagent session
+- Model reasoning from the final step
+- Relevant text from the final step
+
+If the script returns "(no extractable content found in subagent session parts)", escalate to the user. If the script exits with a non-zero status (database not found, session not found, schema error), note the error and escalate as well — the orchestrator cannot recover those cases without user input.
+
+The script auto-detects the OpenCode database location. If that fails, pass `--db-path` explicitly or direct the user to set `OPENCODE_DB_PATH` or `OPENCODE_DATA_DIR`.
 
 ## 1) Version check
 
@@ -105,21 +160,29 @@ If there are critical unknowns, list each blocking question succinctly as:
 
 If more than one blocking question exists, ask them together. Proceed once the blocking questions have been answered.
 
-## 3) Testing strategy
+## 3) Prepare user intent (subagent-owned)
 
-If the task specification already includes detailed instructions for testing, you will use it and skip to step 4.
+Create a temp file path for `{USER_INTENT_PATH}`. Do not write the initial artifact yourself.
 
-Otherwise, dispatch a subagent to analyze the task and the codebase and propose a testing strategy.
-
-Immediately before dispatch, prepare the `test-strategy` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-test-strategy.md`, `--transcript-placeholder INITIAL_REQUEST_AND_SUBSEQUENT_CONVERSATION`, and `--require-nonempty-tag context`.
+Immediately before dispatch, prepare the `user-intent` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-user-intent.md`, `--set USER_INTENT_PATH={USER_INTENT_PATH}`, `--transcript-placeholder FULL_CONVERSATION_VERBATIM`, `--require-nonempty-tag conversation`, and `--ignore-tag-for-placeholders conversation`, then dispatch a fresh subagent with the returned `prompt_path`.
 
 Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 
-When the subagent returns a proposed strategy, present it to the user verbatim and ask for explicit approval or edits. Then close that completed test-strategy subagent and clear any saved handle or `session_id` for it. Do not proceed unless the user explicitly accepts it or provides changes. Silence, implied approval, or the subagent's own recommendation does not count as agreement. The strategy and any later test plan must not rely on manual QA or human validation; prefer reproducible artifacts such as browser snapshots when visual evidence is needed. Put the strongest weight on high-value automated checks that verify real user-visible behavior through the actual UI, CLI, HTTP surface, or other outputs the user consumes, rather than tests that only show the implementation is internally self-consistent. Prefer reusing or extending those checks when they already exist, and add new tests wherever the existing suite leaves meaningful gaps in coverage, fidelity, or diagnosis. If the problem statement or prior investigation already identifies automated checks that are red and must go green, the strategy and any later test plan must include them explicitly. If the user requests changes or redirects the approach, rerun the same `test-strategy` phase wrapper command immediately before redispatching. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry. Present the revised strategy verbatim. Repeat until the user explicitly approves a strategy.
+When the subagent returns, verify the report contains `## User intent path`, confirm it matches `{USER_INTENT_PATH}`, and confirm the file exists and is non-empty. Do not read or summarize the file contents. Close the completed user-intent subagent and clear any saved handle or `session_id`.
 
-The agreed testing strategy is used in step 7.
+## 4) Testing strategy
 
-## 4) Prepare implementation workspace
+Dispatch a subagent to analyze the user's intent artifact and the codebase, then propose a testing strategy.
+
+Immediately before dispatch, prepare the `test-strategy` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-test-strategy.md`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--require-nonempty-tag user_intent`, and `--ignore-tag-for-placeholders user_intent`.
+
+Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+
+When the subagent returns a proposed strategy, save the exact returned strategy to a temp file and set `{TESTING_STRATEGY_PATH}` to that path, then present it to the user verbatim and ask for explicit approval or edits. Then close that completed test-strategy subagent and clear any saved handle or `session_id` for it. Do not proceed unless the user explicitly accepts it or provides changes. Silence, implied approval, or the subagent's own recommendation does not count as agreement. The strategy and any later test plan must not rely on user/human validation; every test plan must include acceptance artifacts for a later blank-slate subagent to inspect against the user request without rerunning or recreating checks. Put the strongest weight on high-value automated checks that verify real user-visible behavior through the actual UI, CLI, HTTP surface, or other outputs the user consumes, rather than tests that only show the implementation is internally self-consistent. Prefer reusing or extending those checks when they already exist, and add new tests wherever the existing suite leaves meaningful gaps in coverage, fidelity, or diagnosis. If the problem statement or prior investigation already identifies automated checks that are red and must go green, the strategy and any later test plan must include them explicitly. After every user response to the strategy, run the user-intent freshness check before proceeding or redispatching. If the user requests changes or redirects the approach, rerun the same `test-strategy` phase wrapper command immediately before redispatching. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry. Save the revised strategy to `{TESTING_STRATEGY_PATH}` and present it verbatim. Repeat until the user explicitly approves a strategy.
+
+The agreed testing strategy is used in step 9 through `{TESTING_STRATEGY_PATH}`.
+
+## 5) Prepare implementation workspace
 
 Default behavior: before creating the worktree, fetch and fast-forward the base branch so the worktree starts from the latest code. Other agents may have merged changes while the user was reviewing earlier steps.
 
@@ -143,9 +206,9 @@ Immediately after preparing the implementation workspace, run:
 
 Do not continue until the branch is correct and the status is clean.
 
-## 5) Workspace hygiene gate (mandatory)
+## 6) Workspace hygiene gate (mandatory)
 
-Before and after each major phase (`plan-editing`, `execution`, `post-implementation review`), run:
+Before and after each major phase (`plan-editing`, `execution`, `acceptance-artifact review`, `post-implementation review`), run:
 - `git -C {WORKTREE_PATH} branch --show-current`
 - `git -C {WORKTREE_PATH} status --short`
 
@@ -158,14 +221,14 @@ After every subagent completion, also run:
 - changed-file list matches what the subagent reported
 - any dirty status is understood and intentional
 
-## 6) Plan with trycycle-planning (subagent-owned)
+## 7) Plan with trycycle-planning (subagent-owned)
 
 Spec writing must be done by a dedicated subagent.
 Only subagents read or write plan files.
 
 Spawn a fresh planning subagent for each planning round.
 
-Immediately before dispatch, prepare the `planning-initial` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-initial.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, and `--require-nonempty-tag task_input_json`.
+Immediately before dispatch, prepare the `planning-initial` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-initial.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--require-nonempty-tag user_intent`, and `--ignore-tag-for-placeholders user_intent`.
 
 Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 
@@ -173,40 +236,40 @@ Wait for the planning subagent to return either:
 - a planning report containing `## Plan verdict`, `## Plan path`, `## Commit`, and `## Changed files`
 - or a report beginning with `USER DECISION REQUIRED:`
 
-If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either a planning report or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, run the user-intent freshness check, send the user's answer back to that active planning subagent, and wait again for either a planning report or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 
 If a planning report was returned, update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path`, then run the workspace hygiene gate checks, verify the latest commit hash plus changed-file list match the planning subagent's report, confirm the plan file exists at `{IMPLEMENTATION_PLAN_PATH}`, then close that planning subagent and clear any saved handle or `session_id` for it.
 
-## 7) Plan-editor loop (up to 5 rounds)
+## 8) Plan-editor loop (up to 5 rounds)
 
 Deploy a fresh planning subagent to critique the current plan against the user's request and the repo, then either declare it already excellent unchanged or improve it directly.
 
-The plan editor is stateless: each round is a fresh first-look pass with only the template, the same task input used for initial planning, and the current plan.
+The plan editor is stateless: each round is a fresh first-look pass with only the template, the same user-intent artifact used for initial planning, and the current plan.
 
-Immediately before each edit dispatch, prepare the `planning-edit` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-edit.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--transcript-placeholder USER_REQUEST_TRANSCRIPT`, and `--require-nonempty-tag task_input_json`, then dispatch a fresh planning subagent with the returned `prompt_path`.
+Immediately before each edit dispatch, prepare the `planning-edit` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-edit.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--require-nonempty-tag user_intent`, and `--ignore-tag-for-placeholders user_intent`, then dispatch a fresh planning subagent with the returned `prompt_path`. Start a phase prompt paths temp file if needed, and append the returned `prompt_path`.
 
 Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 
 After each edit round:
-1. Wait for the planning subagent to return either an updated planning report containing `## Plan verdict`, `## Plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
-2. If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, send the user's answer back to that active planning subagent, and wait again for either an updated planning report or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+1. Wait for the planning subagent to return either an updated planning report containing `## Plan verdict`, `## Critical issues`, `## Plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
+2. If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, run the user-intent freshness check, send the user's answer back to that active planning subagent, and wait again for either an updated planning report or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 3. Update `{IMPLEMENTATION_PLAN_PATH}` from `## Plan path` in the latest planning report.
 4. Run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
-5. Close that planning subagent for the completed round and clear any saved handle or `session_id` for it.
-6. If `## Plan verdict` is `READY`, continue to step 8 with the current `{IMPLEMENTATION_PLAN_PATH}`. **If the verdict is NOT `READY`, do NOT proceed to step 8 - continue to step 7 for another planning round.**
+5. Start a loop outputs temp file if needed, save the returned planning report to a temp file, append that path, then close that planning subagent for the completed round and clear any saved handle or `session_id` for it.
+6. If `## Plan verdict` is `READY`, continue to step 9 with the current `{IMPLEMENTATION_PLAN_PATH}`. **If the verdict is NOT `READY`, do NOT proceed to step 9 - continue to step 8 for another planning round.**
 7. If `## Plan verdict` is `REVISED`, repeat with a fresh planning subagent.
 8. Repeat up to 5 rounds.
 
-If the plan still is not judged ready after the 5th editor round: **STOP. Do NOT proceed to step 8.**
+If the plan still is not judged ready after the 5th editor round: **STOP. Do NOT proceed to step 9.**
 1. Stop looping.
-2. Dispatch a subagent to review past subagent sessions and hypothesize why the loop is not converging. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+2. Prepare the `nonconvergence-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-nonconvergence-review.md`, `--set TRYCYCLE_SKILL_PATH=<skill-directory>/SKILL.md`, `--set NONCONVERGENCE_CONTEXT="Plan-editor loop reached 5 rounds without a READY verdict."`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH="Not built yet; the plan-editor loop did not converge before the test-plan phase."`, `--set-file PHASE_PROMPT_PATHS=<phase-prompt-paths-temp-file>`, `--set-file LOOP_OUTPUT_PATHS=<loop-outputs-temp-file>`, `--set IMPLEMENTATION_REPORT_PATHS="Not applicable; execution did not start."`, `--set-file USER_INTENT={USER_INTENT_PATH}`, and `--ignore-tag-for-placeholders user_intent`, then dispatch a subagent with the returned `prompt_path`. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 3. Present that report and the latest planning report to the user and **await user instructions before taking any further action.**
 
-## 8) Build test plan (subagent-owned)
+## 9) Build test plan (subagent-owned)
 
 Now that the implementation plan has passed the plan-editor loop and is finalized, dispatch a subagent to reconcile the testing strategy against the plan and produce the concrete test plan, starting from high-value existing automated checks where they exist and adding new tests where coverage is missing.
 
-Immediately before dispatch, prepare the `test-plan` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-test-plan.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--transcript-placeholder FULL_CONVERSATION_VERBATIM`, and `--require-nonempty-tag conversation`.
+Immediately before dispatch, prepare the `test-plan` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-test-plan.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--set-file TESTING_STRATEGY={TESTING_STRATEGY_PATH}`, `--require-nonempty-tag user_intent`, `--require-nonempty-tag testing_strategy`, `--ignore-tag-for-placeholders user_intent`, and `--ignore-tag-for-placeholders testing_strategy`.
 
 Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 
@@ -214,12 +277,12 @@ When the subagent returns:
 
 1. Update `{TEST_PLAN_PATH}` from `## Test plan path` in the latest test-plan report.
 2. If the test-plan report includes `## Strategy changes requiring user approval`, present that section to the user verbatim.
-3. If the user requests changes or redirects the approach, close that completed test-plan subagent and clear any saved handle or `session_id` for it, then rerun the same `test-plan` phase wrapper command immediately before redispatching. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry. Update `{TEST_PLAN_PATH}` from the latest test-plan report. Repeat until the user explicitly approves or the report no longer includes that section.
+3. If the user requests changes or redirects the approach, run the user-intent freshness check, close that completed test-plan subagent and clear any saved handle or `session_id` for it, then rerun the same `test-plan` phase wrapper command immediately before redispatching. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry. Update `{TEST_PLAN_PATH}` from the latest test-plan report. Repeat until the user explicitly approves or the report no longer includes that section.
 4. Do not proceed until the current test-plan report either has no `## Strategy changes requiring user approval` section or the user has explicitly approved it.
 5. Run the workspace hygiene gate checks, verify the latest commit hash plus changed-file list match the test-plan subagent's report, and verify the test plan file exists at `{TEST_PLAN_PATH}`.
 6. Close the completed test-plan subagent for the approved report and clear any saved handle or `session_id` for it.
 
-## 9) Execute with trycycle-executing (subagent-owned)
+## 10) Execute with trycycle-executing (subagent-owned)
 
 Code implementation must be done by a new, dedicated subagent.
 
@@ -234,30 +297,43 @@ If the rebase has conflicts, stop and present them to the user.
 
 Spawn a fresh implementation subagent and give it the final excellent plan.
 
-The implementation subagent stays in execute mode until the plan is complete, the work has gone through red/green/refactor cycles as needed, and all required automated tests are passing for legitimate reasons. Failed checks mean keep improving the code and tests unless there is a genuine blocker. Do not accept weakened or deleted valid tests as a shortcut to green.
+The implementation subagent stays in execute mode until the plan is complete, the work has gone through red/green/refactor cycles as needed, all required automated tests are passing for legitimate reasons, and the acceptance artifacts required by the test plan have been produced. Failed checks or acceptance-artifact gaps mean keep improving the code, tests, and evidence unless there is a genuine blocker. Do not accept weakened or deleted valid tests as a shortcut to green.
 
-Immediately before dispatch, prepare the `executing` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, and `--set WORKTREE_PATH={WORKTREE_PATH}`, then dispatch the implementation subagent with the returned `prompt_path`.
+Immediately before dispatch, prepare the `executing` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, and `--ignore-tag-for-placeholders user_intent`, then dispatch the implementation subagent with the returned `prompt_path`. Start a phase prompt paths temp file if needed, and append the returned `prompt_path`.
 
 In fallback-runner mode, record the returned `dispatch.backend` as `{IMPLEMENTATION_BACKEND}` alongside the saved `session_id`.
 
 Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
 If you kill and retry this implementation round, create a fresh implementation subagent or runner session and replace the saved implementation handle. In fallback-runner mode, also replace the saved `session_id` and `{IMPLEMENTATION_BACKEND}` with the fresh dispatch values.
 
-Do not proceed to post-implementation review until the implementation subagent has returned an implementation report.
+Do not proceed to acceptance-artifact review until the implementation subagent has returned an implementation report. Start an implementation reports temp file if needed, save the report to a temp file immediately, append that path, and treat that saved file as the latest implementation report for the first acceptance-artifact review prompt.
 
-After implementation completes, run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before launching post-implementation review.
+After implementation completes, run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before launching acceptance-artifact review.
 
-## 10) Post-implementation review loop (up to 8 rounds)
+## 11) Acceptance-artifact and post-implementation review loop (up to 8 rounds by default)
 
-After execution completes, deploy a new reviewer with no prior context and give it the finalized implementation plan plus the finalized test plan.
+After execution completes, start the verification loop. Every loop round begins with a fresh acceptance-artifact reviewer with no prior context. It receives the user intent, finalized test plan, latest implementation report, and produced artifacts. It must not rerun tests, recreate screenshots, launch services, regenerate files, or inspect implementation internals. Its only job is to decide whether the artifacts conclusively demonstrate that the user request was satisfied.
 
-Immediately before dispatch, prepare the `post-implementation-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-post-impl-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, and `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, then dispatch a review subagent with the returned `prompt_path`.
+If the acceptance-artifact reviewer finds blocking gaps, treat them exactly like failed tests: skip the code-review subagent for that round and send the extracted observations back to the implementation subagent. If the acceptance-artifact reviewer passes, then deploy a fresh code reviewer with no prior context and give it the finalized implementation plan plus the finalized test plan.
 
-Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+Create an empty temp file for `{REVIEW_LOOP_HISTORY}` before starting the first verification round, then append the implementation subagent's initial implementation report to it.
 
-Use the review subagent's output as the fix-loop input. As soon as you have captured the reviewer's stdout or decided the review loop is done, close that completed review subagent and clear any saved handle or `session_id` for it.
+At the start of every verification round, run the acceptance-artifact review gate:
+1. Immediately before dispatch, prepare the `acceptance-artifact-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-acceptance-artifact-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set-file LATEST_IMPLEMENTATION_REPORT=<latest-implementation-report-temp-file>`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--ignore-tag-for-placeholders latest_implementation_report`, and `--ignore-tag-for-placeholders user_intent`, then dispatch a fresh acceptance-artifact review subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
+2. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+3. Save the acceptance-artifact reviewer's raw stdout to a temp file immediately and extract a structured review-observations artifact from it using the extractor command below.
+4. Close that completed acceptance-artifact review subagent and clear any saved handle or `session_id` for it.
+5. If the extracted artifact reports `blocking_issue_count > 0`, use that acceptance-artifact review output as the fix-loop input for this verification round. Do not dispatch a code-review subagent for this round.
+6. If the extracted artifact reports `blocking_issue_count: 0`, continue to code review for this same verification round.
 
-After every review round, save the reviewer's raw stdout to a temp file immediately and extract a structured review-observations artifact from it:
+When acceptance-artifact review passes for a round, run the code-review gate:
+1. Immediately before dispatch, prepare the `post-implementation-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-post-impl-review.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set-file LATEST_IMPLEMENTATION_REPORT=<latest-implementation-report-temp-file>`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--ignore-tag-for-placeholders latest_implementation_report`, and `--ignore-tag-for-placeholders user_intent`, then dispatch a review subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
+2. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+3. Save the code reviewer's raw stdout to a temp file immediately and extract a structured review-observations artifact from it using the extractor command below.
+4. Use the code reviewer's output as the fix-loop input for this verification round.
+5. Close that completed review subagent and clear any saved handle or `session_id` for it.
+
+After every acceptance-artifact review or code-review output, extract a structured review-observations artifact:
 
 ```bash
 python3 <skill-directory>/orchestrator/review_observations.py extract \
@@ -273,26 +349,52 @@ Treat the extractor's JSON stdout as authoritative for:
 
 If extraction fails, stop and surface the review reply plus the extractor failure to the user rather than guessing.
 
-When another fix round is needed:
-1. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>`, and `--ignore-tag-for-placeholders post_implementation_review_observations_json`.
-2. In native mode, resume the same implementation subagent and send the exact returned `prompt_path` contents verbatim. In fallback-runner mode, resume the implementation session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using the saved `session_id`, `--backend {IMPLEMENTATION_BACKEND}`, and the wrapper-prepared `prompt_path`.
-3. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
-4. If you kill and retry this implementation round, create a fresh implementation subagent or runner session and replace the saved implementation handle. In fallback-runner mode, also replace the saved `session_id` and `{IMPLEMENTATION_BACKEND}` with the fresh dispatch values.
+Start a loop outputs temp file if needed. Append each acceptance-artifact review or code-review reply path and extracted review-observations path to it.
 
-After each implementation-subagent fix round, run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next fresh review round.
+After extraction succeeds, append the completed verification round number, the review type (`acceptance-artifact` or `code-review`), the reviewer's raw stdout, and the normalized review-observations JSON to `{REVIEW_LOOP_HISTORY}`.
+
+When blocking issues remain after a verification round, first check whether the loop has reached its stop point. The default stop point is 8 completed verification rounds, but the user can override that like any other instruction.
+
+Before either dispatching another fix round or running nonconvergence review, check whether plan reconsideration is due. Plan reconsideration is due when blocking issues remain and either:
+- The completed verification round is even-numbered and greater than 2: the 4th, 6th, 8th, and every 2 rounds thereafter if the user overrides the stop point.
+- The loop has reached its configured stop point. This means nonconvergence review always runs after a plan-reconsideration checkpoint when the loop stops with blockers, even if the user chose a stop point that would not otherwise trigger the even-round cadence.
+
+If plan reconsideration is due, run this checkpoint before the next action:
+- Prepare the `planning-reconsider` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-planning-reconsider.md`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set REVIEW_ROUND_NUMBER=<completed-verification-round-number>`, `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>`, `--set-file REVIEW_LOOP_HISTORY=<review-loop-history-temp-file>`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--require-nonempty-tag user_intent`, `--require-nonempty-tag review_loop_history`, `--ignore-tag-for-placeholders user_intent`, `--ignore-tag-for-placeholders post_implementation_review_observations_json`, and `--ignore-tag-for-placeholders review_loop_history`, then dispatch a fresh planning subagent with the returned `prompt_path`. Append the returned `prompt_path` to the phase prompt paths temp file.
+- Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+- Wait for either a report containing `## Plan reconsideration verdict`, `## Implementation plan path`, `## Test plan path`, `## Commit`, and `## Changed files`, or a report beginning with `USER DECISION REQUIRED:`.
+- If the planning subagent returns `USER DECISION REQUIRED:`, present that question to the user, run the user-intent freshness check, send the user's answer back to that active planning subagent, and wait again for either a plan-reconsideration report or another `USER DECISION REQUIRED:` report. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+- Update `{IMPLEMENTATION_PLAN_PATH}` from `## Implementation plan path` and `{TEST_PLAN_PATH}` from `## Test plan path` in the latest plan-reconsideration report.
+- Run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the planning subagent's report.
+- Save the plan-reconsideration report to a temp file and append that path to the loop outputs temp file.
+- Append the plan-reconsideration report itself to `{REVIEW_LOOP_HISTORY}` under a clear plan-reconsideration heading so future plan-reconsideration checkpoints receive prior analyses. This history is for planning and final nonconvergence analysis; do not add it to executor or reviewer prompts.
+- Close that planning subagent and clear any saved handle or `session_id` for it.
 
 Stop when either condition is met:
 1. The extracted review-observations artifact reports `blocking_issue_count: 0`.
-2. 8 rounds have been completed.
+2. The configured stop point has been reached. By default, this is 8 completed verification rounds.
 
-If the latest extracted review-observations artifact still reports `blocking_issue_count > 0` after the 8th review:
-1. Stop looping.
-2. Dispatch a subagent to review past subagent sessions and hypothesize why the loop is not converging. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
+Evaluate the stop condition only after the round's final review-observations artifact: the acceptance-artifact artifact if acceptance blocked and code review was skipped, or the code-review artifact if acceptance passed and code review ran. Do not finish the loop merely because acceptance-artifact review passed; code review must also pass for the same latest implementation report.
+
+If the latest extracted review-observations artifact still reports `blocking_issue_count > 0` after the configured stop point:
+1. Stop looping. Do not dispatch another implementation fix round.
+2. Prepare the `nonconvergence-review` phase via the phase wrapper using template `<skill-directory>/subagents/prompt-nonconvergence-review.md`, `--set TRYCYCLE_SKILL_PATH=<skill-directory>/SKILL.md`, `--set NONCONVERGENCE_CONTEXT="Acceptance-artifact and post-implementation review loop stopped after <completed-verification-round-number> verification rounds while blockers remained."`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set-file PHASE_PROMPT_PATHS=<phase-prompt-paths-temp-file>`, `--set-file LOOP_OUTPUT_PATHS=<loop-outputs-temp-file>`, `--set-file IMPLEMENTATION_REPORT_PATHS=<implementation-reports-temp-file>`, `--set-file USER_INTENT={USER_INTENT_PATH}`, and `--ignore-tag-for-placeholders user_intent`, then dispatch a subagent with the returned `prompt_path`. Monitor by checking every 5 minutes until 60 minutes have passed. Then, and only then, kill it and retry.
 3. Present that report and the latest review output to the user and await user instructions.
 
-## 11) Finish
+If blockers remain and the configured stop point has not been reached, continue with the fix round:
+1. Prepare the `executing` phase again via the phase wrapper using template `<skill-directory>/subagents/prompt-executing.md`, `--set IMPLEMENTATION_PLAN_PATH={IMPLEMENTATION_PLAN_PATH}`, `--set TEST_PLAN_PATH={TEST_PLAN_PATH}`, `--set WORKTREE_PATH={WORKTREE_PATH}`, `--set-file USER_INTENT={USER_INTENT_PATH}`, `--ignore-tag-for-placeholders user_intent`, and the latest blocking observation file:
+   - If the latest blocking observations came from acceptance-artifact review, pass `--set-file ACCEPTANCE_ARTIFACT_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>` and `--ignore-tag-for-placeholders acceptance_artifact_review_observations_json`.
+   - If the latest blocking observations came from code review, pass `--set-file POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON=<review-observations-temp-file>` and `--ignore-tag-for-placeholders post_implementation_review_observations_json`.
+   Append the returned `prompt_path` to the phase prompt paths temp file. The executing prompt must treat only `critical` and `major` observations as critical issues and required fix targets; `minor` and `nit` observations are not required fix targets.
+2. In native mode, resume the same implementation subagent and send the exact returned `prompt_path` contents verbatim. In fallback-runner mode, resume the implementation session through `python3 <skill-directory>/orchestrator/subagent_runner.py resume` using the saved `session_id`, `--backend {IMPLEMENTATION_BACKEND}`, and the wrapper-prepared `prompt_path`.
+3. Monitor by checking every 5 minutes until 180 minutes have passed. Then, and only then, kill it and retry.
+4. If you kill and retry this implementation round, create a fresh implementation subagent or runner session and replace the saved implementation handle. In fallback-runner mode, also replace the saved `session_id` and `{IMPLEMENTATION_BACKEND}` with the fresh dispatch values. Keep any paths already appended for the killed attempt; they are useful evidence if nonconvergence analysis is needed.
 
-Once the post-implementation review loop passes (`blocking_issue_count: 0`):
+After each implementation-subagent fix round, save the returned implementation report to a temp file, append that path to the implementation reports temp file, treat that saved file as the latest implementation report for the next acceptance-artifact review prompt, append the report to `{REVIEW_LOOP_HISTORY}`, then run the workspace hygiene gate checks and verify the latest commit hash plus changed-file list match the implementation subagent's report before starting the next verification round. Every new verification round starts with acceptance-artifact review; do not dispatch another code-review subagent until acceptance-artifact review passes for the latest implementation report.
+
+## 12) Finish
+
+Once the acceptance-artifact and post-implementation review loop passes (`blocking_issue_count: 0`):
 
 Clean up temporary artifacts created during the loop (for example plan scratch files and temp notes), then run:
 - `git -C {WORKTREE_PATH} status --short`
@@ -301,17 +403,18 @@ Clean up temporary artifacts created during the loop (for example plan scratch f
 
 If the implementation subagent is still open, close it and clear its saved handle or `session_id` before handing off to finishing.
 
-Report the process to the user in this format:
+Finally, in one paragraph, briefly describe what was built/accomplished/changed/fixed. Then report the process to the user in this format, using concrete facts and returned artifacts:
 
 ```
 ## Trycycle Session Report
 
-| Phase            | Rounds | Result                                      |
-|------------------|--------|---------------------------------------------|
-| Planning         | {N}/5  | {READY on round N / ESCALATED to user}      |
-| Test plan        | 1      | {approved / revised N times}                |
-| Implementation   | 1      | {complete}                                  |
-| Review           | {N}/8  | {clean on round N / ESCALATED to user}      |
+| Phase                      | Rounds | Result                                      |
+|----------------------------|--------|---------------------------------------------|
+| Planning                   | {N}/5  | {READY on round N / ESCALATED to user}      |
+| Test plan                  | 1      | {approved / revised N times}                |
+| Implementation             | 1      | {complete}                                  |
+| Acceptance-artifact review | {N}/8  | {conclusive on round N / ESCALATED to user} |
+| Code review                | {N}/8  | {clean on round N / ESCALATED to user}      |
 
 **Convergence:** plan locked in {N} round(s), review passed in {N} round(s)
 **HEAD:** `{short hash}`
@@ -320,6 +423,7 @@ Report the process to the user in this format:
 
 **Implementation summary:** {from the implementation subagent's latest report}
 **Verification results:** {from the implementation subagent's latest report}
+**Acceptance artifacts:** {the artifacts the acceptance reviewer judged}
 **Residual issues:** {any non-blocking issues from the final review, or "none"}
 ```
 

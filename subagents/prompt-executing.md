@@ -14,6 +14,10 @@ All other trycycle-executing behaviors remain in effect (run verifications, foll
 
 The test plan is at `{TEST_PLAN_PATH}`.
 
+<user_intent>
+{USER_INTENT}
+</user_intent>
+
 Work in the implementation workspace at `{WORKTREE_PATH}`.
 
 {{#if POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}}
@@ -22,14 +26,26 @@ Work in the implementation workspace at `{WORKTREE_PATH}`.
 </post_implementation_review_observations_json>
 {{/if}}
 
+{{#if ACCEPTANCE_ARTIFACT_REVIEW_OBSERVATIONS_JSON}}
+<acceptance_artifact_review_observations_json>
+{ACCEPTANCE_ARTIFACT_REVIEW_OBSERVATIONS_JSON}
+</acceptance_artifact_review_observations_json>
+{{/if}}
+
 A skipped test is a failed test — there are no "legitimate" skips in a final run. After running tests, if ANY test was skipped: identify why it skipped, then make it run and pass. Exhaust every option to make it run. If after genuine effort a test still cannot run and pass without weakening it, halt immediately, write a postmortem of what you tried, and escalate to the user. Never report success while any tests remain skipped.
 
 Implement using TDD: for each feature or component, first establish the red state with the highest-priority automated check or checks from the test plan. Reuse or extend high-value existing tests when they already cover the behavior; when coverage is missing, write the new failing test or tests first. If the test plan specifies harnesses to build, build those first.
 
-{{#if POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}}Fix the implementation against the attached review observations directly. Treat them as observed evidence and verification targets, not as optional suggestions.{{/if}}
+Use `<user_intent>` to detect conflicts between the plan and the recorded user intent. If the plan or test plan appears to contradict user intent in a way that changes the required outcome, stop with a blocker instead of guessing.
+
+After automated tests/checks pass, produce the acceptance artifacts required by the test plan. Prefer `{WORKTREE_PATH}/.trycycle-artifacts/` for transient artifacts. Preserve existing artifacts; do not rely on the implementation report alone as evidence. If a requested outcome has no durable artifact, capture a command transcript, log, generated output, screenshot, browser snapshot, service transcript, or other artifact that lets a blank-slate subagent compare the user request to the evidence without rerunning anything.
+
+{{#if POST_IMPLEMENTATION_REVIEW_OBSERVATIONS_JSON}}Fix the implementation against the attached review observations with severity `critical` or `major`. Treat those critical issues as observed evidence and verification targets, not as optional suggestions. `minor` and `nit` observations are not required fix targets.{{/if}}
+{{#if ACCEPTANCE_ARTIFACT_REVIEW_OBSERVATIONS_JSON}}Fix the implementation or acceptance artifacts against the attached acceptance-artifact review observations with severity `critical` or `major`. Treat those gaps as failed verification: either the implementation must change, the tests/checks must produce better evidence, or both. `minor` and `nit` observations are not required fix targets.{{/if}}
 
 Commit your changes, then return a markdown report with these sections in this order:
 - `## Implementation summary` — concise implementation summary
 - `## Verification results` — verification commands and outcomes
+- `## Acceptance artifacts` — absolute paths to every preserved artifact, plus the user-facing behavior each artifact is meant to demonstrate and the command/test/action that produced it
 - `## Commit` — the latest short commit hash
 - `## Changed files` — one changed path per line

@@ -278,6 +278,91 @@ class RunPhaseTests(unittest.TestCase):
             self.assertIn("ship it", prompt_path.read_text(encoding="utf-8"))
             self.assertIn(str(workdir), prompt_path.read_text(encoding="utf-8"))
 
+    def test_prepare_supports_manual_transcript_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            workdir = tmp_path / "repo"
+            workdir.mkdir()
+            template_path = tmp_path / "template.md"
+            transcript_path = tmp_path / "manual-transcript.json"
+            template_path.write_text(
+                "<conversation>{FULL_CONVERSATION_VERBATIM}</conversation>\n",
+                encoding="utf-8",
+            )
+            transcript_path.write_text(
+                json.dumps(
+                    [
+                        {
+                            "role": "user",
+                            "text": "manual transcript request",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = self.run_phase(
+                "prepare",
+                "--phase",
+                "user-intent",
+                "--template",
+                str(template_path),
+                "--workdir",
+                str(workdir),
+                "--transcript-file",
+                f"FULL_CONVERSATION_VERBATIM={transcript_path}",
+                "--require-nonempty-tag",
+                "conversation",
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "prepared")
+            self.assertIsNone(payload["transcript_cli"])
+            self.assertEqual(
+                payload["transcript_paths"]["FULL_CONVERSATION_VERBATIM"],
+                str(transcript_path),
+            )
+            prompt_text = Path(payload["prompt_path"]).read_text(encoding="utf-8")
+            self.assertIn("manual transcript request", prompt_text)
+
+    def test_prepare_rejects_duplicate_placeholder_bindings_before_transcript_lookup(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            workdir = tmp_path / "repo"
+            workdir.mkdir()
+            template_path = tmp_path / "template.md"
+            missing_search_root = tmp_path / "missing-sessions"
+            template_path.write_text(
+                "<conversation>{FULL_CONVERSATION_VERBATIM}</conversation>\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_phase(
+                "prepare",
+                "--phase",
+                "user-intent",
+                "--template",
+                str(template_path),
+                "--workdir",
+                str(workdir),
+                "--set",
+                "FULL_CONVERSATION_VERBATIM=/tmp/manual-transcript.md",
+                "--transcript-placeholder",
+                "FULL_CONVERSATION_VERBATIM",
+                "--transcript-cli",
+                "codex-cli",
+                "--transcript-search-root",
+                str(missing_search_root),
+            )
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("Duplicate placeholder binding", result.stderr)
+            self.assertIn("FULL_CONVERSATION_VERBATIM", result.stderr)
+            self.assertIn("--set", result.stderr)
+            self.assertIn("--transcript-placeholder", result.stderr)
+            self.assertNotIn("canary is required", result.stderr)
+
     def test_prepare_supports_claude_canary_lookup(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
